@@ -102,6 +102,8 @@ function solveQuartic(a,b,c,d,e,r){if(Math.abs(a)<=1e-12*(Math.abs(b)+Math.abs(c
 
 // screen box from the edges' projected control points (closed form; bounds the edges, not a fold's bulge)
 function inBox(c,x,y){return x>=c.bx0&&x<=c.bx1&&y>=c.by0&&y<=c.by1}
+// the bulge box: the control-point box widened by the piece's outline points (see bulgeBox on the page)
+function inWalkBox(c,x,y){return x>=c.wx0&&x<=c.wx1&&y>=c.wy0&&y<=c.wy1}
 // inside the 4 edges: all K ≥ 0
 function insideEdges(c,x,y){return kArc(c.ka0,x,y)>=0&&kArc(c.ka1,x,y)>=0&&kArc(c.ka2,x,y)>=0&&kArc(c.ka3,x,y)>=0}
 // one pixel row against one edge: f·down(t) − (Y − W/2)·forward(t) = 0 (quadratic; linear for a straight edge); crossings with t in [0, 1) inserted sorted into xs[0..n)
@@ -118,10 +120,10 @@ function crossRow(c,Y,xs){var n=crossEdge(c.ce0,Y,xs,0);n=crossEdge(c.ce1,Y,xs,n
 // ---------- packed: every piece's numbers in one flat Float64Array, PSTRIDE numbers per piece, ordered by how often they are used ----------
 // per pixel (ray) → per span (edge K) → per row (crossings) → per frame (box) → P(u, v). Inside a span nothing is read from it:
 // the values that change along the row are set up once at the span's first pixel and stepped in local variables.
-var PSTRIDE=240,O_D0=0,O_DX=3,O_DY=6,O_A=9,O_BO=15,O_CQ=18,O_SGN=19,O_PL=20,O_O=36,O_C0=39,O_SC=42,O_SIG=43,O_K=48,O_R=96,O_BOX=144,O_M=152;
+var PSTRIDE=240,O_D0=0,O_DX=3,O_DY=6,O_A=9,O_BO=15,O_CQ=18,O_SGN=19,O_PL=20,O_O=36,O_C0=39,O_SC=42,O_SIG=43,O_K=48,O_R=96,O_BOX=144,O_WBOX=148,O_M=152;
 // O_A: A00 A01 A02 A11 A12 A22 · O_PL: per plane n_x n_y n_z so (4 × 4) · O_K: per edge t b1x b1y b10 b0x b0y b00 b2x b2y b20 c sg (4 × 12)
-// O_R: per edge straight w r0 d0 z0 r1 d1 z1 r2 d2 z2 – (4 × 12) · O_BOX: bx0 bx1 by0 by1 · O_M (P(u, v)): n (4 × 3) h (4) A (6) g (3) k sc c0 (3) corners (4 × 3) arcs (4 × 10: p0 a p2 w)
-function packLayout(){return{PSTRIDE:PSTRIDE,O_D0:O_D0,O_DX:O_DX,O_DY:O_DY,O_A:O_A,O_BO:O_BO,O_CQ:O_CQ,O_SGN:O_SGN,O_PL:O_PL,O_O:O_O,O_C0:O_C0,O_SC:O_SC,O_SIG:O_SIG,O_K:O_K,O_R:O_R,O_BOX:O_BOX,O_M:O_M}}
+// O_R: per edge straight w r0 d0 z0 r1 d1 z1 r2 d2 z2 – (4 × 12) · O_BOX: bx0 bx1 by0 by1 (edges' control points) · O_WBOX: wx0 wx1 wy0 wy1 (bulge box) · O_M (P(u, v)): n (4 × 3) h (4) A (6) g (3) k sc c0 (3) corners (4 × 3) arcs (4 × 10: p0 a p2 w)
+function packLayout(){return{PSTRIDE:PSTRIDE,O_D0:O_D0,O_DX:O_DX,O_DY:O_DY,O_A:O_A,O_BO:O_BO,O_CQ:O_CQ,O_SGN:O_SGN,O_PL:O_PL,O_O:O_O,O_C0:O_C0,O_SC:O_SC,O_SIG:O_SIG,O_K:O_K,O_R:O_R,O_BOX:O_BOX,O_WBOX:O_WBOX,O_M:O_M}}
 function arcAtP(B,o,t,ar){var r=1-t,b0=r*r,b1=2*B[o+9]*r*t,b2=t*t,s=1/(b0+b1+b2);ar[0]=(B[o]*b0+B[o+3]*b1+B[o+6]*b2)*s;ar[1]=(B[o+1]*b0+B[o+4]*b1+B[o+7]*b2)*s;ar[2]=(B[o+2]*b0+B[o+5]*b1+B[o+8]*b2)*s}
 // P(u, v) from the packed block (same formulas as pointAt)
 function pointAtP(B,m,u,v,out,ar){var iu=1-u,iv=1-v;
