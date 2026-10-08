@@ -70,7 +70,7 @@ tr:last-child td{border-bottom:0}
   <div class="crow"><span class="clab">Mesh</span><div class="seg" id="g-mesh"><button data-v="0">Smooth cube</button><button data-v="1">Hard cube</button><button data-v="2">Mixed cube</button><button data-v="3">Wave</button></div></div>
   <div class="crow"><span class="clab">Blending</span><div class="slider"><input id="blend" type="range" min="0" max="0.45" step="0.005" value="0.03" aria-label="Blending distance, fraction of edge length"><output id="blendo"></output></div></div>
   <div class="crow"><span class="clab">Normal length</span><div class="seg" id="g-len"><button data-v="0.5">× 0.5</button><button data-v="1">× 1</button><button data-v="1.5">× 1.5</button><button data-v="2">× 2</button></div></div>
-  <div class="crow"><span class="clab">Show</span><div class="seg" id="g-show"><button data-k="surf">Surfaces</button><button data-k="crackc">Colour by crack</button><button data-k="handles">Handles</button><button data-k="cage">Cage</button></div></div>
+  <div class="crow"><span class="clab">Show</span><div class="seg" id="g-show"><button data-k="overlays">Overlays</button><button data-k="surf">Surfaces</button><button data-k="crackc">Colour by crack</button><button data-k="handles">Handles</button><button data-k="cage">Cage</button></div></div>
   <p class="note">Blending is a fraction of the average edge length at each vertex. Normal length multiplies every source normal, to see how the length changes the bulge.</p>
 </section>
 
@@ -247,7 +247,7 @@ function build(Q,beta){STATS={arcs:0,splits:0,fail:0,art:[]};UNSUP=0;
 function roundedBoxDist(p,r){const h=1-r,q=p.map(x=>Math.abs(x)-h),o=Math.hypot(Math.max(q[0],0),Math.max(q[1],0),Math.max(q[2],0));return o+Math.min(Math.max(q[0],q[1],q[2]),0)-r}
 
 // ---------- view ----------
-let st={mesh:1,beta:0.03,lm:1,handles:true,cage:true,surf:true,crackc:false,yaw:0.7,pitch:0.55},R=null;
+let st={overlays:true,mesh:1,beta:0.03,lm:1,handles:true,cage:true,surf:true,crackc:false,yaw:0.7,pitch:0.55},R=null;
 try{const s=JSON.parse(localStorage.getItem('ha')||'null');if(s)Object.assign(st,s)}catch(e){}
 const save=()=>{try{localStorage.setItem('ha',JSON.stringify(st))}catch(e){}};
 const cv=document.getElementById('cv'),ctx=cv.getContext('2d');let C={};
@@ -262,9 +262,10 @@ function draw(){const dp=window.devicePixelRatio||1,W=Math.round(cv.clientWidth*
       const t=Math.min(1,(isFinite(pc.crack)?pc.crack:1e9)/(0.01*R.edgeLen)),cc=st.crackc?good.map((v,k)=>v+(bad[k]-v)*t):base[pc.kind];
       for(let j=0;j<G;j++)for(let i=0;i<G;i++){const q=[pts[j][i],pts[j][i+1],pts[j+1][i+1],pts[j+1][i]];if(q.some(x=>!x))continue;const nn=norm(cross(sub(q[2],q[0]),sub(q[3],q[1]))),sh=0.45+0.55*Math.abs(dot(nn,Lt));tris.push({q,z:q.reduce((a,p)=>a+depth(p),0)/4,col:'rgb('+cc.map(v=>Math.round(v*sh)).join(',')+')'})}}));
     tris.sort((a,b)=>b.z-a.z);tris.forEach(t=>{ctx.fillStyle=t.col;ctx.strokeStyle=t.col;ctx.lineWidth=0.6;ctx.beginPath();t.q.forEach((p,i)=>{const s2=P(p);i?ctx.lineTo(s2[0],s2[1]):ctx.moveTo(s2[0],s2[1])});ctx.closePath();ctx.fill();ctx.stroke()})}
-  if(st.cage){ctx.setLineDash([4*dp,4*dp]);R.Q.forEach(q=>poly(q.x.concat([q.x[0]]),C.muted,1,0.45));ctx.setLineDash([])}
-  R.out.forEach(o=>{o.contact.forEach(sg=>poly(sampleArcs(sg,24),C.contact,1.4));o.cross.forEach(sg=>poly(sampleArcs(sg,16),C.cross,1.6));o.corner.forEach(sg=>poly(sampleArcs(sg,16),C.corner,1.6));o.border.forEach(b=>poly(sampleArcs(b.segs,32),b.sharp?C.fillet:C.border,2.2))});
-  if(st.handles){R.Q.forEach(q=>q.x.forEach((x,i)=>{const t=add(x,mul(q.n[i],0.35));poly([x,t],C.handle,1.3,0.8);const e=P(t);ctx.fillStyle=C.handle;ctx.beginPath();ctx.arc(e[0],e[1],2.2*dp,0,7);ctx.fill()}));
+  // Overlays off: only the surface, no arcs, handles or cage
+  if(st.overlays&&st.cage){ctx.setLineDash([4*dp,4*dp]);R.Q.forEach(q=>poly(q.x.concat([q.x[0]]),C.muted,1,0.45));ctx.setLineDash([])}
+  if(st.overlays)R.out.forEach(o=>{o.contact.forEach(sg=>poly(sampleArcs(sg,24),C.contact,1.4));o.cross.forEach(sg=>poly(sampleArcs(sg,16),C.cross,1.6));o.corner.forEach(sg=>poly(sampleArcs(sg,16),C.corner,1.6));o.border.forEach(b=>poly(sampleArcs(b.segs,32),b.sharp?C.fillet:C.border,2.2))});
+  if(st.overlays&&st.handles){R.Q.forEach(q=>q.x.forEach((x,i)=>{const t=add(x,mul(q.n[i],0.35));poly([x,t],C.handle,1.3,0.8);const e=P(t);ctx.fillStyle=C.handle;ctx.beginPath();ctx.arc(e[0],e[1],2.2*dp,0,7);ctx.fill()}));
     R.stats.art.forEach(a=>{const p=P(a.p),t=add(a.p,mul(a.n,0.35));poly([a.p,t],C.art,1.3);ctx.fillStyle=C.art;ctx.beginPath();ctx.moveTo(p[0],p[1]-4*dp);ctx.lineTo(p[0]+4*dp,p[1]);ctx.lineTo(p[0],p[1]+4*dp);ctx.lineTo(p[0]-4*dp,p[1]);ctx.closePath();ctx.fill()})}}
 function checks(){const rows=[],fmt=x=>x===Infinity?'shape mismatch':x<1e-12?'0':x.toExponential(2),S=R.stats;
   rows.push(['Shared borders: largest gap between the two quads\' curves',fmt(R.mis),R.mis<1e-9]);

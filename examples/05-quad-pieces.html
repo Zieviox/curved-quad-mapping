@@ -71,7 +71,7 @@ tr:last-child td{border-bottom:0}
   <div class="crow"><span class="clab">Blending</span><div class="slider"><input id="blend" type="range" min="0" max="0.45" step="0.005" value="0.03" aria-label="Blending distance, fraction of edge length"><output id="blendo"></output></div></div>
   <div class="crow"><span class="clab">Normal length</span><div class="seg" id="g-len"><button data-v="0.5">× 0.5</button><button data-v="1">× 1</button><button data-v="1.5">× 1.5</button><button data-v="2">× 2</button></div></div>
   <div class="crow"><span class="clab">Split depth</span><div class="seg" id="g-depth"><button data-v="0">0</button><button data-v="1">1</button><button data-v="2">2</button><button data-v="3">3</button><button data-v="4">4</button></div></div>
-  <div class="crow"><span class="clab">Show</span><div class="seg" id="g-show"><button data-k="surf">Surfaces</button><button data-k="crackc">Colour by crack</button><button data-k="arcs">Arcs</button><button data-k="handles">Handles</button><button data-k="cage">Cage</button></div></div>
+  <div class="crow"><span class="clab">Show</span><div class="seg" id="g-show"><button data-k="overlays">Overlays</button><button data-k="surf">Surfaces</button><button data-k="crackc">Colour by crack</button><button data-k="arcs">Arcs</button><button data-k="handles">Handles</button><button data-k="cage">Cage</button></div></div>
 </section>
 
 <div class="main">
@@ -268,7 +268,7 @@ function convert(Q,beta,maxDepth){STATS={arcs:0,splits:0,fail:0,art:[]};
 function roundedBoxDist(p,r){const h=1-r,q=p.map(x=>Math.abs(x)-h),o=Math.hypot(Math.max(q[0],0),Math.max(q[1],0),Math.max(q[2],0));return o+Math.min(Math.max(q[0],q[1],q[2]),0)-r}
 
 // ================= view =================
-let st={mesh:2,beta:0.03,lm:1,depth:1,surf:true,crackc:true,arcs:true,handles:false,cage:true,yaw:0.7,pitch:0.55},R=null;
+let st={overlays:true,mesh:2,beta:0.03,lm:1,depth:1,surf:true,crackc:true,arcs:true,handles:false,cage:true,yaw:0.7,pitch:0.55},R=null;
 try{const s=JSON.parse(localStorage.getItem('qp')||'null');if(s)Object.assign(st,s)}catch(e){}
 const save=()=>{try{localStorage.setItem('qp',JSON.stringify(st))}catch(e){}};
 const cv=document.getElementById('cv'),ctx=cv.getContext('2d');let C={};
@@ -284,9 +284,10 @@ function draw(){const dp=window.devicePixelRatio||1,W=Math.round(cv.clientWidth*
       const t=Math.min(1,(isFinite(pc.crack)?pc.crack:1e9)/(0.01*R.EL)),cc=st.crackc?good.map((v,k)=>v+(bad[k]-v)*t):base[pc.kind];
       for(let j=0;j<G;j++)for(let i=0;i<G;i++){const q=[pts[j][i],pts[j][i+1],pts[j+1][i+1],pts[j+1][i]];if(q.some(x=>!x))continue;const nn=norm(cross(sub(q[2],q[0]),sub(q[3],q[1]))),sh=0.45+0.55*Math.abs(dot(nn,Lt));tris.push({q,z:q.reduce((a,p)=>a+depth(p),0)/4,col:'rgb('+cc.map(v=>Math.round(v*sh)).join(',')+')'})}});
     tris.sort((a,b)=>b.z-a.z);tris.forEach(t=>{ctx.fillStyle=t.col;ctx.strokeStyle=t.col;ctx.lineWidth=0.6;ctx.beginPath();t.q.forEach((p,i)=>{const s2=P(p);i?ctx.lineTo(s2[0],s2[1]):ctx.moveTo(s2[0],s2[1])});ctx.closePath();ctx.fill();ctx.stroke()})}
-  if(st.cage){ctx.setLineDash([4*dp,4*dp]);R.Q.forEach(q=>poly(q.x.concat([q.x[0]]),C.muted,1,0.45));ctx.setLineDash([])}
-  if(st.arcs)R.pieces.forEach(pc=>pc.sides.forEach(sg=>{if(sg.length)poly(sampleArcs(sg,12),C.border,1.2,0.8)}));
-  if(st.handles){R.Q.forEach(q=>q.x.forEach((x,i)=>{const t=add(x,mul(q.n[i],0.35));poly([x,t],C.handle,1.3,0.8)}));R.stats.art.forEach(a=>{const t=add(a.p,mul(a.n,0.35));poly([a.p,t],C.art,1.3)})}}
+  // Overlays off: only the surface, no arcs, handles or cage
+  if(st.overlays&&st.cage){ctx.setLineDash([4*dp,4*dp]);R.Q.forEach(q=>poly(q.x.concat([q.x[0]]),C.muted,1,0.45));ctx.setLineDash([])}
+  if(st.overlays&&st.arcs)R.pieces.forEach(pc=>pc.sides.forEach(sg=>{if(sg.length)poly(sampleArcs(sg,12),C.border,1.2,0.8)}));
+  if(st.overlays&&st.handles){R.Q.forEach(q=>q.x.forEach((x,i)=>{const t=add(x,mul(q.n[i],0.35));poly([x,t],C.handle,1.3,0.8)}));R.stats.art.forEach(a=>{const t=add(a.p,mul(a.n,0.35));poly([a.p,t],C.art,1.3)})}}
 const pctS=x=>!isFinite(x)?'hole on a border':x<1e-5?'0':x.toPrecision(3)+'%';
 function checks(){const rows=[],pcs=R.pieces,mc=Math.max(...pcs.map(p=>p.crack)),me=Math.max(...pcs.map(p=>p.err)),holes=pcs.reduce((a,p)=>a+p.missCount(),0),dh={};pcs.forEach(p=>dh[p.depth]=(dh[p.depth]||0)+1);
   rows.push(['Shared borders: gap between the two quads\' curves',R.gap===Infinity?'shape mismatch':R.gap<1e-12?'0':R.gap.toExponential(2),R.gap<1e-9]);
