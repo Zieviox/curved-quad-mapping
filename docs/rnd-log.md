@@ -1,6 +1,8 @@
 # R&D log
 
-Newest entries at the bottom. Costs use the Skylake float32 scalar table from the original handoff (ADD/MUL/FMA latency 4, throughput 0.5; SQRT 12/3; DIV 11/3).
+Newest entries at the bottom.
+
+**Closed form, as used here:** a fixed recipe with a fixed, known number of operations. Solving a fixed-size linear system (Gauss elimination, a quadratic formula, Cardano) counts. Anything that repeats until the error is small enough (Newton's method) doesn't; it appears only where a page draws something for display and says so. Costs use the Skylake float32 scalar table from the original handoff (ADD/MUL/FMA latency 4, throughput 0.5; SQRT 12/3; DIV 11/3).
 
 ## Starting point
 
