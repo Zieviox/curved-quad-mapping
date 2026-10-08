@@ -180,6 +180,22 @@ What this means here, counted on our own quads (triangle-based methods need each
 - **No-split quadrics:** the condition on the tangent planes is unknown. It might rule out our free vertex normals.
 - **One cubic implicit patch per face:** fewer pieces, and the ray hit is still closed form (Cardano), but each pixel corner costs more. Not counted yet.
 
+## 8. Design decisions: handles, arcs, blending (agreed, not built yet)
+
+- **Input:** quads only. Each quad has 4 corner positions and 4 face-corner normals, taken from the source as they are. Smooth vertices simply have identical normals on every face corner; sharp edges have different ones.
+- **No mesh-wide steps:** each quad is built on its own. It may read a neighbour's corner normals across a shared edge, but nothing global (no topology edits, no global solves).
+  - *Note for later (optimization, not a limit on the design):* neighbour reads should become a packed/cached layout, e.g. shared per-edge data stored once and read by both quads.
+- **Normals are not normalized.** The direction is the handle direction (sets the tangent); the length is the handle reach (how far the curve bulges near that corner). Formulas that assume unit normals (`(d·n)·n`) get rewritten to use direction and length separately.
+- **Curves:** between every two handles there is an ellipse arc (a conic). Two end points plus two end tangents leave exactly one free number, the bulge, and the handle lengths set it.
+- **S-curves:** where an arc would curve back, place an artificial handle at the exact inflection and split into two arcs (step 5's rule).
+- **Blending (bevel inside each quad):**
+  - A blending distance (user-controlled; default tiny, so almost sharp with faintly rounded edges) shifts the quad's handles inwards along its edges.
+  - The quad then holds an inner piece, its half of each edge strip, and its quarter of each corner piece, all inside its own border. On a sharp edge, both quads read both normals and build the same fillet arc, so the border matches.
+  - Check case: a cube with blending should come out as an exact rounded box (flat faces, quarter-cylinder strips, sphere-octant corners), crack = 0.
+- **Open:**
+  - Cracks: does each piece's quadric contain all its border arcs exactly? (Two-point rule.)
+  - At a sharp vertex shared by 4 quads, the corner point depends on all 4 face normals, but a quad only shares an edge with 2 of them.
+
 ## Prior art
 
 Collected from memory at first. Step 7 checked the shared-edge part against abstracts and citing papers.
