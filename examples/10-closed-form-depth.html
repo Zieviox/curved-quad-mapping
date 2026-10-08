@@ -1,0 +1,342 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Closed-Form Depth</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: phone-first. One line of text, mesh buttons, the printed depth array (scrolls inside its box). Same tokens as the other examples. */
+:root{
+  --bg:#eef1f4;--surface:#ffffff;--fg:#151a21;--muted:#59626f;--line:#d6dce3;--accent:#2d56d2;--warn:#c8321f;--good:#1b7a52;
+  --pin:#b9c4d6;--pst:#9fcfc6;--pco:#d7b2d4;--border:#2d56d2;--fillet:#1f8a7a;--contact:#8a94a3;--cross:#d0721a;--corner:#a0459b;--handle:#151a21;--art:#c8321f;
+  --f-display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
+  --f-body:"IBM Plex Sans",ui-sans-serif,system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0e1115;--surface:#161a20;--fg:#e4e8ee;--muted:#98a1ae;--line:#2a313a;--accent:#7f9cff;--warn:#ff5f4a;--good:#5fd0a0;--pin:#4a5568;--pst:#2f6b62;--pco:#6b4569;--border:#7f9cff;--fillet:#4fd1bb;--contact:#7d8794;--cross:#f0a050;--corner:#d68ad0;--handle:#e4e8ee;--art:#ff5f4a;color-scheme:dark}}
+:root[data-theme="dark"]{--pin:#4a5568;--pst:#2f6b62;--pco:#6b4569;--bg:#0e1115;--surface:#161a20;--fg:#e4e8ee;--muted:#98a1ae;--line:#2a313a;--accent:#7f9cff;--warn:#ff5f4a;--good:#5fd0a0;--border:#7f9cff;--fillet:#4fd1bb;--contact:#7d8794;--cross:#f0a050;--corner:#d68ad0;--handle:#e4e8ee;--art:#ff5f4a;color-scheme:dark}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:15px;line-height:1.55}
+.wrap{max-width:1100px;margin:0 auto;padding-inline:16px;padding-block:22px 56px;display:flex;flex-direction:column;gap:22px}
+h1{font-family:var(--f-display);font-weight:700;font-size:clamp(26px,5vw,34px);line-height:1.1;margin:0;text-wrap:balance}
+h2{font-family:var(--f-display);font-weight:600;font-size:18px;margin:0}
+p{margin:0;max-width:68ch}
+.eyebrow{font-family:var(--f-mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+ol.steps{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:6px;max-width:72ch}
+.ctrls{display:flex;flex-direction:column;gap:10px}
+.crow{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center}
+.clab{font-family:var(--f-mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);width:84px;flex:none}
+.seg{display:inline-flex;flex-wrap:wrap;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surface)}
+.seg button{font:500 13px var(--f-body);color:var(--muted);background:transparent;border:0;padding:8px 12px;min-height:36px;cursor:pointer}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button.on{color:var(--fg);background:var(--bg);box-shadow:inset 0 -2px 0 var(--accent)}
+button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.slider{display:flex;align-items:center;gap:10px;flex:1;min-width:200px}
+.slider input{flex:1;min-width:0;accent-color:var(--accent);height:30px}
+.slider output{font:500 13px var(--f-mono);font-variant-numeric:tabular-nums;width:64px}
+.main{display:grid;grid-template-columns:1fr;gap:18px}
+@media (min-width:900px){.main{grid-template-columns:minmax(0,1.3fr) minmax(0,1fr)}}
+.view{display:flex;flex-direction:column;gap:8px;min-width:0}
+canvas.px{image-rendering:pixelated;cursor:crosshair}
+.stage{position:relative}
+.mark{position:absolute;outline:2px solid var(--fg);outline-offset:1px;pointer-events:none}
+canvas{width:100%;max-width:100%;aspect-ratio:1;display:block;border:1px solid var(--line);border-radius:10px;background:var(--surface);touch-action:none;cursor:grab}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12.5px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.ln{width:18px;height:3px;border-radius:2px;display:inline-block}
+.tw{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:13px;font-variant-numeric:tabular-nums}
+th,td{padding:7px 10px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-weight:500;color:var(--muted);font-size:12px}
+td.n{text-align:right;font-family:var(--f-mono);white-space:nowrap}
+td.ok{color:var(--good)}td.bad{color:var(--warn)}
+tr:last-child td{border-bottom:0}
+.note{font-size:13px;color:var(--muted)}
+.btn{font:500 13px var(--f-body);color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px 12px;min-height:36px;cursor:pointer}
+.log div{font:12px/1.5 var(--f-mono)}
+pre.out{margin:0;padding:12px;font:11px/1.35 var(--f-mono);background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow:auto;max-height:75vh;white-space:pre}.log .e{color:var(--warn)}
+</style>
+
+<div class="wrap">
+<a id="back" href="../index.html" hidden style="font:500 13px var(--f-body);color:var(--accent);text-decoration:none">← All steps</a>
+<script>(()=>{const h=location.hostname;if(location.protocol==="file:"||h.endsWith("github.io")||h==="localhost")document.getElementById("back").hidden=false})()</script>
+<header>
+  <div class="eyebrow">Curved quads · step 15 · closed form only</div>
+  <h1>Closed-Form Depth</h1>
+</header>
+<p>Only the closed form, nothing else: each piece walks its own pixel spans (edge × row: one quadratic), gets u and v from its edges, P(u, v) from its surface (one quadratic), and keeps the nearest depth per pixel. Then the depth array is printed.</p>
+<div class="crow"><span class="clab">Mesh</span><div class="seg" id="g-mesh"><button data-v="0" class="on">Smooth cube</button><button data-v="1">Hard cube</button><button data-v="2">Mixed cube</button><button data-v="3">Wave</button></div></div>
+<pre id="out" class="out">Computing…</pre>
+</div>
+
+<script>
+// ================= step 10 conversion, embedded unchanged (the last line also exports its vector helpers) =================
+const PIECES=(()=>{
+// ================= math, copied unchanged from example 04 =================
+const add=(a,b)=>[a[0]+b[0],a[1]+b[1],a[2]+b[2]],sub=(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]],mul=(a,s)=>[a[0]*s,a[1]*s,a[2]*s],dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2],cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]],len=a=>Math.hypot(a[0],a[1],a[2]),norm=a=>mul(a,1/(len(a)||1));
+const same=(a,b)=>Math.abs(a[0]-b[0])<1e-12&&Math.abs(a[1]-b[1])<1e-12&&Math.abs(a[2]-b[2])<1e-12;
+// ---------- source meshes: quads with corner positions and face-corner normals (raw, not normalized) ----------
+function cube(){return{v:[[-1,-1,-1],[1,-1,-1],[1,1,-1],[-1,1,-1],[-1,-1,1],[1,-1,1],[1,1,1],[-1,1,1]],f:[[0,3,2,1],[4,5,6,7],[0,1,5,4],[2,3,7,6],[0,4,7,3],[1,2,6,5]]}}
+function wave(){const v=[],f=[];for(let j=0;j<3;j++)for(let i=0;i<5;i++)v.push([(i-2)*0.9,(j-1)*0.9,i%2?-0.55:0.55]);for(let j=0;j<2;j++)for(let i=0;i<4;i++){const a=j*5+i;f.push([a,a+1,a+6,a+5])}return{v,f}}
+const faceN=(m,f)=>norm(cross(sub(m.v[f[2]],m.v[f[0]]),sub(m.v[f[3]],m.v[f[1]])));
+function vnorm(m){const n=m.v.map(()=>[0,0,0]);m.f.forEach(f=>{const fn=faceN(m,f);f.forEach(i=>n[i]=add(n[i],fn))});return n.map(norm)}
+function source(id){
+  if(id===0){const m=cube(),N=vnorm(m);return m.f.map(f=>({x:f.map(i=>m.v[i]),n:f.map(i=>N[i])}))}
+  if(id===1){const m=cube();return m.f.map(f=>{const fn=faceN(m,f);return{x:f.map(i=>m.v[i]),n:f.map(()=>fn)}})}
+  if(id===2){// top face sharp against the sides; sides smooth with each other; bottom smooth with everything
+    const m=cube(),N=vnorm(m),top=1;return m.f.map((f,fi)=>({x:f.map(i=>m.v[i]),n:f.map(i=>{if(fi===top)return faceN(m,f);if(m.v[i][2]>0){let s=[0,0,0];m.f.forEach((g,gi)=>{if(gi!==top&&g.includes(i))s=add(s,faceN(m,g))});return norm(s)}return N[i]})}))}
+  const m=wave(),N=vnorm(m);return m.f.map(f=>({x:f.map(i=>m.v[i]),n:f.map(i=>N[i])}))}
+
+// ---------- one ellipse arc between two handles ----------
+// Rational quadratic: end points P0, P2, apex A (where the end tangents meet), weight w.
+// w = L·cos(φ/2): L = average handle length, φ = how much the tangent turns. L = 1 with equal sides is a circular arc.
+// If the tangent lines don't meet in front of both ends (S-curve or twisted), split once at an artificial handle.
+let STATS;
+function arc(P0,n0,P2,n2){const d=sub(P2,P0);if(len(d)<1e-12)return[];const u0=norm(n0),u2=norm(n2),T0=sub(d,mul(u0,dot(d,u0))),T2=sub(d,mul(u2,dot(d,u2)));return arcT(P0,T0,len(n0),u0,P2,T2,len(n2),u2,0)}
+function arcT(P0,T0,L0,u0,P2,T2,L2,u2,depth){STATS.arcs++;const d=sub(P2,P0),D=len(d);
+  const D1=T0,D2=mul(T2,-1),w0=sub(P0,P2),a=dot(D1,D1),b=dot(D1,D2),c=dot(D2,D2),e1=dot(D1,w0),e2=dot(D2,w0),den=a*c-b*b;
+  if(len(cross(norm(T0),norm(d)))<1e-9&&len(cross(norm(T2),norm(d)))<1e-9)return[{P0,P2,straight:true}];
+  if(Math.abs(den)>1e-14*a*c){const s=(b*e2-c*e1)/den,t=(a*e2-b*e1)/den,A1=add(P0,mul(D1,s)),A2=add(P2,mul(D2,t));
+    if(len(sub(A1,A2))<1e-7*D&&s>1e-9&&t>1e-9){const ph=Math.acos(Math.max(-1,Math.min(1,dot(norm(T0),norm(T2))))),w=(L0+L2)/2*Math.cos(ph/2);return[{P0,P2,A:mul(add(A1,A2),0.5),w}]}}
+  if(depth>0){STATS.fail++;return[{P0,P2,straight:true,fail:true}]}
+  // artificial handle: on the handle cubic (handles scaled by length), at its inflection if it has one, else halfway
+  STATS.splits++;const C1=add(P0,mul(T0,L0/3)),C2=sub(P2,mul(T2,L2/3)),m=add(u0,u2),ia=dot(m,add(sub(C2,mul(C1,2)),P0)),ib=dot(m,add(sub(P2,mul(C2,2)),C1)),tm=ia*ib<0?ia/(ia-ib):0.5,r=1-tm;
+  const M=add(add(mul(P0,r*r*r),mul(C1,3*r*r*tm)),add(mul(C2,3*r*tm*tm),mul(P2,tm*tm*tm)));
+  // its tangent lies in both end planes (P0, T0, M) and (M, T2, P2), so each half is a flat curve and the two halves meet smoothly
+  let TM=cross(cross(T0,sub(M,P0)),cross(T2,sub(P2,M)));if(len(TM)<1e-12*D*D*D*D)TM=add(add(mul(sub(C1,P0),r*r),mul(sub(C2,C1),2*r*tm)),mul(sub(P2,C2),tm*tm));if(dot(TM,d)<0)TM=mul(TM,-1);
+  const uM=norm(add(mul(u0,r),mul(u2,tm))),LM=L0*r+L2*tm,nM=mul(norm(sub(uM,mul(norm(TM),dot(uM,norm(TM))))),LM);STATS.art.push({p:M,n:nM});
+  const h1=arcT(P0,T0,L0,u0,M,TM,LM,uM,1),res=h1.concat(arcT(M,TM,LM,uM,P2,T2,L2,u2,1));res.mid={p:M,n:nM,k:h1.length};return res}
+function evalArc(g,t){if(g.straight)return add(mul(g.P0,1-t),mul(g.P2,t));const r=1-t,b0=r*r,b1=2*g.w*r*t,b2=t*t,s=b0+b1+b2;return mul(add(add(mul(g.P0,b0),mul(g.A,b1)),mul(g.P2,b2)),1/s)}
+const sampleArcs=(segs,n)=>{const out=[];segs.forEach((g,i)=>{for(let k=i?1:0;k<=n;k++)out.push(evalArc(g,k/n))});return out};
+// ---------- S rule on pieces: an artificial handle on a side splits the piece too, so each part gets its own ellipsoid ----------
+// Split a single conic exactly at its middle (homogeneous de Casteljau), to give the opposite side a matching point.
+function halveConic(g){if(g.straight){const M=mul(add(g.P0,g.P2),0.5);return[{P0:g.P0,P2:M,straight:true},{P0:M,P2:g.P2,straight:true},M]}
+  const w=g.w,M=evalArc(g,0.5),wn=Math.sqrt((1+w)/2),AL=mul(add(g.P0,mul(g.A,w)),1/(1+w)),AR=mul(add(mul(g.A,w),g.P2),1/(1+w));return[{P0:g.P0,P2:M,A:AL,w:wn},{P0:M,P2:g.P2,A:AR,w:wn},M]}
+function splitSide(sg,hA,hB){// -> {first, second, p, n}; uses the artificial handle if the side has one, else halves the side
+  if(sg.mid)return{first:sg.slice(0,sg.mid.k),second:sg.slice(sg.mid.k),p:sg.mid.p,n:sg.mid.n};
+  if(sg.length!==1)return null;const[a,b,M]=halveConic(sg[0]),e=1e-4,T=norm(sub(evalArc(sg[0],0.5+e),evalArc(sg[0],0.5-e))),u=norm(add(norm(hA),norm(hB))),n=mul(norm(sub(u,mul(T,dot(u,T)))),(len(hA)+len(hB))/2);return{first:[a],second:[b],p:M,n}}
+const revArc=sg=>sg.slice().reverse().map(g=>g.straight?{P0:g.P2,P2:g.P0,straight:true}:{P0:g.P2,P2:g.P0,A:g.A,w:g.w});
+// ---------- 9b: one quadric per piece, fitted to its border arcs ----------
+// Hard: the piece's distinct corners. Soft: points along its 4 border arcs (Q = 0) and its corner handle directions (gradient parallel).
+// Scale fixed by trace(A) = 1. One fixed-size linear solve, no iteration.
+const WARC=1,ARCS=5;
+function fitPiece(pc){const U=[],UN=[];pc.P.forEach((p,i)=>{if(!U.some(u=>len(sub(u,p))<1e-12)){U.push(p);UN.push(pc.N[i])}});
+  const c0=mul(U.reduce((a,b)=>add(a,b),[0,0,0]),1/U.length),sc=U.length/U.reduce((a,u)=>a+len(sub(u,c0)),0)||1,loc=x=>mul(sub(x,c0),sc);
+  const row=x=>[x[0]*x[0],x[1]*x[1],x[2]*x[2],2*x[0]*x[1],2*x[0]*x[2],2*x[1]*x[2],x[0],x[1],x[2],1],grow=(x,t)=>[2*x[0]*t[0],2*x[1]*t[1],2*x[2]*t[2],2*(x[1]*t[0]+x[0]*t[1]),2*(x[2]*t[0]+x[0]*t[2]),2*(x[2]*t[1]+x[1]*t[2]),t[0],t[1],t[2],0];
+  const M=[];UN.forEach((n,i)=>{const u=norm(n),ax=Math.abs(u[0])<0.9?[1,0,0]:[0,1,0],t1=norm(cross(u,ax)),t2=cross(u,t1),L=loc(U[i]);M.push(grow(L,t1),grow(L,t2))});
+  pc.sides.forEach(sg=>{if(!sg.length)return;const pts=sampleArcs(sg,ARCS+1);for(let k=1;k<pts.length-1;k++)M.push(row(loc(pts[k])).map(v=>v*WARC))});
+  const H=U.map(u=>row(loc(u))).concat([[1,1,1,0,0,0,0,0,0,0]]),n=10+H.length,K=[];for(let i=0;i<n;i++)K.push(new Array(n+1).fill(0));
+  for(let i=0;i<10;i++){for(let j=0;j<10;j++){let v=0;M.forEach(r=>v+=r[i]*r[j]);K[i][j]=v+(i===j?1e-9:0)}H.forEach((h,hi)=>{K[i][10+hi]=h[i];K[10+hi][i]=h[i]})}K[n-1][n]=1;
+  for(let c=0;c<n;c++){let p=c;for(let r=c+1;r<n;r++)if(Math.abs(K[r][c])>Math.abs(K[p][c]))p=r;[K[c],K[p]]=[K[p],K[c]];if(Math.abs(K[c][c])<1e-300)continue;for(let r=0;r<n;r++)if(r!==c){const f=K[r][c]/K[c][c];if(f)for(let k=c;k<=n;k++)K[r][k]-=f*K[c][k]}}
+  const q=K.slice(0,10).map((r,i)=>r[n]/r[i]),A=[[q[0],q[3],q[4]],[q[3],q[1],q[5]],[q[4],q[5],q[2]]],g=[q[6],q[7],q[8]],k=q[9];
+  const Ax=x=>[dot(A[0],x),dot(A[1],x),dot(A[2],x)],Qf=x=>dot(x,Ax(x))+dot(g,x)+k,grad=x=>add(mul(Ax(x),2),g),det=dot(A[0],cross(A[1],A[2])),m1=A[0][0],m2=A[0][0]*A[1][1]-A[0][1]*A[0][1];
+  let cen=null;if(Math.abs(det)>1e-9){const inv=[cross(A[1],A[2]),cross(A[2],A[0]),cross(A[0],A[1])].map(r=>mul(r,1/det));cen=mul([dot(inv[0],g),dot(inv[1],g),dot(inv[2],g)],-0.5)}
+  const qc=cen?Qf(cen):0,ell=!!cen&&((m1>0&&m2>0&&det>0)||(m1<0&&m2>0&&det<0))&&qc*m1<0,dir=norm(UN.reduce((a,b)=>add(a,norm(b)),[0,0,0]));
+  const LP=pc.P.map(loc);let miss=0;
+  // piece point: bilinear base of its 4 corners, pushed onto the quadric (from the centre for an ellipsoid, else along the averaged handle direction)
+  pc.eval=(u,v)=>{const w=[(1-u)*(1-v),u*(1-v),u*v,(1-u)*v];let p=[0,0,0];for(let i=0;i<4;i++)p=add(p,mul(LP[i],w[i]));let X=p;
+    if(ell){const d=sub(p,cen),a=dot(d,Ax(d)),r=-qc/a;if(a!==0&&r>0)X=add(cen,mul(d,Math.sqrt(r)));else miss++}
+    else{const a=dot(dir,Ax(dir)),b=dot(grad(p),dir),c=Qf(p);let t=null;if(Math.abs(c)<1e-12)t=0;else if(Math.abs(a)<1e-12){if(Math.abs(b)>1e-15)t=-c/b;else if(Math.abs(c)<1e-12)t=0}else{let D=b*b-4*a*c;if(D<0&&D>-1e-9*(b*b+Math.abs(4*a*c)+1e-30))D=0;if(D>=0){const r1=(-b+Math.sqrt(D))/(2*a),r2=(-b-Math.sqrt(D))/(2*a);t=Math.abs(r1)<Math.abs(r2)?r1:r2}}if(t===null)miss++;else X=add(p,mul(dir,t))}
+    return add(c0,mul(X,1/sc))};
+  // ---- plane-pencil mapping: u blends the planes of the u=0 and u=1 border arcs, v those of v=0 and v=1.
+  // The u=0 / u=1 / v=0 / v=1 curves are then exactly the border arcs (when the arcs lie on the quadric).
+  // Forward (u,v) -> point: two planes meet in a line, the line hits the quadric (quadratic). Inverse: two plane evaluations.
+  const bil=(u,v)=>{const w=[(1-u)*(1-v),u*(1-v),u*v,(1-u)*v];let p=[0,0,0];for(let i=0;i<4;i++)p=add(p,mul(LP[i],w[i]));return p};
+  const sidePlane=k=>{const sg=pc.sides[k],a0=LP[k],a1=LP[(k+1)%4];
+    if(sg.length===1&&!sg[0].straight){const g=sg[0],P0=loc(g.P0),A=loc(g.A),P2=loc(g.P2),n=cross(sub(A,P0),sub(P2,P0));if(len(n)>1e-12*len(sub(P2,P0))**2)return{n:norm(n),p:P0}}
+    if(len(sub(a1,a0))<1e-12){const gq=grad(a0);if(len(gq)>1e-12)return{n:norm(gq),p:a0};return null}   // collapsed side: tangent plane at the point
+    if(sg.length>=1&&sg.every(g=>g.straight)){// straight side: plane through it and the surface normal there (the handles' direction where the slope is ~0, e.g. a doubled plane)
+      const m=mul(add(a0,a1),0.5);let gq=grad(m);if(len(gq)<1e-6)gq=add(norm(pc.N[k]),norm(pc.N[(k+1)%4]));const n=cross(sub(a1,a0),gq);if(len(n)>1e-9*len(sub(a1,a0)))return{n:norm(n),p:a0}}
+    const m=loc(evalArc(sg[Math.floor(sg.length/2)]||{P0:pc.P[k],P2:pc.P[(k+1)%4],straight:true},0.5)),n=cross(sub(m,a0),sub(a1,a0));return len(n)>1e-12?{n:norm(n),p:a0}:null};
+  const PL=[0,1,2,3].map(sidePlane);let pencil=PL.every(Boolean);
+  const side=(pl,x)=>dot(pl.n,sub(x,pl.p));
+  if(pencil){// orient: u=0 plane (side 3) positive inside, u=1 plane (side 1) negative inside; same for v (side 0 / side 2)
+    const ctr=bil(0.5,0.5),fix=(pl,wantPos)=>{const s0=side(pl,ctr);if((s0>0)!==wantPos)pl.n=mul(pl.n,-1)};fix(PL[3],true);fix(PL[1],false);fix(PL[0],true);fix(PL[2],false)}
+  const ev0=pc.eval;
+  const sideAt=(k,t)=>{const sg=pc.sides[k];if(!sg.length)return pc.P[k];const n=sg.length,i=Math.min(n-1,Math.floor(t*n));return evalArc(sg[i],t*n-i)};
+  const coons=(u,v)=>{const b0=sideAt(0,u),b1=sideAt(1,v),b2=sideAt(2,1-u),b3=sideAt(3,1-v),P=pc.P,c=add(add(mul(P[0],(1-u)*(1-v)),mul(P[1],u*(1-v))),add(mul(P[2],u*v),mul(P[3],(1-u)*v)));
+    return sub(add(add(mul(b0,1-v),mul(b2,v)),add(mul(b3,1-u),mul(b1,u))),c)};
+  if(pencil)pc.eval=(u,v)=>{const pu={n:add(mul(PL[3].n,1-u),mul(PL[1].n,u)),h:(1-u)*dot(PL[3].n,PL[3].p)+u*dot(PL[1].n,PL[1].p)},pv={n:add(mul(PL[0].n,1-v),mul(PL[2].n,v)),h:(1-v)*dot(PL[0].n,PL[0].p)+v*dot(PL[2].n,PL[2].p)};
+    const D=cross(pu.n,pv.n),DD=dot(D,D);if(!(DD>1e-20)){miss++;return null}const x0=mul(add(mul(cross(pv.n,D),pu.h),mul(cross(D,pu.n),pv.h)),1/DD),Dn=mul(D,1/Math.sqrt(DD));
+    const a=dot(Dn,Ax(Dn)),b=dot(grad(x0),Dn),c=Qf(x0),tr=dot(sub(loc(coons(u,v)),x0),Dn);let t=null;
+    if(Math.abs(a)<1e-12){if(Math.abs(b)>1e-15)t=-c/b}else{let Dq=b*b-4*a*c;if(Dq<0&&Dq>-1e-9*(b*b+Math.abs(4*a*c)+1e-30))Dq=0;if(Dq>=0){const r1=(-b+Math.sqrt(Dq))/(2*a),r2=(-b-Math.sqrt(Dq))/(2*a);t=Math.abs(r1-tr)<Math.abs(r2-tr)?r1:r2}}
+    if(t===null){miss++;return null}return add(c0,mul(add(x0,mul(Dn,t)),1/sc))};
+  pc.pencil=pencil;pc.geo={A,g,k,c0,sc,PL,pencil,Ax,Qf};   // (06) hand the fitted quadric and its 4 side planes to the pixel step
+  pc.ell=ell;pc.missCount=()=>miss;
+  // distance from a world point to the fitted quadric (first-order: |Q| / |grad Q|), for diagnosis
+  pc.dist=x=>{const X=loc(x),gq=len(grad(X));return Math.abs(Qf(X))/(gq||1e-30)/sc};
+}
+
+// ================= clean-slate conversion: quads -> arcs -> pieces -> surfaces =================
+// Each quad is converted on its own. It may read anything around it; later this becomes a packed cache.
+const key=p=>p.map(x=>Math.round(x*1e6)).join(',');
+const revMid=sg=>{const r=revArc(sg);if(sg.mid)r.mid={p:sg.mid.p,n:sg.mid.n,k:sg.length-sg.mid.k};return r};
+const TOL=1e-5;     // a crack below this fraction of an edge is treated as closed: it is the precision of the crack measurement itself
+const HANDLE_SPLITS=4;  // safety cap on chained artificial-handle splits inside one piece
+
+// 1. lookups
+function lookups(Q){const vtx=new Map(),edges=new Map();
+  Q.forEach((q,qi)=>{for(let i=0;i<4;i++){const k=key(q.x[i]);if(!vtx.has(k))vtx.set(k,{X:q.x[i],corners:[],nbr:new Set()});const V=vtx.get(k);V.corners.push({qi,i});V.nbr.add(key(q.x[(i+1)%4]));V.nbr.add(key(q.x[(i+3)%4]));
+    const kb=key(q.x[(i+1)%4]),ek=k<kb?k+'|'+kb:kb+'|'+k;if(!edges.has(ek))edges.set(ek,[]);edges.get(ek).push({qi,i})}});
+  // the neighbour's face-corner normal at position p, across edge (qi, i)
+  const across=(qi,i,p)=>{const q=Q[qi],ka=key(q.x[i]),kb=key(q.x[(i+1)%4]),o=edges.get(ka<kb?ka+'|'+kb:kb+'|'+ka).find(e=>e.qi!==qi);if(!o)return null;const r=Q[o.qi],kp=key(p);for(let k=0;k<4;k++)if(key(r.x[k])===kp)return r.n[k];return null};
+  return{vtx,edges,across}}
+
+// 2. vertex rounding (formulas from step 9a, unchanged)
+function roundVertex(V,Q,vtx,beta){const dirs=[];V.corners.forEach(({qi,i})=>{const n=Q[qi].n[i];if(!dirs.some(d=>same(d.raw,n)))dirs.push({raw:n,u:norm(n),L:len(n)})});
+  const el=[...V.nbr].map(k=>len(sub(vtx.get(k).X,V.X)));V.r=beta*el.reduce((a,b)=>a+b,0)/el.length;V.k=dirs.length;
+  if(V.k<=1){V.c=V.X;return}
+  if(V.k===2){const a=dirs[0].u,b=dirs[1].u;V.c=sub(V.X,mul(add(a,b),V.r/(1+dot(a,b))))}
+  else{const M=[[0,0,0],[0,0,0],[0,0,0]];let rhs=[0,0,0];dirs.forEach(({u})=>{for(let p=0;p<3;p++)for(let s=0;s<3;s++)M[p][s]+=u[p]*u[s];rhs=add(rhs,mul(u,-V.r))});
+    const det=dot(M[0],cross(M[1],M[2])),inv=[cross(M[1],M[2]),cross(M[2],M[0]),cross(M[0],M[1])];V.c=add(V.X,[dot(inv[0],rhs)/det,dot(inv[1],rhs)/det,dot(inv[2],rhs)/det])}
+  const s=dirs.reduce((a,d)=>add(a,d.u),[0,0,0]);V.corner=add(V.c,mul(norm(s),V.r));V.cornerN=mul(norm(s),dirs.reduce((a,d)=>a+d.L,0)/dirs.length)}
+
+// 3. arc cache: one curve per pair of handles, computed once, so every piece that uses it gets the identical curve
+function makeArcCache(){const m=new Map(),hk=(p,n)=>key(p)+'/'+key(n);
+  return(Pa,na,Pb,nb)=>{const ka=hk(Pa,na),kb=hk(Pb,nb);if(len(sub(Pa,Pb))<1e-12)return[];const fwd=ka<kb,k=fwd?ka+'#'+kb:kb+'#'+ka;if(!m.has(k))m.set(k,fwd?arc(Pa,na,Pb,nb):arc(Pb,nb,Pa,na));const sg=m.get(k);return fwd?sg:revMid(sg)}}
+
+// 4. one quad -> its pieces (layout from step 9b: inner piece, edge-strip halves, corner quarters)
+function quadPieces(Q,qi,LK,getArc){const q=Q[qi];
+  // end of edge i at one of its corners: shared border point + handle (fillet middle if sharp), and this face's contact point
+  const endAt=(i,c)=>{const V=LK.vtx.get(key(q.x[c])),nA=q.n[c],nB=LK.across(qi,i,q.x[c]),uA=norm(nA),contact=V.k<=1?q.x[c]:add(V.c,mul(uA,V.r));
+    if(nB&&!same(nA,nB)){const m=norm(add(uA,norm(nB)));return{sharp:true,p:add(V.c,mul(m,V.r)),n:mul(m,(len(nA)+len(nB))/2),contact,nA,V}}
+    return{sharp:false,p:contact,n:nA,contact,nA,V}};
+  const E=[0,1,2,3].map(i=>{const a=endAt(i,i),b=endAt(i,(i+1)%4),e={a,b,sharp:a.sharp||b.sharp};
+    e.border=getArc(a.p,a.n,b.p,b.n);e.contact=e.sharp?getArc(a.contact,a.nA,b.contact,b.nA):e.border;
+    e.crossA=a.sharp?getArc(a.contact,a.nA,a.p,a.n):[];e.crossB=b.sharp?getArc(b.contact,b.nA,b.p,b.n):[];return e});
+  const pcs=[{kind:0,P:E.map(e=>e.a.contact),N:E.map(e=>e.a.nA),sides:E.map(e=>e.contact)}];
+  E.forEach(e=>{if(e.sharp){const{a,b}=e;pcs.push({kind:1,P:[a.p,b.p,b.contact,a.contact],N:[a.n,b.n,b.nA,a.nA],sides:[e.border,revMid(e.crossB),revMid(e.contact),e.crossA]})}});
+  for(let i=0;i<4;i++){const a=E[i].a,z=E[(i+3)%4].b,V=a.V;if(V.k<3)continue;const ca=getArc(a.p,a.n,V.corner,V.cornerN),cz=getArc(z.p,z.n,V.corner,V.cornerN);if(!ca.length&&!cz.length)continue;
+    pcs.push({kind:2,P:[a.contact,a.p,V.corner,z.p],N:[a.nA,a.n,V.cornerN,z.n],sides:[E[i].crossA,ca,revMid(cz),revMid(E[(i+3)%4].crossB)]})}
+  return{E,pieces:pcs.filter(pc=>new Set(pc.P.map(key)).size>=3)}}
+
+// 5. splitting: cut a piece across the middles (or artificial handles) of two opposite sides; the cut is an arc between the two new handles
+function cut(pc,dir,getArc){const S=pc.sides,h=pc.N;
+  if(dir==='u'){const a=splitSide(S[0],h[0],h[1]),c=splitSide(S[2],h[2],h[3]);if(!a||!c)return null;const mid=getArc(a.p,a.n,c.p,c.n);
+    return[{kind:pc.kind,P:[pc.P[0],a.p,c.p,pc.P[3]],N:[h[0],a.n,c.n,h[3]],sides:[a.first,mid,c.second,S[3]]},{kind:pc.kind,P:[a.p,pc.P[1],pc.P[2],c.p],N:[a.n,h[1],h[2],c.n],sides:[a.second,S[1],c.first,revMid(mid)]}]}
+  const b=splitSide(S[1],h[1],h[2]),d=splitSide(S[3],h[3],h[0]);if(!b||!d)return null;const mid=getArc(b.p,b.n,d.p,d.n);
+  return[{kind:pc.kind,P:[pc.P[0],pc.P[1],b.p,d.p],N:[h[0],h[1],b.n,d.n],sides:[S[0],b.first,mid,d.second]},{kind:pc.kind,P:[d.p,b.p,pc.P[2],pc.P[3]],N:[d.n,b.n,h[2],h[3]],sides:[revMid(mid),b.second,S[2],d.first]}]}
+// largest first-order distance from the piece's border arcs to its fitted quadric
+const fitError=pc=>{let m=0;pc.sides.forEach(sg=>{if(sg.length)sampleArcs(sg,30).forEach(x=>m=Math.max(m,Math.min(pc.dist(x),1e3)))});return m};   // first-order |Q|/|∇Q|: reported only, unreliable on doubled planes
+function refine(pc,depth,maxDepth,hs,getArc,out,EL){
+  const S=pc.sides,hu=!!(S[0].mid||S[2].mid),hv=!!(S[1].mid||S[3].mid);
+  if((hu||hv)&&hs<HANDLE_SPLITS&&depth===0){const parts=cut(pc,hu?'u':'v',getArc);if(parts){parts.forEach(p=>refine(p,depth,maxDepth,hs+1,getArc,out,EL));return}}
+  pc.depth=depth;fitPiece(pc);pc.err=fitError(pc);pc.crack=crackOf(pc);
+  if(pc.crack>TOL*EL&&depth<maxDepth){for(const dir of depth%2?['v','u']:['u','v']){const parts=cut(pc,dir,getArc);if(parts){parts.forEach(p=>refine(p,depth+1,maxDepth,hs,getArc,out,EL));return}}}
+  out.push(pc)}
+
+// 6. measurement: crack = largest distance from the edge of a piece's surface to its border arc (holes count as infinite)
+function crackOf(pc){let c=0;const segDist=(p,a,b)=>{const ab=sub(b,a),t=Math.max(0,Math.min(1,dot(sub(p,a),ab)/(dot(ab,ab)||1)));return len(sub(p,add(a,mul(ab,t))))};
+  const sidePt=(k,t)=>k===0?pc.eval(t,0):k===1?pc.eval(1,t):k===2?pc.eval(1-t,1):pc.eval(0,1-t);
+  for(let k=0;k<4;k++){const sg=pc.sides[k];if(!sg.length)continue;const A=sampleArcs(sg,200);for(let i=0;i<=24;i++){const p=sidePt(k,i/24);if(!p)return Infinity;let m=1e9;for(let j=1;j<A.length;j++)m=Math.min(m,segDist(p,A[j-1],A[j]));c=Math.max(c,m)}}
+  return c}
+
+// interior check: points that leave their piece, i.e. land farther from the blend (Coons) of the piece's own 4 border arcs
+// than the piece is wide. Normal bulge (a sphere vs its flat-ish arc blend) stays well inside that; spikes don't.
+function strayOf(pc){const sideAt=(k,t)=>{const sg=pc.sides[k];if(!sg.length)return pc.P[k];const n=sg.length,i=Math.min(n-1,Math.floor(t*n));return evalArc(sg[i],t*n-i)};
+  let size=0;pc.P.forEach(a=>pc.P.forEach(b=>size=Math.max(size,len(sub(a,b)))));let m=0;for(let j=1;j<6;j++)for(let i=1;i<6;i++){const u=i/6,v=j/6,b0=sideAt(0,u),b1=sideAt(1,v),b2=sideAt(2,1-u),b3=sideAt(3,1-v),P=pc.P,c=add(add(mul(P[0],(1-u)*(1-v)),mul(P[1],u*(1-v))),add(mul(P[2],u*v),mul(P[3],(1-u)*v))),ref=sub(add(add(mul(b0,1-v),mul(b2,v)),add(mul(b3,1-u),mul(b1,u))),c),x=pc.eval(u,v);if(x&&len(sub(x,ref))>size)m++}
+  return m}
+
+// the whole conversion
+function convert(Q,beta,maxDepth){STATS={arcs:0,splits:0,fail:0,art:[]};
+  const LK=lookups(Q);LK.vtx.forEach(V=>roundVertex(V,Q,LK.vtx,beta));const getArc=makeArcCache();
+  let el=0;Q.forEach(q=>{for(let i=0;i<4;i++)el+=len(sub(q.x[(i+1)%4],q.x[i]))});const EL=el/(4*Q.length);
+  const quads=Q.map((q,qi)=>{const{E,pieces}=quadPieces(Q,qi,LK,getArc),out=[];pieces.forEach(pc=>refine(pc,0,maxDepth,0,getArc,out,EL));out.forEach(pc=>{pc.qi=qi;pc.stray=strayOf(pc)});return{E,pieces:out}});
+  // shared borders: the two quads on an edge must hold the same curve
+  let gap=0;LK.edges.forEach(l=>{if(l.length!==2)return;const[A,B]=l,pa=sampleArcs(quads[A.qi].E[A.i].border,16),pb=sampleArcs(quads[B.qi].E[B.i].border,16).reverse();if(pa.length!==pb.length){gap=Infinity;return}pa.forEach((p,k)=>gap=Math.max(gap,len(sub(p,pb[k]))))});
+  return{quads,pieces:quads.flatMap(q=>q.pieces),gap,EL,stats:STATS}}
+
+function roundedBoxDist(p,r){const h=1-r,q=p.map(x=>Math.abs(x)-h),o=Math.hypot(Math.max(q[0],0),Math.max(q[1],0),Math.max(q[2],0));return o+Math.min(Math.max(q[0],q[1],q[2]),0)-r}
+
+
+return{convert,source,vec:{add,sub,mul,dot,cross,len,norm}}})();   // (09) also hands out its vector helpers
+
+// ================= step 15: the closed form only → depth =================
+// Same formulas as step 14, written as plain arithmetic: no temporary arrays in the per-row and per-pixel work.
+const{add,sub,mul,dot,cross,norm}=PIECES.vec;
+const W=200,YAW=0.7,PITCH=0.45,F=(W/2)/Math.tan(20*Math.PI/180);
+
+// ---------------- per mesh: the pieces' constants (from the step 10 conversion) ----------------
+function pieceConstants(pc){const G=pc.geo;if(!G||!G.pencil||pc.sides.some(sg=>sg.length!==1))return null;const A=G.A;
+  return{A00:A[0][0],A01:A[0][1],A02:A[0][2],A11:A[1][1],A12:A[1][2],A22:A[2][2],g:G.g,k:G.k,c0:G.c0,sc:G.sc,
+    n:G.PL.map(P=>P.n),h:G.PL.map(P=>dot(P.n,P.p)),arcs:pc.sides.map(sg=>sg[0]),P:pc.P}}
+
+// ---------------- P(u, v): the step 10 forward map ----------------
+// u blends the planes of the u = 0 / u = 1 edges, v those of v = 0 / v = 1; the two planes meet in a line; the line hits the piece's quadric
+// (one quadratic); of the two roots, the one nearest the blend of the 4 edge arcs. Result in PX, PY, PZ (world). Returns false if there is no point.
+let PX=0,PY=0,PZ=0,AX=0,AY=0,AZ=0;
+function arcAt(g,t){if(g.straight){const r=1-t;AX=g.P0[0]*r+g.P2[0]*t;AY=g.P0[1]*r+g.P2[1]*t;AZ=g.P0[2]*r+g.P2[2]*t;return}
+  const r=1-t,b0=r*r,b1=2*g.w*r*t,b2=t*t,s=1/(b0+b1+b2);AX=(g.P0[0]*b0+g.A[0]*b1+g.P2[0]*b2)*s;AY=(g.P0[1]*b0+g.A[1]*b1+g.P2[1]*b2)*s;AZ=(g.P0[2]*b0+g.A[2]*b1+g.P2[2]*b2)*s}
+function pointAt(c,u,v){const n=c.n,h=c.h,iu=1-u,iv=1-v;
+  const ux=n[3][0]*iu+n[1][0]*u,uy=n[3][1]*iu+n[1][1]*u,uz=n[3][2]*iu+n[1][2]*u,uh=h[3]*iu+h[1]*u;
+  const vx=n[0][0]*iv+n[2][0]*v,vy=n[0][1]*iv+n[2][1]*v,vz=n[0][2]*iv+n[2][2]*v,vh=h[0]*iv+h[2]*v;
+  const dx=uy*vz-uz*vy,dy=uz*vx-ux*vz,dz=ux*vy-uy*vx,DD=dx*dx+dy*dy+dz*dz;if(!(DD>1e-20))return false;
+  // a point on the line: (vn × D)·uh + (D × un)·vh, over D·D
+  const x0=((vy*dz-vz*dy)*uh+(dy*uz-dz*uy)*vh)/DD,y0=((vz*dx-vx*dz)*uh+(dz*ux-dx*uz)*vh)/DD,z0=((vx*dy-vy*dx)*uh+(dx*uy-dy*ux)*vh)/DD;
+  const il=1/Math.sqrt(DD),ex=dx*il,ey=dy*il,ez=dz*il;
+  // quadric along the line: a t² + b t + c
+  const Aex=c.A00*ex+c.A01*ey+c.A02*ez,Aey=c.A01*ex+c.A11*ey+c.A12*ez,Aez=c.A02*ex+c.A12*ey+c.A22*ez;
+  const Axx=c.A00*x0+c.A01*y0+c.A02*z0,Axy=c.A01*x0+c.A11*y0+c.A12*z0,Axz=c.A02*x0+c.A12*y0+c.A22*z0,g=c.g;
+  const a=ex*Aex+ey*Aey+ez*Aez,b=(2*Axx+g[0])*ex+(2*Axy+g[1])*ey+(2*Axz+g[2])*ez,cq=x0*Axx+y0*Axy+z0*Axz+g[0]*x0+g[1]*y0+g[2]*z0+c.k;
+  // the blend of the 4 edge arcs at (u, v), in the piece's local frame, measured along the line
+  const P=c.P,A=c.arcs,w00=iu*iv,w10=u*iv,w11=u*v,w01=iu*v;
+  arcAt(A[0],u);let bx=AX*iv,by=AY*iv,bz=AZ*iv;arcAt(A[2],iu);bx+=AX*v;by+=AY*v;bz+=AZ*v;arcAt(A[3],iv);bx+=AX*iu;by+=AY*iu;bz+=AZ*iu;arcAt(A[1],v);bx+=AX*u;by+=AY*u;bz+=AZ*u;
+  bx-=P[0][0]*w00+P[1][0]*w10+P[2][0]*w11+P[3][0]*w01;by-=P[0][1]*w00+P[1][1]*w10+P[2][1]*w11+P[3][1]*w01;bz-=P[0][2]*w00+P[1][2]*w10+P[2][2]*w11+P[3][2]*w01;
+  const tr=((bx-c.c0[0])*c.sc-x0)*ex+((by-c.c0[1])*c.sc-y0)*ey+((bz-c.c0[2])*c.sc-z0)*ez;
+  let t;if(Math.abs(a)<1e-12){if(!(Math.abs(b)>1e-15))return false;t=-cq/b}
+  else{let D=b*b-4*a*cq;if(D<0&&D>-1e-9*(b*b+Math.abs(4*a*cq)+1e-30))D=0;if(!(D>=0))return false;const s=Math.sqrt(D),r1=(-b+s)/(2*a),r2=(-b-s)/(2*a);t=Math.abs(r1-tr)<Math.abs(r2-tr)?r1:r2}
+  const is=1/c.sc;PX=c.c0[0]+(x0+ex*t)*is;PY=c.c0[1]+(y0+ey*t)*is;PZ=c.c0[2]+(z0+ez*t)*is;return true}
+
+// ---------------- per frame: camera, and each piece's 4 edges on the screen ----------------
+function camera(centre,radius){const d=3.6*radius,cp=Math.cos(PITCH),o=[cp*Math.sin(YAW),-cp*Math.cos(YAW),Math.sin(PITCH)],pos=add(centre,mul(o,d)),fwd=mul(o,-1),right=norm(cross(fwd,[0,0,1]));return{pos,fwd,right,down:cross(fwd,right)}}
+const toCamera=(cam,p)=>{const q=sub(p,cam.pos);return[dot(q,cam.right),dot(q,cam.down),dot(q,cam.fwd)]};
+const toScreen=c=>[W/2+F*c[0]/c[2],W/2+F*c[1]/c[2]];
+const aff=(f,x,y)=>f[0]*x+f[1]*y+f[2],affineOf=fn=>{const o=fn(0,0);return[fn(1,0)-o,fn(0,1)-o,o]},cr=(p,q)=>p[0]*q[1]-p[1]*q[0];
+// an edge: its control points in camera coordinates (for row crossings) and its K (for u, v): K = B1 − sg·√max(0, c·B0·B2), or K = B1 for a line
+function setupEdge(g,cam){const cc=(g.straight?[g.P0,g.P2]:[g.P0,g.A,g.P2]).map(p=>toCamera(cam,p));if(cc.some(c=>!(c[2]>1e-6)))return null;
+  const p=cc.map(toScreen),p0=p[0],p2=p[p.length-1],d=[p2[0]-p0[0],p2[1]-p0[1]],e={straight:!!g.straight,w:g.w||1,cc,B1:affineOf((x,y)=>cr(d,[x-p0[0],y-p0[1]])),B0:null,B2:null,c:0,sg:1};
+  const ys=p.map(q=>q[1]);e.rows=!e.straight&&!(e.w>0)?[0,W-1]:[Math.ceil(Math.min(...ys)-0.5),Math.floor(Math.max(...ys)-0.5)];
+  if(e.straight)return e;const a=p[1],D=cr([a[0]-p0[0],a[1]-p0[1]],d);if(!(Math.abs(D)>1e-6*(d[0]*d[0]+d[1]*d[1])))return e;
+  const w=e.w*cc[1][2]/Math.sqrt(cc[0][2]*cc[2][2]);
+  Object.assign(e,{B0:affineOf((x,y)=>cr([a[0]-x,a[1]-y],[p2[0]-x,p2[1]-y])/D),B1:affineOf((x,y)=>cr([x-p0[0],y-p0[1]],d)/D),B2:affineOf((x,y)=>cr([a[0]-p0[0],a[1]-p0[1]],[x-p0[0],y-p0[1]])/D),c:4*w*w});return e}
+const evalK=(e,x,y)=>aff(e.B1,x,y)-(e.B0?e.sg*Math.sqrt(Math.max(0,e.c*aff(e.B0,x,y)*aff(e.B2,x,y))):0);
+// each K scaled to 1 at the piece's projected centre, so u = K3/(K3+K1), v = K0/(K0+K2) is (0.5, 0.5) there
+function setupPiece(c,cam){if(!c||!c.centre)return null;const E=c.arcs.map(g=>setupEdge(g,cam)),cc=toCamera(cam,c.centre);if(E.some(e=>!e)||!(cc[2]>0))return null;
+  const[x,y]=toScreen(cc);for(const e of E){const v=evalK(e,x,y);if(!(Math.abs(v)>1e-12))return null;e.B1=e.B1.map(q=>q/v);e.c/=v*v;e.sg=Math.sign(v)}
+  return{E,y0:Math.max(0,Math.min(...E.map(e=>e.rows[0]))),y1:Math.min(W-1,Math.max(...E.map(e=>e.rows[1])))}}
+
+// ---------------- the pass: each piece walks its own spans and keeps the nearest depth per pixel ----------------
+const XS=new Float64Array(16),KS=new Float64Array(20);   // a row's crossings; per edge: B1 value, its step, c·B0·B2 value and its two differences
+function crossRow(e,Y,n){const cc=e.cc,yc=Y-W/2,h0=F*cc[0][1]-yc*cc[0][2];let A,B,C=h0;
+  if(e.straight){A=0;B=(F*cc[1][1]-yc*cc[1][2])-h0}else{const hb=e.w*(F*cc[1][1]-yc*cc[1][2]),hd=F*cc[2][1]-yc*cc[2][2];A=h0-2*hb+hd;B=2*(hb-h0)}
+  let t1,t2,m;if(Math.abs(A)<=1e-12*(Math.abs(B)+Math.abs(C))){if(!B)return n;t1=-C/B;m=1}else{const D=B*B-4*A*C;if(D<0)return n;const s=Math.sqrt(D),q=-0.5*(B+(B<0?-s:s));if(q){t1=q/A;t2=C/q}else{t1=0;t2=0}m=2}
+  for(let i=0;i<m;i++){const t=i?t2:t1;if(!(t>=0&&t<1))continue;let r,z;
+    if(e.straight){const a=cc[0],b=cc[1];r=a[0]+(b[0]-a[0])*t;z=a[2]+(b[2]-a[2])*t}else{const q=1-t,b0=q*q,b1=2*e.w*t*q,b2=t*t;r=b0*cc[0][0]+b1*cc[1][0]+b2*cc[2][0];z=b0*cc[0][2]+b1*cc[1][2]+b2*cc[2][2]}
+    if(z>0){let j=n++;const x=W/2+F*r/z;while(j>0&&XS[j-1]>x){XS[j]=XS[j-1];j--}XS[j]=x}}   // insert sorted
+  return n}
+function depthPass(pieces,cam){const depth=new Float32Array(W*W),px=cam.pos[0],py=cam.pos[1],pz=cam.pos[2],fx=cam.fwd[0],fy=cam.fwd[1],fz=cam.fwd[2];let written=0;
+  for(const c of pieces){const S=c&&c.frame;if(!S)continue;const E=S.E;
+    for(let y=S.y0;y<=S.y1;y++){const Y=y+0.5;let n=0;for(let k=0;k<4;k++)n=crossRow(E[k],Y,n);
+      for(let s=0;s+1<n;s+=2){const x0=Math.max(0,Math.ceil(XS[s]-0.5)),x1=Math.min(W-1,Math.ceil(XS[s+1]-0.5)-1);if(x1<x0)continue;const X0=x0+0.5;
+        for(let k=0;k<4;k++){const e=E[k],o=5*k;KS[o]=aff(e.B1,X0,Y);KS[o+1]=e.B1[0];KS[o+2]=KS[o+3]=KS[o+4]=0;
+          if(e.B0){const q=X=>e.c*aff(e.B0,X,Y)*aff(e.B2,X,Y),q0=q(X0),q1=q(X0+1),q2=q(X0+2);KS[o+2]=q0;KS[o+3]=q1-q0;KS[o+4]=q2-2*q1+q0}}
+        for(let x=x0;x<=x1;x++){
+          const K0=KS[0]-(E[0].B0?E[0].sg*Math.sqrt(KS[2]>0?KS[2]:0):0),K1=KS[5]-(E[1].B0?E[1].sg*Math.sqrt(KS[7]>0?KS[7]:0):0),
+                K2=KS[10]-(E[2].B0?E[2].sg*Math.sqrt(KS[12]>0?KS[12]:0):0),K3=KS[15]-(E[3].B0?E[3].sg*Math.sqrt(KS[17]>0?KS[17]:0):0);
+          for(let o=0;o<20;o+=5){KS[o]+=KS[o+1];KS[o+2]+=KS[o+3];KS[o+3]+=KS[o+4]}
+          let u=K3/(K3+K1),v=K0/(K0+K2);u=u<0?0:u>1?1:u;v=v<0?0:v>1?1:v;
+          if(!pointAt(c,u,v))continue;
+          const d=(PX-px)*fx+(PY-py)*fy+(PZ-pz)*fz,o=y*W+x;written++;if(depth[o]===0||d<depth[o])depth[o]=d}}}}
+  return{depth,written}}
+
+// ---------------- run and print ----------------
+function run(mesh){const Q=PIECES.source(mesh),C=PIECES.convert(Q,0.03,0),pts=Q.flatMap(q=>q.x),centre=mul(pts.reduce(add,[0,0,0]),1/pts.length),radius=Math.max(...pts.map(p=>Math.hypot(...sub(p,centre))));
+  const pieces=C.pieces.map(pc=>{const c=pieceConstants(pc);if(c&&pointAt(c,0.5,0.5))c.centre=[PX,PY,PZ];return c});
+  const cam=camera(centre,radius),frame=()=>{pieces.forEach(c=>{if(c)c.frame=setupPiece(c,cam)});return depthPass(pieces,cam)};
+  frame();const t0=performance.now(),r=frame(),ms=performance.now()-t0;   // timed on the second run (the first one compiles the code)
+  let out='mesh '+['smooth cube','hard cube','mixed cube','wave'][mesh]+' · '+W+'×'+W+' pixels · '+r.written+' pixels written · '+ms.toFixed(2)+' ms ('+(ms*1e6/Math.max(1,r.written)).toFixed(0)+' ns per pixel written)\n';
+  out+='depth per pixel, row by row (0 = empty):\n';
+  for(let y=0;y<W;y++){let line='';for(let x=0;x<W;x++){const d=r.depth[y*W+x];line+=(d?d.toFixed(2):'0').padStart(6)}out+=line+'\n'}
+  document.getElementById('out').textContent=out}
+document.querySelectorAll('#g-mesh button').forEach(b=>b.onclick=()=>{document.querySelectorAll('#g-mesh button').forEach(x=>x.classList.toggle('on',x===b));run(+b.dataset.v)});
+run(0);
+</script>

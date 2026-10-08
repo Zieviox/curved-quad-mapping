@@ -494,6 +494,30 @@ Every value is computed once from a formula; no piece tests pixels outside its s
 - The isolated "different piece" dots on the rounded box are these. The two-pass map has the correct piece there: same distance as the ray, 5.1118.
 - Not changed (step 11's math).
 
+## 15. Closed-form depth only (example 10)
+
+A test page that does only the closed form and stores depth, then prints the depth array as numbers. No lists, no colours, no checks.
+
+- **Same math as step 14:** per row one quadratic per edge; u, v from the edges; P(u, v) from the step 10 forward map; the distance along the view direction.
+- **Written as plain arithmetic, with no temporary arrays.** Example 09 created about 60 small arrays per P(u, v).
+- **Depth:** each pixel keeps the nearest distance as it is written (0 = empty).
+- **Checked against example 09, same camera:**
+  - the same pixels covered on all 4 meshes;
+  - depth equal within 1.8·10⁻⁵ (float32 storage);
+  - P(u, v) equal to the conversion's own `pc.eval` within 2·10⁻¹⁵.
+
+Measured in the browser (JavaScript float64, 200², median of 25 runs):
+
+| Mesh | Frame | Per written pixel | P(u, v) alone | Example 09 (with allocations) |
+|---|---|---|---|---|
+| Smooth cube | 5.4 ms | 154 ns | 120 ns | 43 ms, P(u, v) 620 ns |
+| Hard cube | 4.3 ms | 166 ns | 109 ns | 25 ms, P(u, v) 1,020 ns |
+| Mixed cube | 6.4 ms | 210 ns | 122 ns | |
+| Wave | 1.4 ms | 237 ns | 122 ns | |
+
+- The page in step 14 spent its time on allocation, not arithmetic: 6–8× faster without it.
+- In cycles at 3 GHz, P(u, v) is now about 330–370 against 108 in the float32 model. That's JavaScript float64 without SIMD.
+
 ## Prior art
 
 Collected from memory at first. Step 7 checked the shared-edge part against abstracts and citing papers.

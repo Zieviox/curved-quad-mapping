@@ -130,10 +130,15 @@ code{font-family:var(--f-mono);font-size:.92em}
     <ul class="find"><li>Flat pieces: exact. Curved pieces slide: smooth cube 17.6% of an edge at the marker, 12.8% even straight on; wave 3.25%.</li><li>The full projected conic also vanishes on the ellipse's other half, which crosses the smooth cube's face. Only an arc-only form (one square root per side) works.</li><li>Folds: past a silhouette, the projected side runs across visible surface and its (u, v) leaves 0…1.</li><li>Whole mesh with the depth test: the same piece as step 11 on 100% of the wave, 99.3% of the rounded box and 53.7% of the smooth cube, where every face folds. FPS counter and cycle/FLOP table on the page.</li></ul>
     <div class="links"><a class="btn" href="examples/08-uv-slides.html">Open UV slides</a></div></div></li>
   <li><span class="num">14</span><div class="body">
-    <h2>Two-pass map <span class="tag current">current</span></h2>
+    <h2>Two-pass map</h2>
     <p class="q">Pass 1: each piece walks only its own spans (edge crossings per row, one quadratic each) and writes (piece, u, v, distance) into each pixel's list. Pass 2: each pixel keeps its closest entry.</p>
     <ul class="find"><li>About 15–111 cycles per pixel in the model (11% of a 1,000-cycle budget on the smooth cube). P(u, v) is 108 of the 124 cycles per written pixel.</li><li>Same piece as step 11 on 98–100% of the wave and 99.3–99.6% of the rounded box.</li><li>A piece that folds past the outline fails as a whole: its far edge projects inside its own image. Smooth cube 80–87%.</li></ul>
     <div class="links"><a class="btn" href="examples/09-two-pass-map.html">Open the two-pass map</a></div></div></li>
+  <li><span class="num">15</span><div class="body">
+    <h2>Closed-form depth only <span class="tag current">current</span></h2>
+    <p class="q">Only the closed form (edge crossings, u and v, P(u, v), distance) written as plain arithmetic; keeps the nearest depth per pixel and prints the depth array.</p>
+    <ul class="find"><li>Same depth as step 14 on every pixel.</li><li>Smooth cube 5.4 ms per 200² frame in the browser, against 43 ms in step 14: the time was going into allocation, not arithmetic.</li></ul>
+    <div class="links"><a class="btn" href="examples/10-closed-form-depth.html">Open closed-form depth</a></div></div></li>
 </ol>
 
 <p class="note">The cost model throughout is Intel Skylake, float32 scalar: ADD, MUL and FMA have latency 4 and throughput 0.5 cycles; SQRT 12/3; DIV 11/3. Pages compute in JavaScript float64.</p>
