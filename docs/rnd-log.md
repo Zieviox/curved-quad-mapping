@@ -306,6 +306,45 @@ Status: stuck on exactness for incompatible borders, as agreed: move on. Example
   - Cube: the sphere, mean 43.1% / max 54.8% (no map), edge crack 0.
   - Wave: mean **12.2%** / max 27.9% (no map), mean 10.3% (map as baked), edge crack 0. That's the lowest mean of all surfaces in the lab.
 
+## 11. Pixel corners → (piece, u, v) (example 06)
+
+The first pixel pipeline for the current design. The pieces come from step 10 unchanged; one added line hands each piece's fitted quadric and its 4 side planes to the pixel step.
+
+- **Per pixel corner:**
+  1. A ray from the camera.
+  2. For every piece whose screen box contains the corner: ray vs the piece's quadric, one quadratic.
+  3. The 4 side planes decide whether a hit is inside the piece and give (u, v) directly.
+  4. The nearest in-piece hit wins.
+  Neighbouring pixels share corners: one corner per pixel.
+- **Far sheet:** the wedge between a piece's planes can cut its quadric twice, e.g. the back of a sphere. A hit is kept only if the piece's own forward map at that (u, v) lands on it. That costs one forward evaluation per accepted hit in this test page; a cheaper rule (such as a sign test) is open.
+- **Reference:** the same pieces projected densely, about 4.5 samples per pixel along each piece's longest side, giving 4 × 4 sub-pixel coverage.
+  - **Hole:** a corner inside the footprint (all 4 surrounding pixels fully covered) that hits nothing. A crack, as the pixels see it.
+  - **Interior gap:** a pixel inside the outline with no corner hit.
+  - **Outline gap:** a pixel on the outline where the surface's tip passes between the corners. That's the limit of sampling at corners.
+  - A **12-view check** orbits the camera, since a crack only shows when it opens toward the camera.
+
+Results (128², or 64² for the 12-view check; blending 3%, hard cube 10%):
+
+| Mesh | One view | 12 views: holes | Holes inside pieces (sampled points) |
+|---|---|---|---|
+| Smooth cube | 0 holes, 0 gaps | 0 of 22,716 corners | 0 |
+| Hard cube (rounded box) | 0 holes, 0 gaps | 0 of 13,164 | 156, at collapsed piece corners |
+| Wave | 0 holes, 0 interior gaps, 3 outline gaps | 0 of 6,942 | 0 |
+| Mixed cube, depth 1 | 0 holes, 1 outline gap | **14 of 19,252** (its 3.44% cracks) | 0 |
+| Mixed cube, depth 0 | 0 holes | 35 of 19,952 | 34,010 |
+| Smooth cube, length × 2 | 0 holes | 0 of 9,740 | 250,420: piece interiors have no surface |
+
+Cost:
+- Pieces tested per corner after screen-box culling: 0.8 (wave) to 2.2 (hard and mixed cube).
+- Using step 9c's 15 cycles per tested piece, that is about **12–34 cycles per corner**, i.e. per pixel.
+- In this browser (JavaScript float64, including the far-sheet check): 560–1,150 ns per tested piece. Only good for comparing settings.
+
+Open:
+- Cracks where a piece's arcs don't fit one quadric (mixed cube).
+- Pieces with no surface inside (length × 2).
+- A cheaper far-sheet rule.
+- How pixels use the (u, v) of their 4 corners downstream (the occlusion system).
+
 ## Prior art
 
 Collected from memory at first. Step 7 checked the shared-edge part against abstracts and citing papers.
