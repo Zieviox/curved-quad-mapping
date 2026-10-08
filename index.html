@@ -114,7 +114,7 @@ code{font-family:var(--f-mono);font-size:.92em}
     <div class="links"><a class="btn" href="examples/05-quad-pieces.html">Open quad pieces</a></div></div></li>
 
   <li><span class="num">11</span><div class="body">
-    <h2>Pixel corners <span class="tag current">current</span></h2>
+    <h2>Pixel corners</h2>
     <p class="q">Map every pixel corner to (piece, u, v): ray → piece's quadric (one quadratic) → its 4 side planes.</p>
     <ul class="find"><li>Smooth cube, rounded box, wave: 0 holes over 12 camera views.</li><li>Mixed cube: 14 holes in 19,252 corners. Its cracks, as the pixels see them.</li><li>About 12–34 cycles per pixel (15 per tested piece, 0.8–2.2 pieces tested).</li><li>Occlusion map: each pixel keeps its nearest normalized distance (0 = empty), with a farthest-of-4 mip chain.</li></ul>
     <div class="links"><a class="btn" href="examples/06-pixel-corners.html">Open pixel corners</a></div></div></li>
@@ -124,6 +124,11 @@ code{font-family:var(--f-mono);font-size:.92em}
     <p class="q">Why do some pieces crack, why do some have no surface inside, and why can a hit land on the far side?</p>
     <ul class="find"><li>Cracks: neighbours miss their shared arc differently (8.35% vs 0.37%).</li><li>Length × 2: the fitted shape splits into two branches and the piece's middle falls between them.</li><li>Far side: the region between a piece's side planes widens with depth. A cheaper sign rule is the next thing to test.</li></ul>
     <div class="links"><a class="btn" href="examples/07-open-problems.html">Open the explanations</a></div></div></li>
+  <li><span class="num">13</span><div class="body">
+    <h2>UV slides <span class="tag current">current</span></h2>
+    <p class="q">Option (b): take (u, v) from the projected side arcs only. Does it stay on the same surface point when the camera moves?</p>
+    <ul class="find"><li>Flat pieces: exact. Curved pieces slide: smooth cube 17.6% of an edge at the marker, 12.8% even straight on; wave 3.25%.</li><li>The full projected conic also vanishes on the ellipse's other half, which crosses the smooth cube's face. Only an arc-only form (one square root per side) works.</li><li>Folds: past a silhouette, the projected side runs across visible surface and its (u, v) leaves 0…1.</li></ul>
+    <div class="links"><a class="btn" href="examples/08-uv-slides.html">Open UV slides</a></div></div></li>
 </ol>
 
 <p class="note">The cost model throughout is Intel Skylake, float32 scalar: ADD, MUL and FMA have latency 4 and throughput 0.5 cycles; SQRT 12/3; DIV 11/3. Pages compute in JavaScript float64.</p>
