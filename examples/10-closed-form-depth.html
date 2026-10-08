@@ -53,7 +53,9 @@ tr:last-child td{border-bottom:0}
 .note{font-size:13px;color:var(--muted)}
 .btn{font:500 13px var(--f-body);color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px 12px;min-height:36px;cursor:pointer}
 .log div{font:12px/1.5 var(--f-mono)}
-canvas#img{width:100%;max-width:400px;aspect-ratio:1;image-rendering:pixelated;border:1px solid var(--line);border-radius:10px;background:var(--surface);display:block}
+canvas#img{width:100%;aspect-ratio:1;image-rendering:pixelated;border:1px solid var(--line);border-radius:10px;background:var(--surface);display:block;touch-action:none;cursor:grab}
+.stage{position:relative;max-width:420px}
+.fps{position:absolute;left:8px;top:8px;font:500 12px/1.4 var(--f-mono);color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:3px 7px;pointer-events:none;opacity:.92;white-space:pre}
 pre.out{margin:0;padding:12px;font:11px/1.35 var(--f-mono);background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow:auto;max-height:75vh;white-space:pre}.log .e{color:var(--warn)}
 </style>
 
@@ -64,9 +66,10 @@ pre.out{margin:0;padding:12px;font:11px/1.35 var(--f-mono);background:var(--surf
   <div class="eyebrow">Curved quads · step 15 · closed form only</div>
   <h1>Closed-Form Depth</h1>
 </header>
-<p>Only the closed form, nothing else: each piece walks its own pixel spans (edge × row: one quadratic), gets u and v from its edges, P(u, v) from its surface (one quadratic), and keeps the nearest depth per pixel. Then the depth array is printed.</p>
+<p>Only the closed form, nothing else: each piece walks its own pixel spans (edge × row: one quadratic), gets u and v from its edges, P(u, v) from its surface (one quadratic), and keeps the nearest depth per pixel. The depth goes into the image every frame; the numbers are printed when the camera stops. Drag the image to orbit.</p>
 <div class="crow"><span class="clab">Mesh</span><div class="seg" id="g-mesh"><button data-v="0" class="on">Smooth cube</button><button data-v="1">Hard cube</button><button data-v="2">Mixed cube</button><button data-v="3">Wave</button></div></div>
-<canvas id="img" width="200" height="200" aria-label="The depth array as an image: near is dark, far is light, empty is background"></canvas>
+<div class="crow"><span class="clab"></span><button class="btn" id="spin">Auto orbit</button></div>
+<div class="stage"><canvas id="img" width="200" height="200" aria-label="The depth array as an image: near is dark, far is light, empty is background. Drag to orbit."></canvas><div class="fps" id="fps"></div></div>
 <pre id="out" class="out">Computing…</pre>
 </div>
 
@@ -255,7 +258,7 @@ return{convert,source,vec:{add,sub,mul,dot,cross,len,norm}}})();   // (09) also 
 // ================= step 15: the closed form only → depth =================
 // Same formulas as step 14, written as plain arithmetic: no temporary arrays in the per-row and per-pixel work.
 const{add,sub,mul,dot,cross,norm}=PIECES.vec;
-const W=200,YAW=0.7,PITCH=0.45,F=(W/2)/Math.tan(20*Math.PI/180);
+const W=200,F=(W/2)/Math.tan(20*Math.PI/180);
 
 // ---------------- per mesh: the pieces' constants (from the step 10 conversion) ----------------
 function pieceConstants(pc){const G=pc.geo;if(!G||!G.pencil||pc.sides.some(sg=>sg.length!==1))return null;const A=G.A;
@@ -289,7 +292,7 @@ function pointAt(c,u,v){const n=c.n,h=c.h,iu=1-u,iv=1-v;
   const is=1/c.sc;PX=c.c0[0]+(x0+ex*t)*is;PY=c.c0[1]+(y0+ey*t)*is;PZ=c.c0[2]+(z0+ez*t)*is;return true}
 
 // ---------------- per frame: camera, and each piece's 4 edges on the screen ----------------
-function camera(centre,radius){const d=3.6*radius,cp=Math.cos(PITCH),o=[cp*Math.sin(YAW),-cp*Math.cos(YAW),Math.sin(PITCH)],pos=add(centre,mul(o,d)),fwd=mul(o,-1),right=norm(cross(fwd,[0,0,1]));return{pos,fwd,right,down:cross(fwd,right)}}
+function camera(centre,radius,yaw,pitch){const d=3.6*radius,cp=Math.cos(pitch),o=[cp*Math.sin(yaw),-cp*Math.cos(yaw),Math.sin(pitch)],pos=add(centre,mul(o,d)),fwd=mul(o,-1),right=norm(cross(fwd,[0,0,1]));return{pos,fwd,right,down:cross(fwd,right)}}
 const toCamera=(cam,p)=>{const q=sub(p,cam.pos);return[dot(q,cam.right),dot(q,cam.down),dot(q,cam.fwd)]};
 const toScreen=c=>[W/2+F*c[0]/c[2],W/2+F*c[1]/c[2]];
 const aff=(f,x,y)=>f[0]*x+f[1]*y+f[2],affineOf=fn=>{const o=fn(0,0);return[fn(1,0)-o,fn(0,1)-o,o]},cr=(p,q)=>p[0]*q[1]-p[1]*q[0];
@@ -330,19 +333,33 @@ function depthPass(pieces,cam){const depth=new Float32Array(W*W),px=cam.pos[0],p
           const d=(PX-px)*fx+(PY-py)*fy+(PZ-pz)*fz,o=y*W+x;written++;if(depth[o]===0||d<depth[o])depth[o]=d}}}}
   return{depth,written}}
 
-// ---------------- run and print ----------------
-function run(mesh){const Q=PIECES.source(mesh),C=PIECES.convert(Q,0.03,0),pts=Q.flatMap(q=>q.x),centre=mul(pts.reduce(add,[0,0,0]),1/pts.length),radius=Math.max(...pts.map(p=>Math.hypot(...sub(p,centre))));
-  const pieces=C.pieces.map(pc=>{const c=pieceConstants(pc);if(c&&pointAt(c,0.5,0.5))c.centre=[PX,PY,PZ];return c});
-  const cam=camera(centre,radius),frame=()=>{pieces.forEach(c=>{if(c)c.frame=setupPiece(c,cam)});return depthPass(pieces,cam)};
-  frame();const t0=performance.now(),r=frame(),ms=performance.now()-t0;   // timed on the second run (the first one compiles the code)
-  let out='mesh '+['smooth cube','hard cube','mixed cube','wave'][mesh]+' · '+W+'×'+W+' pixels · '+r.written+' pixels written · '+ms.toFixed(2)+' ms ('+(ms*1e6/Math.max(1,r.written)).toFixed(0)+' ns per pixel written)\n';
-  out+='depth per pixel, row by row (0 = empty):\n';
-  // the image: written in the same loop as the printed numbers. Near → the page's text colour, far → its background; empty pixels stay background.
-  const cv=document.getElementById('img'),g=cv.getContext('2d'),im=g.createImageData(W,W),css=getComputedStyle(document.documentElement),rgb=k=>css.getPropertyValue(k).trim().slice(1).match(/../g).map(h=>parseInt(h,16)),
-    fg=rgb('--fg'),bg=rgb('--surface'),near=3.6*radius-1.35*radius,far=3.6*radius+1.35*radius;   // near/far: camera distance ∓ a sphere that holds the shape
-  for(let y=0;y<W;y++){let line='';for(let x=0;x<W;x++){const o=y*W+x,d=r.depth[o];line+=(d?d.toFixed(2):'0').padStart(6);
-      const t=d?Math.min(1,Math.max(0,(d-near)/(far-near))):1;for(let k=0;k<3;k++)im.data[4*o+k]=Math.round(fg[k]+(bg[k]-fg[k])*t);im.data[4*o+3]=255}out+=line+'\n'}
-  g.putImageData(im,0,0);document.getElementById('out').textContent=out}
-document.querySelectorAll('#g-mesh button').forEach(b=>b.onclick=()=>{document.querySelectorAll('#g-mesh button').forEach(x=>x.classList.toggle('on',x===b));run(+b.dataset.v)});
-run(0);
+// ---------------- render: camera → closed form → image (and the printed numbers when the camera stops) ----------------
+let mesh=0,yaw=0.7,pitch=0.45,scene=null;
+function loadScene(){if(scene&&scene.mesh===mesh)return scene;   // the step 10 conversion runs once per mesh, not per frame
+  const Q=PIECES.source(mesh),C=PIECES.convert(Q,0.03,0),pts=Q.flatMap(q=>q.x),centre=mul(pts.reduce(add,[0,0,0]),1/pts.length),radius=Math.max(...pts.map(p=>Math.hypot(...sub(p,centre))));
+  const pieces=C.pieces.map(pc=>{const c=pieceConstants(pc);if(c&&pointAt(c,0.5,0.5))c.centre=[PX,PY,PZ];return c});return scene={mesh,pieces,centre,radius}}
+const cv=document.getElementById('img'),g=cv.getContext('2d'),im=g.createImageData(W,W),FT=[];let last=null;
+function render(print){const S=loadScene(),cam=camera(S.centre,S.radius,yaw,pitch),t0=performance.now();
+  S.pieces.forEach(c=>{if(c)c.frame=setupPiece(c,cam)});const r=depthPass(S.pieces,cam),ms=performance.now()-t0;
+  // the image: near → the page's text colour, far → its background; empty pixels stay background. When printing, written in the same loop as the numbers.
+  const css=getComputedStyle(document.documentElement),rgb=k=>css.getPropertyValue(k).trim().slice(1).match(/../g).map(h=>parseInt(h,16)),fg=rgb('--fg'),bg=rgb('--surface'),
+    near=3.6*S.radius-1.35*S.radius,far=3.6*S.radius+1.35*S.radius;   // near/far: camera distance ∓ a sphere that holds the shape
+  let out='mesh '+['smooth cube','hard cube','mixed cube','wave'][mesh]+' · '+W+'×'+W+' pixels · '+r.written+' pixels written · '+ms.toFixed(2)+' ms ('+(ms*1e6/Math.max(1,r.written)).toFixed(0)+' ns per pixel written)\ndepth per pixel, row by row (0 = empty):\n';
+  for(let y=0;y<W;y++){let line='';for(let x=0;x<W;x++){const o=y*W+x,d=r.depth[o];if(print)line+=(d?d.toFixed(2):'0').padStart(6);
+      const t=d?Math.min(1,Math.max(0,(d-near)/(far-near))):1;for(let k=0;k<3;k++)im.data[4*o+k]=Math.round(fg[k]+(bg[k]-fg[k])*t);im.data[4*o+3]=255}if(print)out+=line+'\n'}
+  g.putImageData(im,0,0);if(print)document.getElementById('out').textContent=out;
+  // FPS: frames rendered in the last second
+  const t=performance.now();FT.push(t);while(t-FT[0]>1000)FT.shift();last={ms,written:r.written,whole:t-t0};showFps()}
+function showFps(){if(!last)return;const live=FT.length>1&&performance.now()-FT[FT.length-1]<400;
+  document.getElementById('fps').textContent=(live?((FT.length-1)*1000/(FT[FT.length-1]-FT[0])).toFixed(0)+' FPS':'— FPS (idle)')+'\nclosed form '+last.ms.toFixed(1)+' ms\nwhole frame '+last.whole.toFixed(1)+' ms'}
+setInterval(showFps,500);
+
+// ---------------- controls: mesh, drag to orbit, auto orbit ----------------
+document.querySelectorAll('#g-mesh button').forEach(b=>b.onclick=()=>{document.querySelectorAll('#g-mesh button').forEach(x=>x.classList.toggle('on',x===b));mesh=+b.dataset.v;render(true)});
+let ptr=null,raf=0,spin=0;
+cv.addEventListener('pointerdown',e=>{ptr={x:e.clientX,y:e.clientY};cv.setPointerCapture(e.pointerId)});
+cv.addEventListener('pointermove',e=>{if(!ptr)return;yaw-=(e.clientX-ptr.x)*0.01;pitch=Math.max(-1.3,Math.min(1.3,pitch+(e.clientY-ptr.y)*0.01));ptr={x:e.clientX,y:e.clientY};if(!raf)raf=requestAnimationFrame(()=>{raf=0;render(false)})});
+const up=()=>{if(!ptr)return;ptr=null;render(true)};cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',up);
+document.getElementById('spin').onclick=e=>{if(spin){cancelAnimationFrame(spin);spin=0;e.target.textContent='Auto orbit';render(true);return}e.target.textContent='Stop orbit';const step=()=>{yaw+=0.012;render(false);spin=requestAnimationFrame(step)};spin=requestAnimationFrame(step)};
+render(true);
 </script>
