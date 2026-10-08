@@ -99,7 +99,7 @@ tr.win td{font-weight:600}
 <script>
 const LOG=[];function log(m,e){LOG.push({m:String(m),e:!!e});const el=document.getElementById('log');if(el)el.innerHTML=LOG.slice(-6).map(x=>'<div'+(x.e?' class="e"':'')+'>'+x.m.replace(/</g,'&lt;')+'</div>').join('')}
 window.addEventListener('error',e=>log('ERROR '+e.message+' @'+e.lineno,true));
-// ================= step 10 conversion, embedded unchanged from example 06 =================
+// ================= step 10 conversion, embedded unchanged (the last line also exports its vector helpers) =================
 const PIECES=(()=>{
 // ================= math, copied unchanged from example 04 =================
 const add=(a,b)=>[a[0]+b[0],a[1]+b[1],a[2]+b[2]],sub=(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]],mul=(a,s)=>[a[0]*s,a[1]*s,a[2]*s],dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2],cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]],len=a=>Math.hypot(a[0],a[1],a[2]),norm=a=>mul(a,1/(len(a)||1));
@@ -278,197 +278,178 @@ function convert(Q,beta,maxDepth){STATS={arcs:0,splits:0,fail:0,art:[]};
 function roundedBoxDist(p,r){const h=1-r,q=p.map(x=>Math.abs(x)-h),o=Math.hypot(Math.max(q[0],0),Math.max(q[1],0),Math.max(q[2],0));return o+Math.min(Math.max(q[0],q[1],q[2]),0)-r}
 
 
-return{convert,source,mul,sampleArcs}})();
-// ================= helpers from step 13 (unchanged): camera, projected edges as conics K, the step 11 ray hit =================
-const add=(a,b)=>[a[0]+b[0],a[1]+b[1],a[2]+b[2]],sub=(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]],mul=(a,s)=>[a[0]*s,a[1]*s,a[2]*s],dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2],cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]],len=a=>Math.hypot(a[0],a[1],a[2]),norm=a=>mul(a,1/(len(a)||1));
-const FOV=40*Math.PI/180,EPS=1e-9,CHK=8;
-const clamp01=x=>Math.min(1,Math.max(0,x));
-function makeCam(W,T,yaw,pitch,dist){const cp=Math.cos(pitch),pos=add(T,mul([cp*Math.sin(yaw),-cp*Math.cos(yaw),Math.sin(pitch)],dist)),fwd=norm(sub(T,pos)),right=norm(cross(fwd,[0,0,1])),down=cross(fwd,right);return{pos,fwd,right,down,f:(W/2)/Math.tan(FOV/2),W}}
-const rayDir=(cam,x,y)=>add(cam.fwd,add(mul(cam.right,(x-cam.W/2)/cam.f),mul(cam.down,(y-cam.W/2)/cam.f)));
-const project=(cam,p)=>{const q=sub(p,cam.pos),z=dot(q,cam.fwd);return[cam.W/2+cam.f*dot(q,cam.right)/z,cam.W/2+cam.f*dot(q,cam.down)/z,z]};
+return{convert,source,vec:{add,sub,mul,dot,cross,len,norm}}})();   // (09) also hands out its vector helpers
 
-// ---- one side arc on the screen ----
-// A rational quadratic {P0, A, P2, w} projects to a rational quadratic with screen points p0, a, p2 and weight w' = w·zA / sqrt(z0·z2).
-// Its implicit form, in barycentric coordinates b0, b1, b2 of the triangle (p0, a, p2): K = b1² − 4w'²·b0·b2 (0 on the curve).
-// A straight side, or an arc whose plane passes through the camera, is a line on the screen.
-function sideConic(sg,cam){const g=sg[0],p0=project(cam,g.P0),p2=project(cam,g.P2);if(p0[2]<=1e-6||p2[2]<=1e-6)return null;
-  if(!g.straight){const a=project(cam,g.A),D=(a[0]-p0[0])*(p2[1]-p0[1])-(a[1]-p0[1])*(p2[0]-p0[0]),L2=(p2[0]-p0[0])**2+(p2[1]-p0[1])**2;
-    if(a[2]>1e-6&&Math.abs(D)>1e-6*L2){const w=g.w*a[2]/Math.sqrt(p0[2]*p2[2]);return{conic:true,p0,a,p2,D,W4:4*w*w,s:1}}}
-  return{conic:false,p0,p2,s:1}}
-function Kraw(c,x,y){const p0=c.p0,p2=c.p2;if(!c.conic)return(p2[0]-p0[0])*(y-p0[1])-(p2[1]-p0[1])*(x-p0[0]);const a=c.a,D=c.D,
-  b0=((a[0]-x)*(p2[1]-y)-(a[1]-y)*(p2[0]-x))/D,b1=((x-p0[0])*(p2[1]-p0[1])-(y-p0[1])*(p2[0]-p0[0]))/D,b2=((a[0]-p0[0])*(y-p0[1])-(a[1]-p0[1])*(x-p0[0]))/D;
-  return st.form===1?b1*b1-c.W4*b0*b2:b1-Math.sqrt(c.W4*Math.max(0,b0*b2))}
-// form 1, full conic: also 0 on the unused other half of the ellipse. Form 0, arc only: b1 − 2w'·√(b0·b2) is 0 only on the arc itself
-// (on the other half b1 = −2w'·√(b0·b2)); outside the two end tangents b0·b2 < 0 and it falls back to b1.
-// per piece and camera: the 4 projected sides, each scaled to 1 at the projected centre (sign included, so inside is positive)
-function screenSetup(pc,cam){if(pc.sides.some(sg=>sg.length!==1))return null;const K=[];for(let k=0;k<4;k++){const c=sideConic(pc.sides[k],cam);if(!c)return null;K.push(c)}
-  const C3=pc.eval(0.5,0.5);if(!C3)return null;const c=project(cam,C3);if(c[2]<=0)return null;
-  for(const k of K){const v=Kraw(k,c[0],c[1]);if(!(Math.abs(v)>1e-12))return null;k.s=1/v}return K}
-function suv(S,x,y){const k0=Kraw(S[0],x,y)*S[0].s,k1=Kraw(S[1],x,y)*S[1].s,k2=Kraw(S[2],x,y)*S[2].s,k3=Kraw(S[3],x,y)*S[3].s;
-  return{u:k3/(k3+k1),v:k0/(k0+k2),inside:k0>=-1e-9&&k1>=-1e-9&&k2>=-1e-9&&k3>=-1e-9}}
+// ================= step 14: two-pass map =================
+// set up each piece (once per frame) → pass 1: build (per piece, its own spans) → pass 2: resolve (per pixel) → shade
+const{add,sub,mul,dot,cross,norm}=PIECES.vec;
+const FOV=40*Math.PI/180,CHECKER=8;
+const clamp01=x=>x<0?0:x>1?1:x;
 
-// ---- the surface's own (u, v): ray vs the piece's quadric and side planes, as in step 11 ----
-function hitPiece(pc,cam,dir){const G=pc.geo,o=mul(sub(cam.pos,G.c0),G.sc),d=mul(dir,G.sc),Ad=G.Ax(d),a=dot(d,Ad),b=2*dot(o,Ad)+dot(G.g,d),c=G.Qf(o);
-  let ts;if(Math.abs(a)<1e-14){if(Math.abs(b)<1e-14)return null;ts=[-c/b]}else{const D=b*b-4*a*c;if(D<0)return null;const s=Math.sqrt(D),q=-0.5*(b+(b<0?-s:s));ts=[q/a,c/q].sort((x,y)=>x-y)}
-  for(const t of ts){if(!(t>1e-9))continue;const X=add(o,mul(d,t)),P=G.PL,s0=dot(P[0].n,sub(X,P[0].p)),s1=dot(P[1].n,sub(X,P[1].p)),s2=dot(P[2].n,sub(X,P[2].p)),s3=dot(P[3].n,sub(X,P[3].p));
-    if(s3<-EPS||s1>EPS||s0<-EPS||s2>EPS)continue;const u=s3/(s3-s1),v=s0/(s0-s2);
-    const F=pc.eval(clamp01(u),clamp01(v));if(!F)continue;const Xw=add(G.c0,mul(X,1/G.sc));if(len(sub(F,Xw))>1e-6*(1+len(Xw)))continue;return{t,u,v}}
-  return null}
+// ---------------- camera ----------------
+function makeCamera(W,target,yaw,pitch,dist){const cp=Math.cos(pitch),pos=add(target,mul([cp*Math.sin(yaw),-cp*Math.cos(yaw),Math.sin(pitch)],dist)),fwd=norm(sub(target,pos)),right=norm(cross(fwd,[0,0,1]));
+  return{W,pos,fwd,right,down:cross(fwd,right),f:(W/2)/Math.tan(FOV/2)}}
+const toCamera=(cam,p)=>{const q=sub(p,cam.pos);return[dot(q,cam.right),dot(q,cam.down),dot(q,cam.fwd)]};   // (right, down, forward)
+const toScreen=(cam,c)=>[cam.W/2+cam.f*c[0]/c[2],cam.W/2+cam.f*c[1]/c[2]];
 
+// ---------------- one edge on the screen ----------------
+// An edge arc {P0, A, P2, w} (straight: {P0, P2}) in camera coordinates. These are homogeneous control points of the projected arc, so:
+//  · its crossing with a pixel row is a quadratic in t (linear for a straight edge),
+//  · its implicit form K comes from the screen triangle (p0, a, p2) and the projected weight w' = w·zA / √(z0·z2).
+function projectEdge(g,cam){return g.straight?{straight:true,c:[toCamera(cam,g.P0),toCamera(cam,g.P2)]}:{straight:false,c:[toCamera(cam,g.P0),toCamera(cam,g.A),toCamera(cam,g.P2)],w:g.w}}
+function pointAt(e,t){const c=e.c;if(e.straight)return c[0].map((v,i)=>v+(c[1][i]-v)*t);const r=1-t,b0=r*r,b1=2*e.w*t*r,b2=t*t;return c[0].map((v,i)=>b0*v+b1*c[1][i]+b2*c[2][i])}   // homogeneous
+const quadRoots=(A,B,C)=>{if(Math.abs(A)<=1e-12*(Math.abs(B)+Math.abs(C)))return B?[-C/B]:[];const D=B*B-4*A*C;if(D<0)return[];const s=Math.sqrt(D),q=-0.5*(B+(B<0?-s:s));return q?[q/A,C/q]:[0,0]};
+// screen x of each crossing with the row at screen y = Y, for t in [0, 1) (so a corner shared by two edges counts once). Returns how many.
+function rowCrossings(e,cam,Y,out){const yc=Y-cam.W/2,h=c=>cam.f*c[1]-yc*c[2],c=e.c;   // h = 0: on the plane through the eye and the row
+  const ts=e.straight?quadRoots(0,h(c[1])-h(c[0]),h(c[0])):(()=>{const a=h(c[0]),b=e.w*h(c[1]),d=h(c[2]);return quadRoots(a-2*b+d,2*(b-a),a)})();
+  let n=0;for(const t of ts){if(!(t>=0&&t<1))continue;const p=pointAt(e,t);if(p[2]>0){out.push(cam.W/2+cam.f*p[0]/p[2]);n++}}return n}
+// rows the edge can touch: its control points bound it on the screen (all in front of the camera, positive weight); otherwise every row
+function rowSpan(e,cam){if(!e.straight&&!(e.w>0)||e.c.some(c=>!(c[2]>0)))return[0,cam.W-1];const ys=e.c.map(c=>toScreen(cam,c)[1]);return[Math.ceil(Math.min(...ys)-0.5),Math.floor(Math.max(...ys)-0.5)]}
 
-// ================= step 14: two passes. Build: each piece writes its own pixels. Resolve: each pixel keeps the closest. =================
-let st={mesh:0,form:0,view:0,res:200,yaw:0.7,pitch:0.45},R=null,SEL=null;
-try{const s=JSON.parse(localStorage.getItem('tp9')||'null');if(s)Object.assign(st,s)}catch(e){}
-st.form=0;   // the arc-only K (the full conic also vanishes on the ellipse's unused half; step 13)
-const save=()=>{try{localStorage.setItem('tp9',JSON.stringify(st))}catch(e){}};
-let CONV=null,CONVKEY='';
-function scene(){const k=String(st.mesh);if(CONVKEY!==k){CONV=PIECES.convert(PIECES.source(st.mesh),0.03,0);CONVKEY=k;
-    const all=PIECES.source(st.mesh).flatMap(f=>f.x),c=mul(all.reduce((s,p)=>add(s,p),[0,0,0]),1/all.length);let r=0;all.forEach(p=>r=Math.max(r,len(sub(p,c))));CONV.T=c;CONV.rad=r}
-  return CONV}
+// K of one edge, as affine functions of the screen point ([ax, ay, a0]):  K = B1 − sg·√max(0, c·B0·B2)  (a curved edge: barycentric b1, b0, b2 of its triangle),
+// or K = B1 alone (a straight edge, or an arc whose plane passes through the eye: both are a line on the screen). 0 on the edge itself, never on the rest of its ellipse.
+const aff=(f,x,y)=>f[0]*x+f[1]*y+f[2],affineOf=fn=>{const o=fn(0,0);return[fn(1,0)-o,fn(0,1)-o,o]},cr=(u,v)=>u[0]*v[1]-u[1]*v[0];
+function edgeK(e,cam){if(e.c.some(c=>!(c[2]>1e-6)))return null;const p=e.c.map(c=>toScreen(cam,c)),p0=p[0],p2=p[p.length-1],d=[p2[0]-p0[0],p2[1]-p0[1]];
+  const line={B1:affineOf((x,y)=>cr(d,[x-p0[0],y-p0[1]])),B0:null,B2:null,c:0,sg:1};if(e.straight)return line;
+  const a=p[1],D=cr([a[0]-p0[0],a[1]-p0[1]],d);if(!(Math.abs(D)>1e-6*(d[0]*d[0]+d[1]*d[1])))return line;
+  const w=e.w*e.c[1][2]/Math.sqrt(e.c[0][2]*e.c[2][2]);
+  return{B0:affineOf((x,y)=>cr([a[0]-x,a[1]-y],[p2[0]-x,p2[1]-y])/D),B1:affineOf((x,y)=>cr([x-p0[0],y-p0[1]],d)/D),B2:affineOf((x,y)=>cr([a[0]-p0[0],a[1]-p0[1]],[x-p0[0],y-p0[1]])/D),c:4*w*w,sg:1}}
+const evalK=(k,x,y)=>aff(k.B1,x,y)-(k.B0?k.sg*Math.sqrt(Math.max(0,k.c*aff(k.B0,x,y)*aff(k.B2,x,y))):0);
+const scaleK=(k,s)=>{k.B1=k.B1.map(v=>v*s);k.c*=s*s;k.sg=Math.sign(s)};
+// K along a pixel row, by forward differences: B1 is affine (one add), c·B0·B2 is quadratic (two adds)
+function kStepper(k,x,y){const q=X=>k.c*aff(k.B0,X,y)*aff(k.B2,X,y),s={b:aff(k.B1,x,y),db:k.B1[0],q:0,dq:0,ddq:0};
+  if(k.B0){const q0=q(x),q1=q(x+1),q2=q(x+2);s.q=q0;s.dq=q1-q0;s.ddq=q2-2*q1+q0}
+  s.next=k.B0?()=>{const v=s.b-k.sg*Math.sqrt(Math.max(0,s.q));s.b+=s.db;s.q+=s.dq;s.dq+=s.ddq;return v}:()=>{const v=s.b;s.b+=s.db;return v};return s}
 
-// ---- one projected edge as a row crosser ----
-// The edge's control points in camera coordinates (right, down, forward). Its picture on the screen is the same rational quadratic with these as homogeneous points,
-// so where it crosses the pixel row at screen y = Y is  f·down(t) − (Y − W/2)·forward(t) = 0 : one quadratic in t (linear for a straight edge).
-function edgeRows(sg,cam){const g=sg[0],cc=p=>{const q=sub(p,cam.pos);return[dot(q,cam.right),dot(q,cam.down),dot(q,cam.fwd)]};
-  return g.straight?{lin:true,c0:cc(g.P0),c2:cc(g.P2)}:{lin:false,c0:cc(g.P0),c1:cc(g.A),c2:cc(g.P2),w:g.w}}
-// screen x of each crossing with t in [0, 1) (half-open, so a corner shared by two edges counts once)
-function crossings(s,cam,Y,out){const f=cam.f,h=cam.W/2,yc=Y-h,e=c=>f*c[1]-yc*c[2];
-  if(s.lin){const e0=e(s.c0),e2=e(s.c2),dn=e0-e2;if(dn===0)return 0;const t=e0/dn;if(t>=0&&t<1){const r=s.c0[0]+(s.c2[0]-s.c0[0])*t,z=s.c0[2]+(s.c2[2]-s.c0[2])*t;if(z>0){out.push(h+f*r/z);return 1}}return 0}
-  const a=e(s.c0),b=s.w*e(s.c1),c=e(s.c2),A=a-2*b+c,B=2*(b-a),C=a;   // a(1−t)² + 2bt(1−t) + ct²  =  At² + Bt + C
-  let ts;if(Math.abs(A)<=1e-12*(Math.abs(a)+Math.abs(b)+Math.abs(c))){if(B===0)return 0;ts=[-C/B]}else{const D=B*B-4*A*C;if(D<0)return 0;const sq=Math.sqrt(D),q=-0.5*(B+(B<0?-sq:sq));ts=q===0?[0,0]:[q/A,C/q]}
-  let n=0;for(const t of ts){if(!(t>=0&&t<1))continue;const u=1-t,b0=u*u,b1=2*s.w*t*u,b2=t*t,r=b0*s.c0[0]+b1*s.c1[0]+b2*s.c2[0],z=b0*s.c0[2]+b1*s.c1[2]+b2*s.c2[2];if(z>0){out.push(h+f*r/z);n++}}return n}
-// rows the piece can touch: the projected control points bound each edge (all in front of the camera, positive weights); otherwise every row
-function rowRange(E,cam,W){let y0=Infinity,y1=-Infinity;for(const s of E){const cs=s.lin?[s.c0,s.c2]:[s.c0,s.c1,s.c2];if(!s.lin&&!(s.w>0))return[0,W-1];for(const c of cs){if(!(c[2]>0))return[0,W-1];const y=W/2+cam.f*c[1]/c[2];y0=Math.min(y0,y);y1=Math.max(y1,y)}}
-  return[Math.max(0,Math.ceil(y0-0.5)),Math.min(W-1,Math.floor(y1-0.5))]}
+// ---------------- per piece, per frame ----------------
+// u = K3/(K3+K1), v = K0/(K0+K2), with each K scaled to 1 at the piece's projected centre (so the centre is (0.5, 0.5) and inside is positive)
+function setupPiece(pc,cam){if(!pc.centre||pc.sides.some(sg=>sg.length!==1))return null;
+  const E=pc.sides.map(sg=>projectEdge(sg[0],cam)),K=E.map(e=>edgeK(e,cam)),cc=toCamera(cam,pc.centre);if(K.some(k=>!k)||!(cc[2]>0))return null;
+  const[x,y]=toScreen(cam,cc);for(const k of K){const v=evalK(k,x,y);if(!(Math.abs(v)>1e-12))return null;scaleK(k,1/v)}
+  const rs=E.map(e=>rowSpan(e,cam));return{E,K,rows:[Math.max(0,Math.min(...rs.map(r=>r[0]))),Math.min(cam.W-1,Math.max(...rs.map(r=>r[1])))]}}
 
-// ---- K along a row (u and v), stepped with forward differences: as in step 13 ----
-function prep(S){return S.map(c=>{const s=c.s;if(!c.conic){const g=Kraw(c,0,0)*s;return{t:0,a:Kraw(c,1,0)*s-g,b:Kraw(c,0,1)*s-g,g}}
-  const{p0,a,p2,D}=c,B=(x,y)=>[((a[0]-x)*(p2[1]-y)-(a[1]-y)*(p2[0]-x))/D,((x-p0[0])*(p2[1]-p0[1])-(y-p0[1])*(p2[0]-p0[0]))/D,((a[0]-p0[0])*(y-p0[1])-(a[1]-p0[1])*(x-p0[0]))/D],
-    o=B(0,0),X=B(1,0),Y=B(0,1),aff=i=>[X[i]-o[i],Y[i]-o[i],o[i]];
-  return{t:1,b0:aff(0),b1:aff(1).map(v=>v*s),b2:aff(2),c:s*s*c.W4,sg:Math.sign(s)}})}
-const af=(f,x,y)=>f[0]*x+f[1]*y+f[2],qAt=(d,x,y)=>d.c*af(d.b0,x,y)*af(d.b2,x,y);
+// ---------------- pass 1: build ----------------
+// Each piece walks only its own spans and appends (piece, u, v, distance) to each pixel's list. Lists are linked through `next`, newest first.
+function makeLists(N){let cap=N*2;const L={n:0,head:new Int32Array(N).fill(-1),piece:new Int16Array(cap),u:new Float32Array(cap),v:new Float32Array(cap),dist:new Float32Array(cap),next:new Int32Array(cap)};
+  L.push=(o,i,u,v,d)=>{if(L.n===cap){cap*=2;for(const k of['piece','u','v','dist','next']){const A=new L[k].constructor(cap);A.set(L[k]);L[k]=A}}const j=L.n++;L.piece[j]=i;L.u[j]=u;L.v[j]=v;L.dist[j]=d;L.next[j]=L.head[o];L.head[o]=j};return L}
+function buildPass(pieces,cam){const W=cam.W,L=makeLists(W*W),xs=[];L.outside=0;L.noSurface=0;
+  pieces.forEach((pc,i)=>{const S=pc.frame,n=pc.count={rows:0,rootsCurved:0,rootsStraight:0,spans:0,written:0};if(!S)return;
+    for(let y=S.rows[0];y<=S.rows[1];y++){const Y=y+0.5;xs.length=0;n.rows++;
+      for(const e of S.E){const m=rowCrossings(e,cam,Y,xs);if(e.straight)n.rootsStraight+=m;else n.rootsCurved+=m}
+      xs.sort((a,b)=>a-b);
+      for(let s=0;s+1<xs.length;s+=2){const x0=Math.max(0,Math.ceil(xs[s]-0.5)),x1=Math.min(W-1,Math.ceil(xs[s+1]-0.5)-1);if(x1<x0)continue;n.spans++;
+        const[k0,k1,k2,k3]=S.K.map(k=>kStepper(k,x0+0.5,Y));
+        for(let x=x0;x<=x1;x++){const K0=k0.next(),K1=k1.next(),K2=k2.next(),K3=k3.next(),u=K3/(K3+K1),v=K0/(K0+K2);
+          if(!(u>=-1e-6&&u<=1+1e-6&&v>=-1e-6&&v<=1+1e-6))L.outside++;
+          const X=pc.eval(clamp01(u),clamp01(v));   // the 3D point at (u, v) on the piece's surface
+          if(!X){L.noSurface++;continue}L.push(y*W+x,i,u,v,dot(sub(X,cam.pos),cam.fwd));n.written++}}}});
+  return L}
 
-// ================= pass 1: build. Each piece walks only its own spans and writes (piece, u, v, distance) into each pixel's list =================
-function buildPass(P,cam,W){const N=W*W,head=new Int32Array(N).fill(-1);let cap=Math.max(1024,N*2),fp=new Int16Array(cap),fu=new Float32Array(cap),fv=new Float32Array(cap),fz=new Float32Array(cap),nx=new Int32Array(cap),n=0;
-  const grow=()=>{cap*=2;const g=(A,T)=>{const B=new T(cap);B.set(A);return B};fp=g(fp,Int16Array);fu=g(fu,Float32Array);fv=g(fv,Float32Array);fz=g(fz,Float32Array);nx=g(nx,Int32Array)};
-  const xs=[],r4=[0,1,2,3].map(()=>({k:0,d:0,dd:0,b:0,db:0}));let outside=0,noSurf=0;
-  P.forEach((e,i)=>{e.cnt={rows:0,spans:0,frags:0,rootsC:0,rootsS:0};if(!e.D)return;const D=e.D,E=e.E,[ya,yb]=rowRange(E,cam,W),g=D.map(d=>d.sg);
-    for(let y=ya;y<=yb;y++){const Y=y+0.5;xs.length=0;e.cnt.rows++;for(let k=0;k<4;k++){const m=crossings(E[k],cam,Y,xs);if(E[k].lin)e.cnt.rootsS+=m;else e.cnt.rootsC+=m}
-      if(xs.length<2)continue;xs.sort((p,q)=>p-q);
-      for(let s=0;s+1<xs.length;s+=2){const xa=Math.max(0,Math.ceil(xs[s]-0.5)),xb=Math.min(W-1,Math.ceil(xs[s+1]-0.5)-1);if(xb<xa)continue;e.cnt.spans++;
-        const sx=xa+0.5;for(let k=0;k<4;k++){const d=D[k],r=r4[k];r.dd=0;r.b=0;r.db=0;if(d.t===0){r.k=d.a*sx+d.b*Y+d.g;r.d=d.a}else{const q0=qAt(d,sx,Y),q1=qAt(d,sx+1,Y),q2=qAt(d,sx+2,Y);r.k=q0;r.d=q1-q0;r.dd=q2-2*q1+q0;r.b=af(d.b1,sx,Y);r.db=d.b1[0]}}
-        const[r0,r1,r2,r3]=r4,[t0,t1,t2,t3]=D.map(d=>d.t);
-        for(let x=xa;x<=xb;x++){
-          const K0=t0?r0.b-g[0]*Math.sqrt(Math.max(0,r0.k)):r0.k,K1=t1?r1.b-g[1]*Math.sqrt(Math.max(0,r1.k)):r1.k,K2=t2?r2.b-g[2]*Math.sqrt(Math.max(0,r2.k)):r2.k,K3=t3?r3.b-g[3]*Math.sqrt(Math.max(0,r3.k)):r3.k;
-          const u=K3/(K3+K1),v=K0/(K0+K2);if(!(u>=-1e-6&&u<=1+1e-6&&v>=-1e-6&&v<=1+1e-6))outside++;
-          // the 3D point at (u, v) on the piece's surface, and its distance from the camera along the view direction
-          const X=e.pc.eval(clamp01(u),clamp01(v));
-          if(!X)noSurf++;else{if(n>=cap)grow();const o=y*W+x;fp[n]=i;fu[n]=u;fv[n]=v;fz[n]=dot(sub(X,cam.pos),cam.fwd);nx[n]=head[o];head[o]=n;n++;e.cnt.frags++}
-          r0.k+=r0.d;r0.d+=r0.dd;r0.b+=r0.db;r1.k+=r1.d;r1.d+=r1.dd;r1.b+=r1.db;r2.k+=r2.d;r2.d+=r2.dd;r2.b+=r2.db;r3.k+=r3.d;r3.d+=r3.dd;r3.b+=r3.db}}}});
-  return{head,fp,fu,fv,fz,nx,n,outside,noSurf}}
+// ---------------- pass 2: resolve ----------------
+// Each pixel keeps the closest entry of its list. Output: plain arrays, one value per pixel.
+function resolvePass(L,N,near,far){const M={piece:new Int16Array(N).fill(-1),u:new Float32Array(N),v:new Float32Array(N),dist:new Float32Array(N),occ:new Float32Array(N),entries:new Uint8Array(N),covered:0};
+  for(let o=0;o<N;o++){let best=-1,n=0;for(let j=L.head[o];j>=0;j=L.next[j]){n++;if(best<0||L.dist[j]<L.dist[best])best=j}M.entries[o]=Math.min(255,n);if(best<0)continue;
+    M.covered++;M.piece[o]=L.piece[best];M.u[o]=L.u[best];M.v[o]=L.v[best];M.dist[o]=L.dist[best];M.occ[o]=Math.max(1e-6,Math.min(1,(L.dist[best]-near)/(far-near)))}   // occlusion map: 0 = nothing written
+  return M}
 
-// ================= pass 2: resolve. Each pixel keeps the closest entry of its list =================
-function resolvePass(B,W,near,far){const N=W*W,pid=new Int16Array(N).fill(-1),pu=new Float32Array(N),pv=new Float32Array(N),pz=new Float32Array(N),occ=new Float32Array(N),layers=new Uint8Array(N);let covered=0,maxL=0;
-  for(let o=0;o<N;o++){let best=-1,bz=Infinity,L=0;for(let j=B.head[o];j>=0;j=B.nx[j]){L++;if(B.fz[j]<bz){bz=B.fz[j];best=j}}
-    layers[o]=Math.min(255,L);maxL=Math.max(maxL,L);if(best>=0){covered++;pid[o]=B.fp[best];pu[o]=B.fu[best];pv[o]=B.fv[best];pz[o]=bz;occ[o]=Math.max(1e-6,Math.min(1,(bz-near)/(far-near)))}}
-  return{pid,pu,pv,pz,occ,layers,covered,maxL}}
+// ---------------- verification only: the step 11 ray pass (not part of the method) ----------------
+function rayPiece(pc,cam,x,y){const G=pc.geo,dir=add(cam.fwd,add(mul(cam.right,(x-cam.W/2)/cam.f),mul(cam.down,(y-cam.W/2)/cam.f))),o=mul(sub(cam.pos,G.c0),G.sc),d=mul(dir,G.sc),Ad=G.Ax(d),a=dot(d,Ad),b=2*dot(o,Ad)+dot(G.g,d);
+  const c=G.Qf(o);let ts;if(Math.abs(a)<1e-14){if(Math.abs(b)<1e-14)return null;ts=[-c/b]}else{const D=b*b-4*a*c;if(D<0)return null;const s=Math.sqrt(D),q=-0.5*(b+(b<0?-s:s));ts=[q/a,c/q].sort((p,q)=>p-q)}
+  for(const t of ts){if(!(t>1e-9))continue;const X=add(o,mul(d,t)),s=G.PL.map(P=>dot(P.n,sub(X,P.p)));if(s[3]<-1e-9||s[1]>1e-9||s[0]<-1e-9||s[2]>1e-9)continue;
+    const F=pc.eval(clamp01(s[3]/(s[3]-s[1])),clamp01(s[0]/(s[0]-s[2]))),Xw=add(G.c0,mul(X,1/G.sc));if(F&&Math.hypot(...sub(F,Xw))<=1e-6*(1+Math.hypot(...Xw)))return t}return null}
+function rayPass(pieces,cam){const W=cam.W,out=new Int16Array(W*W).fill(-1);
+  const boxes=pieces.map(pc=>{if(!pc.geo||!pc.geo.pencil)return null;let b=[1e9,1e9,-1e9,-1e9];for(let j=0;j<=10;j++)for(let i=0;i<=10;i++){const X=pc.eval(i/10,j/10),c=X&&toCamera(cam,X);if(!c||c[2]<=0)continue;const[x,y]=toScreen(cam,c);b=[Math.min(b[0],x),Math.min(b[1],y),Math.max(b[2],x),Math.max(b[3],y)]}return b[2]<b[0]?null:[b[0]-2,b[1]-2,b[2]+2,b[3]+2]});
+  for(let y=0;y<W;y++)for(let x=0;x<W;x++){const X=x+0.5,Y=y+0.5;let bt=Infinity;pieces.forEach((pc,i)=>{const b=boxes[i];if(!b||X<b[0]||X>b[2]||Y<b[1]||Y>b[3])return;const t=rayPiece(pc,cam,X,Y);if(t!==null&&t<bt){bt=t;out[y*W+x]=i}})}
+  return out}
 
-// ---- verification only (not part of the method): the step 11 ray pass over the same pieces ----
-function rayPass(P,cam,W){const N=W*W,pid=new Int16Array(N).fill(-1);
-  P.forEach(e=>{let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;for(let j=0;j<=10;j++)for(let i=0;i<=10;i++){const X=e.pc.eval(i/10,j/10);if(!X)continue;const p=project(cam,X);if(p[2]<=0)continue;x0=Math.min(x0,p[0]);y0=Math.min(y0,p[1]);x1=Math.max(x1,p[0]);y1=Math.max(y1,p[1])}e.box=x1>=x0?[x0-2,y0-2,x1+2,y1+2]:null});
-  for(let y=0;y<W;y++)for(let x=0;x<W;x++){const sx=x+0.5,sy=y+0.5;let best=null;const d=rayDir(cam,sx,sy);
-    P.forEach((e,i)=>{if(!e.pc.geo||!e.pc.geo.pencil||!e.box||sx<e.box[0]||sx>e.box[2]||sy<e.box[1]||sy>e.box[3])return;const h=hitPiece(e.pc,cam,d);if(h&&(!best||h.t<best.t))best={t:h.t,i}});
-    if(best)pid[y*W+x]=best.i}
-  return pid}
-
-// ---- cost model (Skylake float32, one core, throughput-bound): ALU ops 0.5 cycle, divider ops (DIV, SQRT) 3, compares 1 ----
+// ---------------- cost model ----------------
+// Skylake float32, one core, throughput-bound: ADD/MUL/FMA/MAX/MIN 0.5 cycle, DIV and SQRT 3 (one divider), compares 1; a part's cycles are the largest of the three.
+const OPS={
+  framePoint:{add:3,mul:3,fma:6,div:1},                                  // a control point into camera coordinates and onto the screen
+  frameEdge:{curved:{add:8,mul:8,fma:6,sqrt:1,div:2},straight:{add:4,mul:2,div:1}},  // K forms (triangle, weight) per edge
+  frameCentre:{add:8,mul:4,fma:12,sqrt:4,div:4},                         // the 4 K at the projected centre, and their scales
+  rowEdge:{curved:{fma:5,add:2,mul:2,sqrt:1,div:2,cmp:5},straight:{fma:2,add:1,div:1,cmp:2}},   // one edge's crossing with one row
+  root:{curved:{add:1,mul:6,fma:5,div:1,cmp:2},straight:{fma:3,div:1,cmp:2}},                // screen x of a crossing found, and sorting it in
+  spanEdge:{curved:{fma:8,mul:3,add:1},straight:{fma:2}},                // K stepper start
+  pixelEdge:{curved:{add:4,max:1,sqrt:1},straight:{add:1}},              // K step
+  pixel:{add:5,mul:1,fma:2,div:2,max:2,min:2},                           // u, v, clamp, distance
+  pixelP:{fma:97,mul:86,add:33,div:8,sqrt:2,cmp:4},                      // P(u, v): two planes → line → quadric → the root nearest the blend of the 4 edge arcs
+  resolveEntry:{cmp:1},resolvePixel:{mul:2,add:3,max:2,fma:1}};          // pass 2: one compare per entry; per covered pixel the colour and the occlusion value
 const OPN=['add','mul','fma','max','min','sqrt','div','cmp'];
 const addOps=(T,o,n=1)=>{for(const k in o)T[k]=(T[k]||0)+o[k]*n;return T};
-const cyc=T=>Math.max(((T.add||0)+(T.mul||0)+(T.fma||0)+(T.max||0)+(T.min||0))*0.5,((T.div||0)+(T.sqrt||0))*3,(T.cmp||0)*1);
+const cycles=T=>Math.max(OPN.slice(0,5).reduce((s,k)=>s+(T[k]||0),0)*0.5,((T.div||0)+(T.sqrt||0))*3,T.cmp||0);
 const flops=T=>OPN.reduce((s,k)=>s+(T[k]||0)*(k==='fma'?2:1),0);
-const opStr=T=>OPN.filter(k=>T[k]).map(k=>(+T[k].toFixed(1)).toLocaleString('en-US')+' '+k.toUpperCase()).join(', ');
-const OPS={
-  // pass 1, per piece and frame: control points into camera coordinates; the K set-up of step 13 (screen points, barycentric forms, centre scale)
-  framePt:{add:3,mul:3,fma:6},frameRowPt:{div:1,fma:1,cmp:2},frameK:{0:{add:4,mul:2,div:1},1:{add:8,mul:8,fma:6,sqrt:1,div:2}},frameKpt:{add:5,mul:3,fma:6,div:1},frameCentre:{fma:12,add:8,mul:4,sqrt:4,div:4},
-  // pass 1, per piece and row: each edge's crossing with the row (quadratic / linear), and the screen x of each crossing found
-  rowC:{fma:5,add:2,mul:2,sqrt:1,div:2,cmp:5},rowS:{fma:2,add:1,div:1,cmp:2},rootC:{add:1,mul:6,fma:5,div:1,cmp:1},rootS:{fma:3,div:1,cmp:1},sort:{cmp:1},
-  // pass 1, per span: K row start
-  spanK:{0:{fma:2},1:{fma:8,mul:3,add:1}},
-  // pass 1, per pixel written: step K, u and v, clamp, P(u, v) (two planes → line → quadric → pick the root nearest the edges' blend), distance, write
-  pixK:{0:{add:1},1:{add:4,max:1,sqrt:1}},pixUV:{add:2,div:2,max:2,min:2},pixP:{fma:97,mul:86,add:33,div:8,sqrt:2,cmp:4},pixZ:{add:3,fma:2,mul:1},
-  // pass 2, per pixel: one compare per list entry; for a covered pixel the colour (checker) and the normalized distance
-  resEntry:{cmp:1},resPix:{mul:2,add:3,max:2,fma:1}};
-function costOf(R){const T={frame:{},row:{},span:{},pix:{},res:{}};
-  R.P.forEach(e=>{if(!e.D)return;const c=e.cnt,ty=e.D.map(d=>d.t),nc=ty.filter(t=>t).length,ns=4-nc;
-    addOps(T.frame,OPS.framePt,4+nc);addOps(T.frame,OPS.frameRowPt,4+nc);ty.forEach(t=>addOps(T.frame,OPS.frameK[t]));addOps(T.frame,OPS.frameKpt,5+nc);addOps(T.frame,OPS.frameCentre);
-    addOps(T.row,OPS.rowC,c.rows*nc);addOps(T.row,OPS.rowS,c.rows*ns);addOps(T.row,OPS.rootC,c.rootsC);addOps(T.row,OPS.rootS,c.rootsS);addOps(T.row,OPS.sort,c.rootsC+c.rootsS);
-    ty.forEach(t=>addOps(T.span,OPS.spanK[t],c.spans));
-    ty.forEach(t=>addOps(T.pix,OPS.pixK[t],c.frags));addOps(T.pix,OPS.pixUV,c.frags);addOps(T.pix,OPS.pixP,c.frags);addOps(T.pix,OPS.pixZ,c.frags)});
-  addOps(T.res,OPS.resEntry,R.B.n);addOps(T.res,OPS.resPix,R.F.covered);return T}
+function costOf(pieces,L,M){const T={frame:{},rows:{},spans:{},pixels:{},resolve:{}};
+  pieces.forEach(pc=>{const S=pc.frame,n=pc.count;if(!S)return;const kinds=S.E.map(e=>e.straight?'straight':'curved');
+    addOps(T.frame,OPS.framePoint,4+kinds.filter(k=>k==='curved').length+1);addOps(T.frame,OPS.frameCentre);
+    kinds.forEach(k=>{addOps(T.frame,OPS.frameEdge[k]);addOps(T.rows,OPS.rowEdge[k],n.rows);addOps(T.spans,OPS.spanEdge[k],n.spans);addOps(T.pixels,OPS.pixelEdge[k],n.written)});
+    addOps(T.rows,OPS.root.curved,n.rootsCurved);addOps(T.rows,OPS.root.straight,n.rootsStraight);addOps(T.pixels,OPS.pixel,n.written);addOps(T.pixels,OPS.pixelP,n.written)});
+  addOps(T.resolve,OPS.resolveEntry,L.n);addOps(T.resolve,OPS.resolvePixel,M.covered);return T}
 
-// ---------------- run ----------------
-function run(fast){try{const C=scene(),W=st.res,dist=3.6*C.rad,cam=makeCam(W,C.T,st.yaw,st.pitch,dist),near=dist-1.35*C.rad,far=dist+1.35*C.rad,tf0=performance.now();
-  const P=C.pieces.map(pc=>{const S=screenSetup(pc,cam);return{pc,S,D:S?prep(S):null,E:S?pc.sides.map(sg=>edgeRows(sg,cam)):null}});
-  const t0=performance.now(),B=buildPass(P,cam,W),t1=performance.now(),F=resolvePass(B,W,near,far),t2=performance.now();
-  let CMP=null;if(st.view===3){const rp=rayPass(P,cam,W),N=W*W,cls=new Uint8Array(N);let same=0,other=0,onlyRay=0,onlyB=0;for(let o=0;o<N;o++){const a=F.pid[o],b=rp[o];if(a>=0&&b>=0){if(a===b){cls[o]=1;same++}else{cls[o]=2;other++}}else if(b>=0){cls[o]=3;onlyRay++}else if(a>=0){cls[o]=4;onlyB++}}CMP={cls,same,other,onlyRay,onlyB}}
-  R={C,cam,W,P,B,F,CMP,near,far,ms1:t1-t0,ms2:t2-t1};draw();R.frameMs=performance.now()-tf0;tick();if(!fast||!spin){checks();inspect()}}catch(e){log('ERROR '+(e.stack||e),true)}}
-const FT=[];function tick(){const t=performance.now();FT.push(t);while(FT.length&&t-FT[0]>1000)FT.shift();showFps()}
-function showFps(){if(!R)return;const t=performance.now(),live=FT.length>1&&t-FT[FT.length-1]<400,fps=live?(FT.length-1)*1000/(FT[FT.length-1]-FT[0]):null;
-  document.getElementById('fps').textContent=(fps?fps.toFixed(0)+' FPS':'— FPS (idle)')+'\nbuild '+R.ms1.toFixed(1)+' ms · resolve '+R.ms2.toFixed(1)+' ms\nwhole frame '+(R.frameMs||0).toFixed(1)+' ms'}
+// ---------------- frame ----------------
+let st={mesh:0,view:0,res:200,yaw:0.7,pitch:0.45},R=null,SEL=null,scene=null;
+try{Object.assign(st,JSON.parse(localStorage.getItem('tp9')||'{}'))}catch(e){}
+const save=()=>{try{localStorage.setItem('tp9',JSON.stringify(st))}catch(e){}};
+function loadScene(){if(scene&&scene.mesh===st.mesh)return scene;const Q=PIECES.source(st.mesh),C=PIECES.convert(Q,0.03,0),pts=Q.flatMap(q=>q.x),centre=mul(pts.reduce(add,[0,0,0]),1/pts.length);
+  C.pieces.forEach(pc=>pc.centre=pc.eval(0.5,0.5));   // fixed on the surface
+  return scene={mesh:st.mesh,pieces:C.pieces,centre,radius:Math.max(...pts.map(p=>Math.hypot(...sub(p,centre))))}}
+function run(){try{const S=loadScene(),dist=3.6*S.radius,cam=makeCamera(st.res,S.centre,st.yaw,st.pitch,dist),near=dist-1.35*S.radius,far=dist+1.35*S.radius,t0=performance.now();
+  S.pieces.forEach(pc=>pc.frame=setupPiece(pc,cam));
+  const t1=performance.now(),L=buildPass(S.pieces,cam),t2=performance.now(),M=resolvePass(L,st.res*st.res,near,far),t3=performance.now();
+  R={cam,pieces:S.pieces,L,M,ms:{setup:t1-t0,build:t2-t1,resolve:t3-t2},check:st.view===3?compare(M.piece,rayPass(S.pieces,cam)):null};
+  draw();R.ms.frame=performance.now()-t0;tick();if(!spin){stats();inspect()}}catch(e){log('ERROR '+(e.stack||e),true)}}
+function compare(a,b){const cls=new Uint8Array(a.length),n=[0,0,0,0,0];for(let o=0;o<a.length;o++){const k=a[o]>=0&&b[o]>=0?(a[o]===b[o]?1:2):b[o]>=0?3:a[o]>=0?4:0;cls[o]=k;n[k]++}return{cls,same:n[1],other:n[2],onlyRay:n[3],onlyMap:n[4]}}
+
+// ---------------- shade (the "do something" with each resolved pixel) and page ----------------
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d');let C={};
+function readC(){const g=getComputedStyle(document.documentElement);['fg','surface','pin','pst','pco','good','warn','accent'].forEach(k=>C[k]=g.getPropertyValue('--'+k).trim().replace('#','').match(/../g).map(h=>parseInt(h,16)))}
+const mix=(a,b,t)=>a.map((x,i)=>Math.round(x*(1-t)+b[i]*t)),inUnit=(u,v)=>u>=-1e-6&&u<=1+1e-6&&v>=-1e-6&&v<=1+1e-6;
+function shade(o){const M=R.M,i=M.piece[o];switch(st.view){
+  case 1:return i<0?C.surface:mix(C.fg,C.surface,M.occ[o]);
+  case 2:return[C.surface,mix(C.fg,C.surface,0.85),C.accent,C.warn][Math.min(3,M.entries[o])];
+  case 3:return[C.surface,mix(C.fg,C.surface,0.78),C.warn,C.accent,C.good][R.check.cls[o]];
+  default:{if(i<0)return C.surface;const u=M.u[o],v=M.v[o];if(!inUnit(u,v))return C.warn;const base=[C.pin,C.pst,C.pco][R.pieces[i].kind];return(Math.floor(u*CHECKER-1e-9)+Math.floor(v*CHECKER-1e-9))&1?mix(base,C.fg,0.42):base}}}
+function draw(){const W=R.cam.W;if(cv.width!==W){cv.width=W;cv.height=W}const im=ctx.createImageData(W,W),d=im.data;for(let o=0;o<W*W;o++){const c=shade(o);d[4*o]=c[0];d[4*o+1]=c[1];d[4*o+2]=c[2];d[4*o+3]=255}ctx.putImageData(im,0,0);mark();legend()}
+const PALE='color-mix(in srgb, var(--fg) 18%, var(--surface))',LEGEND=[[['var(--pin)','Inner piece'],['var(--pst)','Edge strip'],['var(--pco)','Corner piece'],['var(--warn)','u or v outside 0…1']],[['var(--fg)','Near'],['var(--surface)','Far, or nothing written (0)']],
+  [[PALE,'1 entry'],['var(--accent)','2 entries'],['var(--warn)','3 or more']],[[PALE,'Same piece as step 11'],['var(--warn)','A different piece wins'],['var(--accent)','Only step 11 covers it'],['var(--good)','Only the map covers it']]];
+function legend(){document.getElementById('legend').innerHTML=LEGEND[st.view].map(([c,t])=>'<span><span class="ln" style="background:'+c+'"></span>'+t+'</span>').join('')}
+function mark(){const m=document.getElementById('mark'),W=R.cam.W;m.hidden=!SEL;if(SEL)Object.assign(m.style,{left:SEL.x/W*100+'%',top:SEL.y/W*100+'%',width:100/W+'%',height:100/W+'%'})}
+const fmt=(x,d=0)=>x.toLocaleString('en-US',{maximumFractionDigits:d}),KIND=['inner','strip','corner'];
+// the numbers a pixel holds: its list from pass 1, and what pass 2 kept
+function inspect(){const el=document.getElementById('ptab'),hd=document.getElementById('phead');if(!SEL){el.innerHTML='<tr><td colspan="5">Tap a pixel</td></tr>';hd.textContent='';return}
+  const o=SEL.y*R.cam.W+SEL.x,{L,M}=R,js=[];for(let j=L.head[o];j>=0;j=L.next[j])js.unshift(j);
+  hd.textContent='Pixel ('+SEL.x+', '+SEL.y+'): '+js.length+(js.length===1?' entry':' entries')+(M.piece[o]<0?' · nothing written':' · kept: piece '+M.piece[o]+', u '+M.u[o].toFixed(4)+', v '+M.v[o].toFixed(4)+', distance '+M.dist[o].toFixed(4)+', occlusion map '+M.occ[o].toFixed(4));
+  el.innerHTML=js.length?js.map(j=>{const pc=R.pieces[L.piece[j]],win=M.piece[o]===L.piece[j]&&M.dist[o]===L.dist[j];return'<tr'+(win?' class="win"':'')+'><td>'+L.piece[j]+' '+KIND[pc.kind]+' (quad '+pc.qi+')</td><td class="n">'+L.u[j].toFixed(4)+'</td><td class="n">'+L.v[j].toFixed(4)+'</td><td class="n">'+L.dist[j].toFixed(4)+'</td><td>'+(win?'closest':'')+'</td></tr>'}).join(''):'<tr><td colspan="5">No piece wrote to this pixel</td></tr>'}
+const rowsHTML=rows=>rows.map(r=>'<tr>'+r.map((c,i)=>'<td'+(i?' class="n"':'')+'>'+c+'</td>').join('')+'</tr>').join('');
+function stats(){const{L,M,check:c}=R,px=R.cam.W*R.cam.W,rows=[['Pixels covered (pass 2)',fmt(M.covered)+' of '+fmt(px)],['List entries written (pass 1)',fmt(L.n)+' ('+(L.n/Math.max(1,M.covered)).toFixed(2)+' per covered pixel)'],
+    ['Entries with u or v outside 0…1 (folds)',fmt(L.outside)],['Span pixels where P(u, v) has no surface',fmt(L.noSurface)],['Pieces with no screen edges this frame',R.pieces.filter(p=>!p.frame).length+' of '+R.pieces.length]];
+  if(c){const t=Math.max(1,c.same+c.other+c.onlyRay+c.onlyMap);rows.push(['Check: same piece as step 11',fmt(c.same)+' ('+(100*c.same/t).toFixed(1)+'%)'],['Check: a different piece wins',fmt(c.other)],['Check: only step 11 covers it',fmt(c.onlyRay)],['Check: only the map covers it',fmt(c.onlyMap)])}
+  document.getElementById('checks').innerHTML=rowsHTML(rows);
+  const T=costOf(R.pieces,L,M),parts=[['Pass 1 · frame setup',T.frame],['Pass 1 · row crossings',T.rows],['Pass 1 · span starts',T.spans],['Pass 1 · pixels written (K, u, v, P(u, v), distance)',T.pixels],['Pass 2 · resolve and colour',T.resolve]],
+    total=parts.reduce((s,[,X])=>s+cycles(X),0),opStr=X=>OPN.filter(k=>X[k]).map(k=>fmt(X[k])+' '+k.toUpperCase()).join(', '),one=addOps(addOps(addOps({},OPS.pixelEdge.curved,4),OPS.pixel),OPS.pixelP);
+  document.getElementById('cost').innerHTML=rowsHTML(parts.map(([a,X])=>[a,opStr(X),fmt(flops(X)),fmt(cycles(X)),fmt(cycles(X)/px,1)]))+rowsHTML([
+    ['<b>Frame total</b>','','','<b>'+fmt(total)+'</b>','<b>'+fmt(total/px,1)+'</b>'],
+    ['Budget: 1,000 cycles per pixel',(100*total/px/1000).toFixed(1)+'% used','',fmt(1000*px),'1,000'],
+    ['Model at 3 GHz, one core',fmt(total/3000)+' µs per frame → '+fmt(3e9/total)+' FPS','','',''],
+    ['One written pixel, 4 curved edges',opStr(one),fmt(flops(one)),fmt(cycles(one)),''],
+    ['Measured here (JavaScript, float64)','setup '+R.ms.setup.toFixed(1)+' ms, build '+R.ms.build.toFixed(1)+' ms, resolve '+R.ms.resolve.toFixed(1)+' ms','','',''] ])}
+
+// FPS: frames drawn in the last second (only while something moves: drag or auto orbit)
+const FT=[];function tick(){const t=performance.now();FT.push(t);while(t-FT[0]>1000)FT.shift();showFps()}
+function showFps(){if(!R)return;const live=FT.length>1&&performance.now()-FT[FT.length-1]<400;
+  document.getElementById('fps').textContent=(live?fmt((FT.length-1)*1000/(FT[FT.length-1]-FT[0]))+' FPS':'— FPS (idle)')+'\nbuild '+R.ms.build.toFixed(1)+' ms · resolve '+R.ms.resolve.toFixed(1)+' ms\nwhole frame '+(R.ms.frame||0).toFixed(1)+' ms'}
 setInterval(showFps,500);
 
-// ---------------- drawing ----------------
-const cv=document.getElementById('cv'),ctx=cv.getContext('2d');let C={};
-function readC(){const g=getComputedStyle(document.documentElement);['fg','muted','line','surface','pin','pst','pco','good','warn','accent'].forEach(k=>C[k]=g.getPropertyValue('--'+k).trim())}
-const rgb=h=>{h=h.replace('#','');return[0,2,4].map(i=>parseInt(h.slice(i,i+2),16))};
-const mix=(a,b,t)=>a.map((x,i)=>Math.round(x*(1-t)+b[i]*t));
-function draw(){const W=R.W,{F,P}=R;if(cv.width!==W){cv.width=W;cv.height=W}const im=ctx.createImageData(W,W),d=im.data,bg=rgb(C.surface),fg=rgb(C.fg),warn=rgb(C.warn),base=[rgb(C.pin),rgb(C.pst),rgb(C.pco)],dark=base.map(b=>mix(b,fg,0.42)),
-    lay=[bg,mix(fg,bg,0.85),rgb(C.accent),rgb(C.warn),rgb(C.warn)],cmp=[bg,mix(fg,bg,0.78),warn,rgb(C.accent),rgb(C.good)];
-  for(let o=0;o<W*W;o++){let c;const i=F.pid[o];
-    if(st.view===1)c=i<0?bg:mix(fg,bg,F.occ[o]);
-    else if(st.view===2)c=lay[Math.min(4,F.layers[o])];
-    else if(st.view===3&&R.CMP)c=cmp[R.CMP.cls[o]];
-    else if(i<0)c=bg;else{const u=F.pu[o],v=F.pv[o];if(!(u>=-1e-6&&u<=1+1e-6&&v>=-1e-6&&v<=1+1e-6))c=warn;else{const k=P[i].pc.kind;c=((Math.floor(clamp01(u)*CHK-1e-9)+Math.floor(clamp01(v)*CHK-1e-9))&1)?dark[k]:base[k]}}
-    d[4*o]=c[0];d[4*o+1]=c[1];d[4*o+2]=c[2];d[4*o+3]=255}
-  ctx.putImageData(im,0,0);mark();legend()}
-function legend(){const L={0:[['var(--pin)','Inner piece'],['var(--pst)','Edge strip'],['var(--pco)','Corner piece'],['var(--warn)','u or v outside 0…1']],1:[['var(--fg)','Near'],['var(--surface)','Far, or nothing written (0)']],
-  2:[['color-mix(in srgb, var(--fg) 15%, var(--surface))','1 entry'],['var(--accent)','2 entries'],['var(--warn)','3 or more']],3:[['color-mix(in srgb, var(--fg) 22%, var(--surface))','Same piece as step 11'],['var(--warn)','A different piece wins'],['var(--accent)','Only step 11 covers it'],['var(--good)','Only the two passes cover it']]}[st.view];
-  document.getElementById('legend').innerHTML=L.map(([c,t])=>'<span><span class="ln" style="background:'+c+'"></span>'+t+'</span>').join('')}
-function mark(){const m=document.getElementById('mark');if(!SEL){m.hidden=true;return}const W=R.W;m.hidden=false;m.style.left=(SEL.x/W*100)+'%';m.style.top=(SEL.y/W*100)+'%';m.style.width=(100/W)+'%';m.style.height=(100/W)+'%'}
-const f0=x=>x.toLocaleString('en-US',{maximumFractionDigits:0}),f1=x=>x.toLocaleString('en-US',{maximumFractionDigits:x<10?1:0}),names=['inner','strip','corner'];
-// the numbers a pixel holds: its list from pass 1, and what pass 2 kept
-function inspect(){const el=document.getElementById('ptab'),hd=document.getElementById('phead');if(!SEL||!R){el.innerHTML='<tr><td colspan="5">Tap a pixel</td></tr>';hd.textContent='';return}
-  const W=R.W,o=SEL.y*W+SEL.x,B=R.B,F=R.F,rows=[];for(let j=B.head[o];j>=0;j=B.nx[j])rows.push(j);rows.reverse();
-  hd.textContent='Pixel ('+SEL.x+', '+SEL.y+'): '+rows.length+(rows.length===1?' entry':' entries')+(F.pid[o]>=0?' · kept: piece '+F.pid[o]+', u '+F.pu[o].toFixed(4)+', v '+F.pv[o].toFixed(4)+', distance '+F.pz[o].toFixed(4)+', occlusion map '+F.occ[o].toFixed(4):' · nothing written');
-  el.innerHTML=rows.length?rows.map(j=>{const pc=R.P[B.fp[j]].pc,win=F.pid[o]===B.fp[j]&&F.pz[o]===B.fz[j];return'<tr'+(win?' class="win"':'')+'><td>'+B.fp[j]+' '+names[pc.kind]+' (quad '+pc.qi+')</td><td class="n">'+B.fu[j].toFixed(4)+'</td><td class="n">'+B.fv[j].toFixed(4)+'</td><td class="n">'+B.fz[j].toFixed(4)+'</td><td>'+(win?'closest':'')+'</td></tr>'}).join(''):'<tr><td colspan="5">No piece wrote to this pixel</td></tr>'}
-function checks(){const r=R,W=r.W,rows=[];
-  rows.push(['Pixels covered (pass 2)',f0(r.F.covered)+' of '+f0(W*W)]);
-  rows.push(['List entries written (pass 1)',f0(r.B.n)+' ('+(r.B.n/Math.max(1,r.F.covered)).toFixed(2)+' per covered pixel, at most '+r.F.maxL+')']);
-  rows.push(['Entries with u or v outside 0…1 (folds)',f0(r.B.outside)]);
-  rows.push(['Span pixels where P(u, v) has no surface (not written)',f0(r.B.noSurf)]);
-  rows.push(['Pieces with no screen edges this frame',String(r.P.filter(e=>!e.D).length)+' of '+r.P.length]);
-  if(r.CMP){const c=r.CMP,t=c.same+c.other+c.onlyRay+c.onlyB;rows.push(['Check against step 11: same piece',f0(c.same)+' ('+(100*c.same/Math.max(1,t)).toFixed(1)+'%)']);rows.push(['Check: a different piece wins',f0(c.other)]);rows.push(['Check: only step 11 covers it',f0(c.onlyRay)]);rows.push(['Check: only the two passes cover it',f0(c.onlyB)])}
-  document.getElementById('checks').innerHTML=rows.map(([a,b])=>'<tr><td>'+a+'</td><td class="n">'+b+'</td></tr>').join('');costTable()}
-function costTable(){const T=costOf(R),W=R.W,px=W*W,row=(a,X,note)=>'<tr><td>'+a+'</td><td>'+opStr(X)+'</td><td class="n">'+f0(flops(X))+'</td><td class="n">'+f0(cyc(X))+'</td><td class="n">'+f1(cyc(X)/px)+'</td></tr>';
-  const parts=[['Pass 1 · frame setup (all pieces)',T.frame],['Pass 1 · row crossings (all pieces)',T.row],['Pass 1 · span starts',T.span],['Pass 1 · pixels written (K, u, v, P(u, v), distance)',T.pix],['Pass 2 · resolve and colour',T.res]];
-  const tot=parts.reduce((s,[,X])=>s+cyc(X),0),one=addOps(addOps(addOps(addOps({},OPS.pixK[1],4),OPS.pixUV),OPS.pixP),OPS.pixZ);
-  document.getElementById('cost').innerHTML=parts.map(([a,X])=>row(a,X)).join('')
-    +'<tr><td><b>Frame total</b></td><td></td><td class="n"></td><td class="n"><b>'+f0(tot)+'</b></td><td class="n"><b>'+f1(tot/px)+'</b></td></tr>'
-    +'<tr><td>Budget: 1,000 cycles per pixel</td><td>'+(100*tot/px/1000).toFixed(1)+'% used</td><td></td><td class="n">'+f0(1000*px)+'</td><td class="n">1,000</td></tr>'
-    +'<tr><td>Model at 3 GHz, one core</td><td>'+(tot/3000).toFixed(0)+' µs per frame → '+f0(3e9/tot)+' FPS</td><td></td><td></td><td></td></tr>'
-    +'<tr><td style="color:var(--muted)">One written pixel, 4 curved edges</td><td style="color:var(--muted)">'+opStr(one)+'</td><td class="n" style="color:var(--muted)">'+f0(flops(one))+'</td><td class="n" style="color:var(--muted)">'+f0(cyc(one))+'</td><td></td></tr>'
-    +'<tr><td style="color:var(--muted)">Measured here (JavaScript, float64)</td><td style="color:var(--muted)">build '+R.ms1.toFixed(1)+' ms, resolve '+R.ms2.toFixed(1)+' ms</td><td></td><td></td><td></td></tr>'}
-
 // ---------------- controls ----------------
-function seg(id,k){const g=document.getElementById(id),bs=[...g.querySelectorAll('button')],sync=()=>bs.forEach(b=>b.classList.toggle('on',String(st[k])===b.dataset.v));bs.forEach(b=>b.onclick=()=>{st[k]=+b.dataset.v;sync();if(k==='res'||k==='mesh')SEL=null;save();run()});sync()}
+function seg(id,k){const bs=[...document.getElementById(id).querySelectorAll('button')],sync=()=>bs.forEach(b=>b.classList.toggle('on',String(st[k])===b.dataset.v));bs.forEach(b=>b.onclick=()=>{st[k]=+b.dataset.v;sync();if(k!=='view')SEL=null;save();run()});sync()}
 seg('g-mesh','mesh');seg('g-view','view');seg('g-res','res');
-let ptr=null,raf=0;cv.addEventListener('pointerdown',e=>{ptr={x:e.clientX,y:e.clientY,sx:e.clientX,sy:e.clientY,drag:false};cv.setPointerCapture(e.pointerId)});
-cv.addEventListener('pointermove',e=>{if(!ptr)return;if(!ptr.drag&&Math.hypot(e.clientX-ptr.sx,e.clientY-ptr.sy)>8)ptr.drag=true;if(!ptr.drag)return;st.yaw-=(e.clientX-ptr.x)*0.01;st.pitch=Math.max(-1.3,Math.min(1.3,st.pitch+(e.clientY-ptr.y)*0.01));ptr.x=e.clientX;ptr.y=e.clientY;if(!raf)raf=requestAnimationFrame(()=>{raf=0;run(true)})});
-cv.addEventListener('pointerup',e=>{if(!ptr)return;const was=ptr;ptr=null;if(was.drag){save();run();return}const b=cv.getBoundingClientRect(),W=R.W;SEL={x:Math.max(0,Math.min(W-1,Math.floor((e.clientX-b.left)/b.width*W))),y:Math.max(0,Math.min(W-1,Math.floor((e.clientY-b.top)/b.height*W)))};mark();inspect()});
-cv.addEventListener('pointercancel',()=>{ptr=null});
-let spin=null;document.getElementById('spin').onclick=()=>{const b=document.getElementById('spin');if(spin){cancelAnimationFrame(spin.raf);spin=null;b.textContent='Auto orbit';save();run();return}
-  const step=()=>{st.yaw+=0.012;run(true);spin.raf=requestAnimationFrame(step)};spin={raf:requestAnimationFrame(step)};b.textContent='Stop orbit'};
-if(window.matchMedia)matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change',()=>{readC();draw()});
-new MutationObserver(()=>{readC();draw()}).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+let ptr=null,raf=0,spin=null;
+cv.addEventListener('pointerdown',e=>{ptr={x:e.clientX,y:e.clientY,sx:e.clientX,sy:e.clientY,drag:false};cv.setPointerCapture(e.pointerId)});
+cv.addEventListener('pointermove',e=>{if(!ptr)return;ptr.drag=ptr.drag||Math.hypot(e.clientX-ptr.sx,e.clientY-ptr.sy)>8;if(!ptr.drag)return;st.yaw-=(e.clientX-ptr.x)*0.01;st.pitch=Math.max(-1.3,Math.min(1.3,st.pitch+(e.clientY-ptr.y)*0.01));ptr.x=e.clientX;ptr.y=e.clientY;if(!raf)raf=requestAnimationFrame(()=>{raf=0;run()})});
+cv.addEventListener('pointerup',e=>{const was=ptr;ptr=null;if(!was)return;if(was.drag){save();run();return}const b=cv.getBoundingClientRect(),W=R.cam.W,at=(v,o,s)=>Math.max(0,Math.min(W-1,Math.floor((v-o)/s*W)));SEL={x:at(e.clientX,b.left,b.width),y:at(e.clientY,b.top,b.height)};mark();inspect()});
+cv.addEventListener('pointercancel',()=>ptr=null);
+document.getElementById('spin').onclick=e=>{if(spin){cancelAnimationFrame(spin);spin=null;e.target.textContent='Auto orbit';save();run();return}e.target.textContent='Stop orbit';const step=()=>{st.yaw+=0.012;run();spin=requestAnimationFrame(step)};spin=requestAnimationFrame(step)};
+const recolour=()=>{readC();if(R)draw()};matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change',recolour);
+new MutationObserver(recolour).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
 readC();run();
 </script>
