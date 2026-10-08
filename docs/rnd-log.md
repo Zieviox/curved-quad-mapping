@@ -270,6 +270,35 @@ Measured after the fix (blending 3%):
 
 Also: the surface lab (example 00) now opens in Converted displacement mode.
 
+## 10. Clean-slate conversion and "split further" (example 05)
+
+The conversion (quads → arcs → pieces → surfaces) was rewritten from scratch. The math was copied unchanged from example 04: arcs and their splits, conic halving, fillet points, the fit, the plane-pencil mapping.
+
+New structure:
+1. Lookups (a quad may read anything).
+2. Vertex rounding.
+3. **Arc cache:** one curve per pair of handles, computed once, so every piece using it gets the identical curve. This is also the first piece of the caching note from step 8.
+4. Quad → pieces (inner, edge-strip halves, corner quarters).
+5. Splits: first at artificial handles (original pieces only), then **further**. A piece whose crack is above the measurement precision is cut across the middles of two opposite sides (alternating directions). The cut is an arc between the two new handles, up to a depth limit.
+6. Measurement: edge crack, holes (lines that miss the quadric, counted at every sampled point), and spikes (interior points farther from the piece's arc blend than the piece's own size).
+
+Crack below 0.001% of an edge counts as closed: that's the precision of the measurement.
+
+| Mesh | Length × 1 | Length × 2 |
+|---|---|---|
+| Smooth cube | closed (0.00043%) | edges closed (0.00034%), but 126 holes inside the pieces |
+| Hard cube | closed (rounded box) | holes in the corner pieces |
+| Wave | closed (0.00023%) | closed (0.00028%) |
+| Mixed cube | depth 0: 8.35%, depth 1: **3.44%**, depth 2+: holes | holes at every depth |
+
+Findings:
+- The clean conversion fixed the smooth cube at length × 2 *along the edges* (04 had a 21.9% crack there). The insides still have holes.
+- Splitting further helps once (mixed cube 8.35% → 3.44%), then smaller pieces start to get fits the lines miss (holes).
+- Splitting can't make a piece exact where it keeps two arcs that meet only at its corner (two-point rule); it only makes that piece smaller.
+- Chaining artificial-handle splits on the new cut arcs made the piece count explode (728 at depth 2). They now apply to the original pieces only.
+
+Status: stuck on exactness for incompatible borders, as agreed: move on. Example 05 defaults to depth 1.
+
 ## Prior art
 
 Collected from memory at first. Step 7 checked the shared-edge part against abstracts and citing papers.
