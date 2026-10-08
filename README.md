@@ -4,6 +4,7 @@ R&D for a CPU-only, closed-form mapping between curved quad patches and screen p
 
 - [`docs/rnd-log.md`](docs/rnd-log.md): what was tried, what was measured, what was decided, in order.
 - [`examples/`](examples): standalone HTML pages, one per step. Open any of them in a browser, including on a phone.
+- [`index.html`](index.html): the steps in order, each with its question, findings and a link to its page. With GitHub Pages on (Settings → Pages → deploy from `main`, root), it's served at https://zieviox.github.io/curved-quad-mapping/.
 
 | Example | What it shows |
 |---|---|
