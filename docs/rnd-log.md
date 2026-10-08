@@ -70,6 +70,35 @@ Example 03 shows this for Phong, an ellipsoid piece and a twisted bilinear quad,
 
 Open question: is the target exact pixel corners (needs a quadric or bilinear patch), or exact slices without corners?
 
+## 4. Ellipsoid quad from corners and normals (example 00)
+
+The surface lab (example 00) gets a fifth surface: one quadric per quad, `Q(x) = x·A·x + g·x + k`.
+
+- **Fit:**
+  - Hard constraints: passes through the 4 corners.
+  - Least-squares targets: gradient parallel to each vertex normal (2 conditions per corner, 8 in total).
+  - Scale fixed by trace(A) = 1.
+  - Solved as one 15 × 15 linear system: fixed size, no iteration. As implemented (plain Gauss-Jordan), that's 210 DIV and about 2,300 FMA per quad, run only when the mesh changes.
+- **Patch point:** the bilinear base point pushed onto the quadric. When the fit is an ellipsoid, the push follows the ray from the quadric's center. Otherwise it follows the quad's averaged normal, taking the nearest root.
+- **Pixel corner → (u, v):** both steps are closed form.
+  1. The camera ray hits the quadric: a quadratic.
+  2. The ray from the center (or along the fixed direction) through that hit meets the bilinear base: another quadratic.
+- **Displacement:** all three lab modes work on it unchanged (no map, map as baked along its own normal, converted vector map).
+
+Measured (error vs the Catmull-Clark target, % of average cage edge):
+
+| Mesh | Fit | Normals off (max) | No map | Map as baked | Converted |
+|---|---|---|---|---|---|
+| Cube | 6/6 ellipsoids (one shared sphere, radius √3) | 0.0° | max 55.1, mean 43.1 | max 43.9, mean 43.1 | 0.0 |
+| Wave | 0/8 ellipsoids | 38.6° | max 44.4, mean 21.9 | max 36.1, mean 20.8 | 0.0 |
+
+Findings:
+
+- **Normals as handles:** a quadric has 9 degrees of freedom. 4 corners + 8 normal conditions = 12, so the normals are matched exactly only when all four agree with one quadric. That holds on the cube: every face lands on the same sphere, so it is also watertight there.
+- **Wave:** peak and trough normals are parallel, so the best fit degenerates to two flat planes (the peaks' plane and the troughs' plane). The patch becomes a step with near-vertical walls. This is the same parallel-normal weakness as Nagata and Phong, in a different form.
+- **Cracks:** each quad has its own quadric, so neighbours only meet along an edge if they share the quadric. Every cut is a conic, so there are no S-bends.
+- **More room, still closed form:** a ray hits an implicit surface of degree n in a degree-n equation. That is closed form up to degree 4 (quadratic, Cardano, Ferrari). A cubic surface has 19 degrees of freedom and a quartic 34, enough to match all 4 normals exactly and leave room for edge conditions with neighbours.
+
 ## Prior art
 
 Collected from memory; not checked against the papers yet.

@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>body{margin:0}</style>
+<title>Curved Quad Surface Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: single technical column — live 3D test first, then cost tables in pipeline order */
+:root{
+  --bg:#eef1f4;--surface:#ffffff;--fg:#151a21;--muted:#59626f;--line:#d6dce3;--accent:#2d56d2;--warn:#b4321f;--good:#1b7a52;
+  --c-nag:#1D9E75;--c-pho:#7F77DD;--c-pn:#D85A30;--c-cc:#D4537E;--c-ell:#3A86C8;
+  --f-display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
+  --f-body:"IBM Plex Sans",ui-sans-serif,system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0e1115;--surface:#161a20;--fg:#e4e8ee;--muted:#98a1ae;--line:#2a313a;--accent:#7f9cff;--warn:#f08a74;--good:#5fd0a0;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0e1115;--surface:#161a20;--fg:#e4e8ee;--muted:#98a1ae;--line:#2a313a;--accent:#7f9cff;--warn:#f08a74;--good:#5fd0a0;color-scheme:dark}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:15px;line-height:1.6}
+.wrap{max-width:980px;margin:0 auto;padding-inline:16px;padding-block:28px 56px;display:flex;flex-direction:column;gap:40px}
+h1{font-family:var(--f-display);font-weight:700;font-size:clamp(28px,5vw,40px);line-height:1.1;margin:0;text-wrap:balance;letter-spacing:-.01em}
+h2{font-family:var(--f-display);font-weight:600;font-size:22px;margin:0;text-wrap:balance}
+h3{font-family:var(--f-body);font-weight:500;font-size:15px;margin:0}
+p{margin:0;max-width:68ch}
+.lede{color:var(--muted);margin-top:10px}
+.eyebrow{font-family:var(--f-mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+section{display:flex;flex-direction:column;gap:14px}
+.note{font-size:13px;color:var(--muted)}
+.ctrls{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surface)}
+.seg button{font:500 13px var(--f-body);color:var(--muted);background:transparent;border:0;padding:7px 12px;cursor:pointer}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button.on{color:var(--fg);background:var(--bg)}
+.seg button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.view{min-width:0;display:flex;flex-direction:column;gap:6px}
+.cv{width:100%;max-width:100%;aspect-ratio:1;display:block;background:var(--surface);border:1px solid var(--line);border-radius:10px;touch-action:none;cursor:grab}
+.vname{display:flex;align-items:center;gap:8px;font-weight:500;font-size:14px}
+.sw{width:10px;height:10px;border-radius:2px;flex:none}
+.err{font-family:var(--f-mono);font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.tw{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:13px;font-variant-numeric:tabular-nums}
+th,td{padding:8px 12px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:0}
+th{font-weight:500;color:var(--muted);font-size:12px;white-space:nowrap}
+td.n,th.n{text-align:right;font-family:var(--f-mono);white-space:nowrap}
+td.ops{font-family:var(--f-mono);font-size:12px}
+tr.tot td{font-weight:500;background:var(--bg)}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+.card{min-width:0;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:8px}
+.card ul{margin:0;padding-left:18px;font-size:13px;display:flex;flex-direction:column;gap:4px}
+.plus{color:var(--good)}.minus{color:var(--warn)}
+.chain{font-family:var(--f-mono);font-size:12px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px 14px;overflow-x:auto;white-space:nowrap}
+dl{display:grid;grid-template-columns:max-content 1fr;gap:6px 16px;margin:0;font-size:13px}
+dt{color:var(--muted)}dd{margin:0;min-width:0}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+<header>
+  <div class="eyebrow">CPU pixel-step mapping · curved quads</div>
+  <h1>Curved Quad Surface Lab</h1>
+  <p class="lede">Nagata, Phong, PN-quad and ellipsoid (quadric) surfaces built from corner positions and vertex normals, compared with Catmull-Clark (Blender's Subdivision Surface). Includes a displacement-map test and per-operation cycle costs for the pixel-stepping pipeline.</p>
+</header>
+
+<section id="test">
+  <h2>Shape and displacement test</h2>
+  <p class="note">Target = Catmull-Clark level 4 plus a stand-in baked map (2×2 bumps per quad, zero along quad edges) pushed along the subdivided surface's normal. <b>Map as baked</b> applies that scalar map to each base along its own normal. <b>Converted</b> adds the vector map (target − base at the same UV). Error = distance to the target as % of the average cage edge. Drag a view to rotate all four.</p>
+  <div class="ctrls">
+    <div class="seg" role="group" aria-label="Mesh"><button id="sc" class="on">Cube</button><button id="sw">Wave</button></div>
+    <div class="seg" role="group" aria-label="Displacement"><button id="m0">No map</button><button id="m1" class="on">Map as baked</button><button id="m2">Converted</button></div>
+    <div class="seg" role="group" aria-label="Cage"><button id="cg" class="on">Cage on</button></div>
+  </div>
+  <div class="grid">
+    <div class="view"><canvas class="cv" id="c0" aria-label="Nagata quad view"></canvas><div class="vname"><span class="sw" style="background:var(--c-nag)"></span>Nagata quad</div><div class="err" id="e0"></div></div>
+    <div class="view"><canvas class="cv" id="c1" aria-label="Phong quad view"></canvas><div class="vname"><span class="sw" style="background:var(--c-pho)"></span>Phong quad</div><div class="err" id="e1"></div></div>
+    <div class="view"><canvas class="cv" id="c2" aria-label="PN-quad view"></canvas><div class="vname"><span class="sw" style="background:var(--c-pn)"></span>PN-quad</div><div class="err" id="e2"></div></div>
+    <div class="view"><canvas class="cv" id="c4" aria-label="Ellipsoid quad view"></canvas><div class="vname"><span class="sw" style="background:var(--c-ell)"></span>Ellipsoid quad (quadric)</div><div class="err" id="e4"></div></div>
+    <div class="view"><canvas class="cv" id="c3" aria-label="Catmull-Clark view"></canvas><div class="vname"><span class="sw" style="background:var(--c-cc)"></span>Catmull-Clark (baked target)</div><div class="err" id="e3"></div></div>
+  </div>
+</section>
+
+<section id="ops">
+  <h2>Cost per operation</h2>
+  <p class="note">Intel Skylake, float32 scalar. Other x86 cores from Sandy Bridge to Zen 4 land within about ±1 cycle on these. Latency = cycles until the result is usable; throughput = cycles per new op of that kind.</p>
+  <div class="tw"><table>
+    <thead><tr><th>Op</th><th class="n">Latency</th><th class="n">Throughput</th></tr></thead>
+    <tbody>
+      <tr><td>ADD / SUB</td><td class="n">4</td><td class="n">0.5</td></tr>
+      <tr><td>MUL</td><td class="n">4</td><td class="n">0.5</td></tr>
+      <tr><td>FMA (incl. negated forms)</td><td class="n">4</td><td class="n">0.5</td></tr>
+      <tr><td>MIN</td><td class="n">4</td><td class="n">0.5</td></tr>
+      <tr><td>RCP (≈12-bit 1/x)</td><td class="n">4</td><td class="n">1</td></tr>
+      <tr><td>RSQRT (≈12-bit 1/√x)</td><td class="n">4</td><td class="n">1</td></tr>
+      <tr><td>DIV</td><td class="n">11</td><td class="n">3</td></tr>
+      <tr><td>SQRT</td><td class="n">12</td><td class="n">3</td></tr>
+      <tr><td>COMISS (compare)</td><td class="n">3</td><td class="n">1</td></tr>
+      <tr><td>CVTTSS2SI (float → int)</td><td class="n">6</td><td class="n">1</td></tr>
+      <tr><td>XOR (sign flip)</td><td class="n">1</td><td class="n">0.33</td></tr>
+      <tr><td>Integer MUL</td><td class="n">3</td><td class="n">1</td></tr>
+      <tr><td>Integer ADD</td><td class="n">1</td><td class="n">0.25</td></tr>
+      <tr><td>Load, L1 hit</td><td class="n">5</td><td class="n">0.5</td></tr>
+      <tr><td>Load, L2 hit</td><td class="n">12</td><td class="n">—</td></tr>
+      <tr><td>Load, L3 hit</td><td class="n">~42</td><td class="n">—</td></tr>
+      <tr><td>Store</td><td class="n">—</td><td class="n">1</td></tr>
+    </tbody>
+  </table></div>
+  <p class="note">L3 latency depends on core count. RAM latency depends on the memory, not the core: typically 60–100 ns.</p>
+</section>
+
+<section id="stages">
+  <h2>Pipeline cost by surface</h2>
+  <p class="note">Cycles. Stage 4 runs once per projected pixel and dominates; stages 1–3 run per mesh change, per patch per frame, and per row. The B-spline column is the Catmull-Clark limit surface on regular quads (all 4 corners valence 4, not on a boundary).</p>
+  <div class="tw"><table>
+    <thead><tr><th>Stage</th><th>Runs</th><th class="n">Nagata</th><th class="n">Phong</th><th class="n">PN-quad</th><th class="n">B-spline (CC)</th></tr></thead>
+    <tbody>
+      <tr><td>1. Build patch</td><td>Mesh change</td><td class="n">76</td><td class="n">84</td><td class="n">150</td><td class="n">108</td></tr>
+      <tr><td>2. View transform</td><td>Patch × frame</td><td class="n">41</td><td class="n">47</td><td class="n">86</td><td class="n">86</td></tr>
+      <tr><td>3. New row</td><td>Row</td><td class="n">15</td><td class="n">18</td><td class="n">36</td><td class="n">36</td></tr>
+      <tr class="tot"><td>4. Step, 1 walker</td><td>Pixel</td><td class="n">36</td><td class="n">36</td><td class="n">40</td><td class="n">40</td></tr>
+      <tr class="tot"><td>4. Step, 2 walkers</td><td>Pixel</td><td class="n">26</td><td class="n">26</td><td class="n">32</td><td class="n">32</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Operation counts per stage</h3>
+  <div class="tw"><table>
+    <thead><tr><th>Surface</th><th>1. Build</th><th>2. Transform</th><th>3. Row</th><th>4. Step</th></tr></thead>
+    <tbody>
+      <tr><td>Nagata quad<br><span class="note">8 coeffs</span></td><td class="ops">39 ADD, 32 MUL, 48 FMA, 4 DIV, 4 CMP</td><td class="ops">9 ADD, 24 MUL, 48 FMA · load 24, store 30</td><td class="ops">1 ADD, 21 FMA, 1 CMP · load 30</td><td class="ops">2 ADD, 13 MUL, 24 FMA, 1 RCP, 2 RSQRT, 1 MIN, 1 CMP, 2 CVT, 2 int, 1 store · reload 18</td></tr>
+      <tr><td>Phong quad<br><span class="note">9 coeffs</span></td><td class="ops">34 ADD, 48 MUL, 84 FMA, 3 XOR</td><td class="ops">12 ADD, 27 MUL, 54 FMA · load 27, store 36</td><td class="ops">1 ADD, 27 FMA, 1 CMP · load 36</td><td class="ops">2 ADD, 13 MUL, 24 FMA, 1 RCP, 2 RSQRT, 1 MIN, 1 CMP, 2 CVT, 2 int, 1 store · reload 18</td></tr>
+      <tr><td>PN-quad<br><span class="note">16 coeffs</span></td><td class="ops">132 ADD, 56 MUL, 112 FMA</td><td class="ops">15 ADD, 60 MUL, 96 FMA · load 48, store 72</td><td class="ops">1 ADD, 60 FMA, 1 CMP · load 72</td><td class="ops">4 ADD, 14 MUL, 33 FMA, 1 RCP, 2 RSQRT, 1 MIN, 1 CMP, 2 CVT, 2 int, 1 store · reload 24</td></tr>
+      <tr><td>B-spline (CC)<br><span class="note">16 coeffs</span></td><td class="ops">96 ADD, 48 MUL, 72 FMA · 16 index loads + 48 floats</td><td class="ops">15 ADD, 60 MUL, 96 FMA (1/36 folded into rotation)</td><td class="ops">Same as PN-quad</td><td class="ops">Same as PN-quad</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="step">
+  <h2>Inside one step</h2>
+  <p class="note">Phong quad shown; Nagata is identical. PN-quad and B-spline replace row 4a with 3 ADD, 1 MUL, 24 FMA.</p>
+  <div class="tw"><table>
+    <thead><tr><th>Part</th><th class="n">ADD</th><th class="n">MUL</th><th class="n">FMA</th><th>Other</th></tr></thead>
+    <tbody>
+      <tr><td>4a. P, P_u, P_v from cached rows</td><td class="n">1</td><td class="n"></td><td class="n">15</td><td></td></tr>
+      <tr><td>4b. du: exact screen length of P_u, with perspective</td><td class="n"></td><td class="n">6</td><td class="n">3</td><td>1 RSQRT</td></tr>
+      <tr><td>4c. dv, keep row minimum for next row's spacing</td><td class="n"></td><td class="n">4</td><td class="n">3</td><td>1 RSQRT, 1 MIN</td></tr>
+      <tr><td>4d. u += du, end-of-row check</td><td class="n">1</td><td class="n"></td><td class="n"></td><td>1 COMISS</td></tr>
+      <tr><td>4e. Coverage: 1/Z (RCP + 1 refinement), screen x, y, mark pixel</td><td class="n"></td><td class="n">3</td><td class="n">3</td><td>1 RCP, 2 CVT, 1 int MUL, 1 int ADD, 1 store</td></tr>
+      <tr class="tot"><td>Total</td><td class="n">2</td><td class="n">13</td><td class="n">24</td><td>3 approx, 1 MIN, 1 COMISS, 2 CVT, 2 int, 1 store</td></tr>
+    </tbody>
+  </table></div>
+  <p class="note">Rows don't fit in registers, so each step re-reads 18 floats from L1 (24 for bicubic). Those loads don't depend on u and run on separate ports.</p>
+  <h3>Loop-carried chain (sets the 1-walker cost)</h3>
+  <div class="chain">Z, Z_u 8 (bicubic 12) → X_u·Z 4 → FMA 4 → square 4 → FMA 4 → RSQRT 4 → du 4 → u += du 4 = <b>36</b> (bicubic <b>40</b>)</div>
+  <p class="note">Throughput sum is 26 cycles (bicubic 32). Interleaving 2 walkers (two rows or two patches) hides the chain.</p>
+</section>
+
+<section id="convert">
+  <h2>Map conversion cost</h2>
+  <p class="note">One-time preprocess: rebuild the baked point T = S + d·n on the source surface, then store T − flat(u, v) as a vector map. Source = regular bicubic patch, texels walked row by row.</p>
+  <div class="tw"><table>
+    <thead><tr><th>Per texel</th><th class="n">ADD</th><th class="n">MUL</th><th class="n">FMA</th><th>Other</th></tr></thead>
+    <tbody>
+      <tr><td>Source point + 2 derivatives (rows cached)</td><td class="n">3</td><td class="n">1</td><td class="n">24</td><td></td></tr>
+      <tr><td>Normal: cross product + length²</td><td class="n"></td><td class="n">4</td><td class="n">5</td><td></td></tr>
+      <tr><td>Push out: k = d / length, T = S + k·N</td><td class="n"></td><td class="n"></td><td class="n">3</td><td>1 SQRT, 1 DIV</td></tr>
+      <tr><td>Flat point (rows cached), T − flat</td><td class="n">3</td><td class="n"></td><td class="n">3</td><td></td></tr>
+      <tr><td>Memory</td><td class="n"></td><td class="n"></td><td class="n"></td><td>1 load, 3 stores</td></tr>
+      <tr class="tot"><td>Total</td><td class="n">6</td><td class="n">5</td><td class="n">35</td><td>1 SQRT, 1 DIV</td></tr>
+    </tbody>
+  </table></div>
+  <dl>
+    <dt>Per texel</dt><dd>23 cycles of ALU throughput + 6 on the divide/sqrt unit = 29 cycles. Texels are independent, so no latency chain.</dd>
+    <dt>Per texel row</dt><dd>+60 FMA (source rows), +6 FMA (flat rows)</dd>
+    <dt>4096 × 4096 map</dt><dd>≈ 487M cycles ≈ 0.12 s on one core at 4 GHz</dd>
+  </dl>
+</section>
+
+<section id="diagnosis">
+  <h2>Diagnosis</h2>
+  <div class="cards">
+    <div class="card"><h3><span class="sw" style="background:var(--c-nag);display:inline-block;margin-right:8px"></span>Nagata quad</h3><ul>
+      <li class="plus">Cheapest build, transform and row. Hot loop ties Phong.</li>
+      <li class="minus">Quadratic edges: no S-bends.</li>
+      <li class="minus">Build divides by 1 − (n0·n1)². Blows up when normals are parallel but the edge isn't flat; needs a threshold and fallback branch.</li></ul></div>
+    <div class="card"><h3><span class="sw" style="background:var(--c-pho);display:inline-block;margin-right:8px"></span>Phong quad</h3><ul>
+      <li class="plus">No divisions, no singular cases, branch-free build.</li>
+      <li class="minus">Bulges only. Goes straight where both normals are parallel.</li>
+      <li class="minus">Curvature amount α is a tuning value.</li></ul></div>
+    <div class="card"><h3><span class="sw" style="background:var(--c-pn);display:inline-block;margin-right:8px"></span>PN-quad</h3><ul>
+      <li class="plus">Cubic edges: makes S-bends.</li>
+      <li class="minus">Step +6 cycles (2 walkers) / +4 (1 walker); rows and transform about 2×.</li>
+      <li class="minus">Interior points not uniquely defined; counts use the zero-twist rule.</li></ul></div>
+    <div class="card"><h3><span class="sw" style="background:var(--c-ell);display:inline-block;margin-right:8px"></span>Ellipsoid quad (quadric)</h3><ul>
+      <li class="plus">Pixel corners in closed form: ray vs quadric (quadratic), then (u, v) by ray from the center vs the bilinear base (quadratic).</li>
+      <li class="plus">Exact through the 4 corners. Normals are matched exactly when one quadric fits all 4 (cube: a sphere).</li>
+      <li class="minus">4 corners + 8 normal conditions = 12, but a quadric has 9: normals are a least-squares fit otherwise.</li>
+      <li class="minus">One quadric per quad: neighbours only meet along edges if they share the quadric. Conic edges: no S-bends.</li></ul></div>
+    <div class="card"><h3><span class="sw" style="background:var(--c-cc);display:inline-block;margin-right:8px"></span>Catmull-Clark</h3><ul>
+      <li class="plus">Smooth across quad borders. Regular quads are exact bicubic B-splines at PN-quad hot-loop cost; no normals needed.</li>
+      <li class="minus">Doesn't pass through the vertices; shrinks.</li>
+      <li class="minus">Needs neighbors. Extraordinary vertices and boundaries need other rules.</li></ul></div>
+  </div>
+  <p class="note">None of the normal-based surfaces is smooth across patch borders. Displacement maps only match the surface they were baked against; converting to a vector map relative to the flat quad is exact and removes the curved base from the hot loop at 3× map memory.</p>
+</section>
+
+<section id="assumptions">
+  <h2>Assumptions</h2>
+  <dl>
+    <dt>Precision</dt><dd>float32 scalar</dd>
+    <dt>Core</dt><dd>Intel Skylake latencies and throughputs</dd>
+    <dt>Newton</dt><dd>Not used: the walk steps directly in (u, v), so no ray intersection</dd>
+    <dt>Coefficients</dt><dd>Power basis, precomputed per patch; derivative coefficients pre-scaled</dd>
+    <dt>Nagata edges</dt><dd>Minimum-length quadratic edge solved from the two normal constraints</dd>
+    <dt>PN interior</dt><dd>Zero-twist rule</dd>
+    <dt>Phong α</dt><dd>0.75</dd>
+    <dt>Not counted</dt><dd>Fallback branches (Nagata singular edges, silhouettes), BVH or patch lookup</dd>
+  </dl>
+</section>
+</div>
+
+<script>
+const add=(a,b)=>[a[0]+b[0],a[1]+b[1],a[2]+b[2]],sub=(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]],mul=(a,s)=>[a[0]*s,a[1]*s,a[2]*s],dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2],cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]],len=a=>Math.hypot(a[0],a[1],a[2]),norm=a=>mul(a,1/(len(a)||1));
+function cube(){return{v:[[-1,-1,-1],[1,-1,-1],[1,1,-1],[-1,1,-1],[-1,-1,1],[1,-1,1],[1,1,1],[-1,1,1]],f:[[0,3,2,1],[4,5,6,7],[0,1,5,4],[2,3,7,6],[0,4,7,3],[1,2,6,5]]}}
+function wave(){const v=[],f=[];for(let j=0;j<3;j++)for(let i=0;i<5;i++)v.push([(i-2)*0.9,(j-1)*0.9,i%2?-0.55:0.55]);for(let j=0;j<2;j++)for(let i=0;i<4;i++){const a=j*5+i;f.push([a,a+1,a+6,a+5])}return{v,f}}
+function vnorm(m){const n=m.v.map(()=>[0,0,0]);m.f.forEach(q=>{const fn=cross(sub(m.v[q[2]],m.v[q[0]]),sub(m.v[q[3]],m.v[q[1]]));q.forEach(i=>n[i]=add(n[i],fn))});return n.map(norm)}
+function phong(X,N){return(u,v)=>{const w=[(1-u)*(1-v),u*(1-v),u*v,(1-u)*v];let p=[0,0,0];for(let i=0;i<4;i++)p=add(p,mul(X[i],w[i]));let s=[0,0,0];for(let i=0;i<4;i++){const q=sub(p,mul(N[i],dot(sub(p,X[i]),N[i])));s=add(s,mul(q,w[i]))}return add(mul(p,0.25),mul(s,0.75))}}
+function nc(x0,x1,n0,n1){const d=sub(x1,x0),a0=dot(n0,d),a1=dot(n1,d),k=dot(n0,n1),den=1-k*k;if(den<1e-3)return[0,0,0];return add(mul(n0,(a0+k*a1)/den),mul(n1,(-a1-k*a0)/den))}
+function nagata(X,N){const[x00,x10,x11,x01]=X,[n00,n10,n11,n01]=N;const c1=nc(x00,x10,n00,n10),c2=nc(x10,x11,n10,n11),c3=nc(x01,x11,n01,n11),c4=nc(x00,x01,n00,n01);const a10=sub(sub(x10,x00),c1),a01=sub(sub(x01,x00),c4),a11=add(sub(sub(add(x11,x00),x10),x01),sub(add(c1,c4),add(c2,c3))),a21=sub(c3,c1),a12=sub(c2,c4);return(u,v)=>add(add(add(x00,mul(a10,u)),add(mul(a01,v),mul(a11,u*v))),add(add(mul(c1,u*u),mul(c4,v*v)),add(mul(a21,u*u*v),mul(a12,u*v*v))))}
+function pn(X,N){const e=(i,j)=>{const d=sub(X[j],X[i]);return add(X[i],mul(sub(d,mul(N[i],dot(d,N[i]))),1/3))};const B=[[],[],[],[]];B[0][0]=X[0];B[3][0]=X[1];B[3][3]=X[2];B[0][3]=X[3];B[1][0]=e(0,1);B[2][0]=e(1,0);B[1][3]=e(3,2);B[2][3]=e(2,3);B[0][1]=e(0,3);B[0][2]=e(3,0);B[3][1]=e(1,2);B[3][2]=e(2,1);B[1][1]=sub(add(B[1][0],B[0][1]),B[0][0]);B[2][1]=sub(add(B[2][0],B[3][1]),B[3][0]);B[1][2]=sub(add(B[1][3],B[0][2]),B[0][3]);B[2][2]=sub(add(B[2][3],B[3][2]),B[3][3]);const bn=t=>[(1-t)**3,3*t*(1-t)**2,3*t*t*(1-t),t**3];return(u,v)=>{const bu=bn(u),bv=bn(v);let p=[0,0,0];for(let i=0;i<4;i++)for(let j=0;j<4;j++)p=add(p,mul(B[i][j],bu[i]*bv[j]));return p}}
+// Ellipsoid quad: one quadric per quad, Q(x) = x·A·x + g·x + k, in the quad's own normalized frame.
+// Hard: passes through the 4 corners. Soft (least squares): gradient parallel to the 4 normals (8 conditions). Scale fixed by trace(A) = 1.
+// Solved as one 15x15 linear system (fixed size, no iteration). Patch point = bilinear base point pushed onto the quadric:
+// along the ray from the center when the fit is an ellipsoid, otherwise along the quad's averaged normal (nearest root).
+function quadric(X,N){const c0=mul(X.reduce((a,b)=>add(a,b),[0,0,0]),0.25),s=4/X.reduce((a,x,i)=>a+len(sub(X[(i+1)%4],x)),0),L=X.map(x=>mul(sub(x,c0),s));
+const row=x=>[x[0]*x[0],x[1]*x[1],x[2]*x[2],2*x[0]*x[1],2*x[0]*x[2],2*x[1]*x[2],x[0],x[1],x[2],1],grow=(x,t)=>[2*x[0]*t[0],2*x[1]*t[1],2*x[2]*t[2],2*(x[1]*t[0]+x[0]*t[1]),2*(x[2]*t[0]+x[0]*t[2]),2*(x[2]*t[1]+x[1]*t[2]),t[0],t[1],t[2],0];
+const M=[];N.forEach((n,i)=>{const a=Math.abs(n[0])<0.9?[1,0,0]:[0,1,0],t1=norm(cross(n,a)),t2=cross(n,t1);M.push(grow(L[i],t1),grow(L[i],t2))});
+const H=L.map(row).concat([[1,1,1,0,0,0,0,0,0,0]]),K=[];for(let i=0;i<15;i++)K.push(new Array(16).fill(0));
+for(let i=0;i<10;i++){for(let j=0;j<10;j++){let v=0;M.forEach(r=>v+=r[i]*r[j]);K[i][j]=2*v+(i===j?1e-9:0)}for(let h=0;h<5;h++){K[i][10+h]=H[h][i];K[10+h][i]=H[h][i]}}K[14][15]=1;
+for(let c=0;c<15;c++){let p=c;for(let r=c+1;r<15;r++)if(Math.abs(K[r][c])>Math.abs(K[p][c]))p=r;[K[c],K[p]]=[K[p],K[c]];for(let r=0;r<15;r++)if(r!==c){const f=K[r][c]/K[c][c];for(let k=c;k<16;k++)K[r][k]-=f*K[c][k]}}
+const q=K.slice(0,10).map((r,i)=>r[15]/r[i]),A=[[q[0],q[3],q[4]],[q[3],q[1],q[5]],[q[4],q[5],q[2]]],g=[q[6],q[7],q[8]],k=q[9];
+const Ax=x=>[dot(A[0],x),dot(A[1],x),dot(A[2],x)],Q=x=>dot(x,Ax(x))+dot(g,x)+k,grad=x=>add(mul(Ax(x),2),g);
+const det=dot(A[0],cross(A[1],A[2])),m1=A[0][0],m2=A[0][0]*A[1][1]-A[0][1]*A[0][1];
+let cen=null;if(Math.abs(det)>1e-6){const inv=[cross(A[1],A[2]),cross(A[2],A[0]),cross(A[0],A[1])].map(r=>mul(r,1/det));cen=mul([dot(inv[0],g),dot(inv[1],g),dot(inv[2],g)],-0.5)}
+const qc=cen?Q(cen):0,ell=!!cen&&((m1>0&&m2>0&&det>0)||(m1<0&&m2>0&&det<0))&&qc*m1<0,dir=norm(N.reduce((a,b)=>add(a,b),[0,0,0]));
+const ang=Math.max(...N.map((n,i)=>{const gr=grad(L[i]);return Math.acos(Math.min(1,Math.abs(dot(gr,n))/(len(gr)||1)))*180/Math.PI}));
+const info={ell,ang,miss:0};
+const ev=(u,v)=>{const w=[(1-u)*(1-v),u*(1-v),u*v,(1-u)*v];let p=[0,0,0];for(let i=0;i<4;i++)p=add(p,mul(L[i],w[i]));let P=p;
+  if(ell){const d=sub(p,cen),a=dot(d,Ax(d)),r=-qc/a;if(a!==0&&r>0)P=add(cen,mul(d,Math.sqrt(r)));else info.miss++}
+  else{const a=dot(dir,Ax(dir)),b=dot(grad(p),dir),c=Q(p);let t=null;if(Math.abs(a)<1e-12){if(b)t=-c/b}else{const D=b*b-4*a*c;if(D>=0){const r1=(-b+Math.sqrt(D))/(2*a),r2=(-b-Math.sqrt(D))/(2*a);t=Math.abs(r1)<Math.abs(r2)?r1:r2}}if(t===null)info.miss++;else P=add(p,mul(dir,t))}
+  return add(c0,mul(P,1/s))};
+ev.info=info;return ev}
+function cc(m){const V=m.v,F=m.f,key=(a,b)=>a<b?a+'_'+b:b+'_'+a;const fp=F.map(q=>mul(q.reduce((s,i)=>add(s,V[i]),[0,0,0]),1/q.length));const E=new Map();F.forEach((q,fi)=>{for(let k=0;k<q.length;k++){const a=q[k],b=q[(k+1)%q.length],kk=key(a,b);if(!E.has(kk))E.set(kk,{a,b,f:[]});E.get(kk).f.push(fi)}});const vf=V.map(()=>[]),ve=V.map(()=>[]);F.forEach((q,fi)=>q.forEach(i=>vf[i].push(fi)));E.forEach(e=>{ve[e.a].push(e);ve[e.b].push(e)});const oth=(e,i)=>V[e.a===i?e.b:e.a];
+const verts=V.map((P,i)=>{const be=ve[i].filter(e=>e.f.length===1);if(be.length){if(be.length===2&&vf[i].length>1)return mul(add(add(oth(be[0],i),oth(be[1],i)),mul(P,6)),1/8);return P}const n=vf[i].length,Fa=mul(vf[i].reduce((s,fi)=>add(s,fp[fi]),[0,0,0]),1/n),Ra=mul(ve[i].reduce((s,e)=>add(s,mul(add(V[e.a],V[e.b]),0.5)),[0,0,0]),1/ve[i].length);return mul(add(add(Fa,mul(Ra,2)),mul(P,n-3)),1/n)});
+const ei=new Map();E.forEach((e,k)=>{const p=e.f.length===2?mul(add(add(V[e.a],V[e.b]),add(fp[e.f[0]],fp[e.f[1]])),0.25):mul(add(V[e.a],V[e.b]),0.5);ei.set(k,verts.length);verts.push(p)});const f0=verts.length;fp.forEach(p=>verts.push(p));const nf=[],no=[],np=[],md=(a,b)=>[(a[0]+b[0])/2,(a[1]+b[1])/2];
+F.forEach((q,f)=>{const L=q.length,P=m.p[f],cen=[(P[0][0]+P[1][0]+P[2][0]+P[3][0])/4,(P[0][1]+P[1][1]+P[2][1]+P[3][1])/4];for(let k=0;k<L;k++){const a=q[k],b=q[(k+1)%L],z=q[(k+L-1)%L];nf.push([a,ei.get(key(a,b)),f0+f,ei.get(key(z,a))]);no.push(m.o[f]);np.push([P[k],md(P[k],P[(k+1)%L]),cen,md(P[(k+L-1)%L],P[k])])}});return{v:verts,f:nf,o:no,p:np}}
+const R=16;
+function truth(m){let s={v:m.v,f:m.f,o:m.f.map((_,i)=>i),p:m.f.map(()=>[[0,0],[1,0],[1,1],[0,1]])};for(let i=0;i<4;i++)s=cc(s);const N=vnorm(s);const G=m.f.map(()=>[]);s.f.forEach((q,k)=>q.forEach((vi,c)=>{const uv=s.p[k][c],i=Math.round(uv[0]*R),j=Math.round(uv[1]*R),g=G[s.o[k]];(g[j]||(g[j]=[]))[i]={x:s.v[vi],n:N[vi]}}));return G}
+function edgeLen(m){let s=0,c=0;m.f.forEach(q=>{for(let k=0;k<4;k++){s+=len(sub(m.v[q[(k+1)%4]],m.v[q[k]]));c++}});return s/c}
+function build(m){const TG=truth(m),L=edgeLen(m),A=0.12*L,d=(u,v)=>A*Math.sin(2*Math.PI*u)*Math.sin(2*Math.PI*v),N=vnorm(m);const res=[];
+for(let mode=0;mode<3;mode++){res[mode]=[];for(let t=0;t<5;t++){const quads=[],qi=[];let mx=0,sm=0,ct=0;m.f.forEach((q,fi)=>{const X=q.map(i=>m.v[i]),Nn=q.map(i=>N[i]);const ev=t===0?nagata(X,Nn):t===1?phong(X,Nn):t===2?pn(X,Nn):t===4?quadric(X,Nn):null;if(ev&&ev.info)qi.push(ev.info);const G=[];for(let j=0;j<=R;j++){G[j]=[];for(let i=0;i<=R;i++){const u=i/R,v=j/R,tr=TG[fi][j][i],T=add(tr.x,mul(tr.n,d(u,v)));let P;if(t===3)P=mode===0?tr.x:T;else if(mode===2)P=T;else{const B=ev(u,v);if(mode===0)P=B;else{const h=1e-3,n=norm(cross(sub(ev(u+h,v),ev(u-h,v)),sub(ev(u,v+h),ev(u,v-h))));P=add(B,mul(n,d(u,v)))}}const e=len(sub(P,T))/L*100;mx=Math.max(mx,e);sm+=e;ct++;G[j][i]=P}}for(let j=0;j<R;j++)for(let i=0;i<R;i++)quads.push([G[j][i],G[j][i+1],G[j+1][i+1],G[j+1][i]])});res[mode][t]={q:quads,mx,mean:sm/ct,qi}}}return res}
+const COL=[[29,158,117],[127,119,221],[216,90,48],[212,83,126],[58,134,200]];
+let yaw=0.6,pitch=0.5,cage=true,mode=1,mesh=cube(),RES=build(mesh);const cvs=[0,1,2,3,4].map(i=>document.getElementById('c'+i));
+function stats(){for(let t=0;t<5;t++){const r=RES[mode][t];let x='';if(r.qi.length){const e=r.qi.filter(i=>i.ell).length,a=Math.max(...r.qi.map(i=>i.ang)),ms=r.qi.reduce((s,i)=>s+i.miss,0);x=' · normals off ≤ '+a.toFixed(1)+'° · '+e+'/'+r.qi.length+' ellipsoids'+(ms?' · '+ms+' misses':'')}document.getElementById('e'+t).textContent='Error max '+r.mx.toFixed(1)+'% · mean '+r.mean.toFixed(1)+'%'+x}}
+function render(){const cy=Math.cos(yaw),sy=Math.sin(yaw),cp=Math.cos(pitch),sp=Math.sin(pitch);const rot=p=>{const x=p[0]*cy-p[1]*sy,y1=p[0]*sy+p[1]*cy,z=p[2];return[x,y1*cp-z*sp,y1*sp+z*cp]};const Lt=norm([-0.4,-0.8,0.5]);const fg=getComputedStyle(document.body).color;
+cvs.forEach((cv,k)=>{const ctx=cv.getContext('2d'),W=cv.width;if(!W)return;const s=W/4.6,P=r=>[W/2+r[0]*s,W/2-r[2]*s];ctx.clearRect(0,0,W,W);const qs=RES[mode][k].q.map(q=>{const r=q.map(rot);return{r,d:(r[0][1]+r[1][1]+r[2][1]+r[3][1])/4}}).sort((a,b)=>b.d-a.d);const c=COL[k];
+qs.forEach(o=>{const n=norm(cross(sub(o.r[2],o.r[0]),sub(o.r[3],o.r[1])));const sh=0.25+0.75*Math.abs(dot(n,Lt));const col='rgb('+Math.round(c[0]*sh)+','+Math.round(c[1]*sh)+','+Math.round(c[2]*sh)+')';ctx.fillStyle=col;ctx.strokeStyle=col;ctx.lineWidth=0.8;ctx.beginPath();o.r.forEach((r,i)=>{const p=P(r);i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1])});ctx.closePath();ctx.fill();ctx.stroke()});
+if(cage){ctx.strokeStyle=fg;ctx.fillStyle=fg;ctx.globalAlpha=0.5;ctx.lineWidth=Math.max(1,W/300);ctx.setLineDash([W/80,W/120]);mesh.f.forEach(q=>{ctx.beginPath();q.forEach((i,j)=>{const p=P(rot(mesh.v[i]));j?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1])});ctx.closePath();ctx.stroke()});ctx.setLineDash([]);mesh.v.forEach(v=>{const p=P(rot(v));ctx.beginPath();ctx.arc(p[0],p[1],W/90,0,7);ctx.fill()});ctx.globalAlpha=1}})}
+function size(){const dp=window.devicePixelRatio||1;cvs.forEach(c=>{const w=Math.round(c.clientWidth*dp);c.width=w;c.height=w});render()}
+let drag=null;cvs.forEach(c=>{c.addEventListener('pointerdown',e=>{drag=[e.clientX,e.clientY];c.setPointerCapture(e.pointerId)});c.addEventListener('pointermove',e=>{if(!drag)return;yaw+=(e.clientX-drag[0])*0.012;pitch=Math.max(-1.4,Math.min(1.4,pitch+(e.clientY-drag[1])*0.012));drag=[e.clientX,e.clientY];render()});c.addEventListener('pointerup',()=>drag=null);c.addEventListener('pointercancel',()=>drag=null)});
+const bc=document.getElementById('sc'),bw=document.getElementById('sw'),bg=document.getElementById('cg'),mb=[0,1,2].map(i=>document.getElementById('m'+i));
+function setShape(cubeOn){mesh=cubeOn?cube():wave();bc.classList.toggle('on',cubeOn);bw.classList.toggle('on',!cubeOn);RES=build(mesh);stats();render()}
+bc.onclick=()=>setShape(true);bw.onclick=()=>setShape(false);
+bg.onclick=()=>{cage=!cage;bg.textContent=cage?'Cage on':'Cage off';bg.classList.toggle('on',cage);render()};
+mb.forEach((b,i)=>b.onclick=()=>{mode=i;mb.forEach((x,j)=>x.classList.toggle('on',j===i));stats();render()});
+if(window.matchMedia)matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change',render);
+window.addEventListener('resize',size);stats();size();
+</script>
+</body>
+</html>
