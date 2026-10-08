@@ -368,6 +368,16 @@ Open:
 | Mixed cube, depth 0 | 35 of 19,952 | 40 |
 | Smooth cube, length × 2 | 0 of 9,740 | 8 |
 
+## 12. Open problems explained (example 07)
+
+Three pictures, the first two computed live from the real pieces:
+
+1. **Cracks** (mixed cube, depth 0). Piece A's real edge leaves the shared arc by up to 8.35% of an edge; its neighbour B stays within 0.37%. Each piece's single ellipsoid can't hold all 4 of its arcs (two-point rule), and the two neighbours miss the shared arc differently, which opens the gap.
+2. **No surface inside** (smooth cube, length × 2). Arc weights above 1 make every arc a hyperbola piece. The best quadric through 4 such arcs has two branches with empty space between them, and the piece's middle runs through that space. 69 of 81 sample points have no surface, and 3 of 5 lines through the middle miss.
+3. **Far side** (2D diagram). A piece's side planes don't meet at the quadric's centre, so the region between them widens with depth and also contains the far hit.
+   - Current fix: run the forward map at the hit's (u, v) and compare. That's one extra line-vs-quadric per accepted hit.
+   - Candidate cheap rule, not yet tested: the sign of ∇Q · (pencil line direction) at the hit, about 6 FMA.
+
 ## Prior art
 
 Collected from memory at first. Step 7 checked the shared-edge part against abstracts and citing papers.

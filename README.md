@@ -65,4 +65,10 @@ Every pixel corner is a ray: piece's quadric (one quadratic), then its 4 side pl
 
 ![Pixel corners: rounded box, (u, v) checker per piece](docs/img/06-pixel-corners.png)
 
+### 12 · Open problems explained — [Preview](https://htmlpreview.github.io/?https://github.com/Zieviox/curved-quad-mapping/blob/main/examples/07-open-problems.html) · [Source](examples/07-open-problems.html)
+
+Cracks, pieces with no surface inside, and far-side hits, each with a picture (the first two computed from the real pieces).
+
+![Open problems: a failing piece cut through its middle; the shape splits into two branches](docs/img/07-open-problems.png)
+
 Details and numbers are in the [R&D log](docs/rnd-log.md).

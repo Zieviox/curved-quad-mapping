@@ -118,6 +118,12 @@ code{font-family:var(--f-mono);font-size:.92em}
     <p class="q">Map every pixel corner to (piece, u, v): ray → piece's quadric (one quadratic) → its 4 side planes.</p>
     <ul class="find"><li>Smooth cube, rounded box, wave: 0 holes over 12 camera views.</li><li>Mixed cube: 14 holes in 19,252 corners. Its cracks, as the pixels see them.</li><li>About 12–34 cycles per pixel (15 per tested piece, 0.8–2.2 pieces tested).</li><li>Occlusion map: each pixel keeps its nearest normalized distance (0 = empty), with a farthest-of-4 mip chain.</li></ul>
     <div class="links"><a class="btn" href="examples/06-pixel-corners.html">Open pixel corners</a></div></div></li>
+
+  <li><span class="num">12</span><div class="body">
+    <h2>Open problems, explained</h2>
+    <p class="q">Why do some pieces crack, why do some have no surface inside, and why can a hit land on the far side?</p>
+    <ul class="find"><li>Cracks: neighbours miss their shared arc differently (8.35% vs 0.37%).</li><li>Length × 2: the fitted shape splits into two branches and the piece's middle falls between them.</li><li>Far side: the region between a piece's side planes widens with depth. A cheaper sign rule is the next thing to test.</li></ul>
+    <div class="links"><a class="btn" href="examples/07-open-problems.html">Open the explanations</a></div></div></li>
 </ol>
 
 <p class="note">The cost model throughout is Intel Skylake, float32 scalar: ADD, MUL and FMA have latency 4 and throughput 0.5 cycles; SQRT 12/3; DIV 11/3. Pages compute in JavaScript float64.</p>
