@@ -617,6 +617,26 @@ Which hit counts (wrong / no hit, float64; float32 gives the same numbers for th
 - **That remainder comes from coverage, not the hit choice.** The pixels a piece walks come from its edges' row crossings. Where a piece bulges past its edges (folds at the outline, seams), those pixels are never walked.
 - **Detection note:** per-pixel facing reports pieces hidden behind others as not covering (16,478 "wrongly out" on the smooth cube). Only visible coverage matters for the depth map.
 
+**16d. Option 1: bulge box.**
+- Inside a piece, its picture can only reach furthest left, right, up or down at an outline point, where the tangent plane passes through the camera.
+- The planes through the camera and a pixel column touch the quadric where πᵀ·C·π = 0. C is the adjugate of the quadric's 4 × 4 matrix (fixed per piece), and the condition is a quadratic in the screen x. The touch point is C·π.
+- Rows work the same way. The box is the control-point box, widened by every touch point inside the piece's side planes.
+- Every pixel in the box is walked with ray + side planes + per-pixel facing.
+
+| Case | Box misses (control points → bulge box) | Red pixels (spans → bulge box) | Pixels walked |
+|---|---|---|---|
+| Smooth cube, oblique | 365 → 0 | 3,379 → 2,025 | ≈ 1.8× |
+| Smooth cube, glancing | 435 → 0 | 4,499 → 1,895 | ≈ 2.2× |
+| Smooth cube, straight on | 0 → 0 | 3,738 → 2,050 | ≈ 2.2× |
+| Hard cube, straight on | 0 → 0 | 0 → 0 | ≈ 1.1× |
+| Mixed cube, oblique | 129 → 0 | 2,400 → 1,080 | ≈ 1.9× |
+| Wave, oblique | 0 → 0 | 527 → 527 | ≈ 2.2× |
+
+- Packed cost: about 12 model cycles per pixel walked (a miss exits early).
+- Whole frame at 1000²: 20 ns per pixel measured, against 24 with spans. There are no row crossings to solve.
+- What's left on the smooth cube is a band on the top face. Every piece's quadric is the same sphere, and every piece's side planes pass through its centre. So for a back piece, the facing hit is the antipodal point on the front, inside its own planes, at the same depth as the true front piece. The first piece written keeps the pixel (the bottom face over the top face).
+- The wave's band at the seam is the same for every rule and every walk; not yet explained.
+
 ## Prior art
 
 Collected from memory at first. Step 7 checked the shared-edge part against abstracts and citing papers.
