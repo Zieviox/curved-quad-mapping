@@ -135,10 +135,15 @@ code{font-family:var(--f-mono);font-size:.92em}
     <ul class="find"><li>About 15–111 cycles per pixel in the model (11% of a 1,000-cycle budget on the smooth cube). P(u, v) is 108 of the 124 cycles per written pixel.</li><li>Same piece as step 11 on 98–100% of the wave and 99.3–99.6% of the rounded box.</li><li>A piece that folds past the outline fails as a whole: its far edge projects inside its own image. Smooth cube 80–87%.</li></ul>
     <div class="links"><a class="btn" href="examples/09-two-pass-map.html">Open the two-pass map</a></div></div></li>
   <li><span class="num">15</span><div class="body">
-    <h2>Closed-form depth only <span class="tag current">current</span></h2>
+    <h2>Closed-form depth only</h2>
     <p class="q">Only the closed form (edge crossings, u and v, P(u, v), distance) written as plain arithmetic; keeps the nearest depth per pixel and prints the depth array.</p>
     <ul class="find"><li>Same depth as step 14 on every pixel.</li><li>Smooth cube 5.4 ms per 200² frame in the browser, against 43 ms in step 14: the time was going into allocation, not arithmetic.</li></ul>
     <div class="links"><a class="btn" href="examples/10-closed-form-depth.html">Open closed-form depth</a></div></div></li>
+  <li><span class="num">16</span><div class="body">
+    <h2>Operation stress test <span class="tag current">current</span></h2>
+    <p class="q">Every solving and detection method on real pieces: measured time, counted operations and Skylake cycles, and accuracy in float64 and float32 against an independent answer key.</p>
+    <ul class="find"><li>Ray × ellipsoid + side planes: exact, 23 model cycles. Edge-based u, v: slide 38% of an edge on average. P(u, v): 111 cycles.</li><li>Step 11's forward-map check fails in float32 (rejects every hard-cube pixel); the sign rule fails on pieces that turn away partway; nearest-in-planes takes the far side on the wave.</li></ul>
+    <div class="links"><a class="btn" href="examples/11-op-stress-test.html">Open the stress test</a></div></div></li>
 </ol>
 
 <p class="note">The cost model throughout is Intel Skylake, float32 scalar: ADD, MUL and FMA have latency 4 and throughput 0.5 cycles; SQRT 12/3; DIV 11/3. Pages compute in JavaScript float64.</p>

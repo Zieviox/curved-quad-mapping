@@ -518,6 +518,70 @@ Measured in the browser (JavaScript float64, 200², median of 25 runs):
 - The page in step 14 spent its time on allocation, not arithmetic: 6–8× faster without it.
 - In cycles at 3 GHz, P(u, v) is now about 330–370 against 108 in the float32 model. That's JavaScript float64 without SIMD.
 
+## 16. Operation stress test (example 11)
+
+Every method we have, measured on real pieces and a real camera (200²). Each method is written once; the page builds three versions from that source:
+- **float64:** as written; this is the version that is timed.
+- **float32:** every + − × ÷, √, ∛, cos and acos rounded to float32; a × b ± c is rounded once (fused).
+- **counted:** every operation tallied, which feeds the Skylake cycle model.
+
+**Answer key** (independent of all methods):
+- Each piece's surface is sampled densely and splatted to pixels.
+- Detection errors are counted only at "decided" pixels, where a piece covers or misses the whole 3 × 3 block around the pixel.
+- Exact u, v and depth come from the winning piece's quadric along the pixel's ray, at the root that matches the sampled depth.
+
+**Solving** (smooth cube, oblique view):
+
+| Method | Measured | Model | Accuracy (float64) |
+|---|---|---|---|
+| Edge K ratios, arc only | 59 ns | 27 cycles | slide 38% avg, 130% max; 2,268 pixels with u or v outside 0…1 |
+| Edge K ratios, full conic | 66 ns | 27 | slide 47% avg; 11,988 outside 0…1 |
+| Same level (quartic, Ferrari) | 575 ns | 146 | slide 20% avg, 100% max; 4,306 of 19,191 pixels with no answer |
+| P(u, v), given the exact u, v | 553–575 ns | 111 | exact (float32: 1.6·10⁻⁵ % of an edge) |
+| Ray × ellipsoid + side planes | 293–302 ns | 23 | exact (float32: Δu, v ≤ 8·10⁻⁶, depth ≤ 5·10⁻⁴ %) |
+| Same + forward-map check (step 11) | 1,003 ns | 145 | exact |
+| Ray, sign rule + side planes | 284 ns | 23 | 148 pixels on the wrong hit (slide up to 63%) |
+
+**Which hit counts:**
+
+| Case | Nearest hit inside the side planes | Forward-map check | Sign rule |
+|---|---|---|---|
+| Smooth cube, oblique | right everywhere | right everywhere | 148 wrong |
+| Smooth cube, glancing | right everywhere | right everywhere | 4,147 wrong, 941 no hit |
+| Hard cube, straight on | right everywhere | 95 no hit (flat pieces) | right everywhere |
+| Wave, oblique | 569 wrong (far side) | right everywhere | right everywhere |
+| Mixed cube, oblique | 52 wrong | 52 wrong | 1,822 wrong |
+
+- **The forward-map check fails in float32.** Its 10⁻⁶ tolerance is below float32 precision.
+  - Hard cube: 9,996 of 9,996 pixels get no hit.
+  - Wave: 4,772 of 7,852.
+- **The sign rule fails on pieces that turn away from the camera partway.** It uses one facing sign per piece, so a piece that is partly front-facing and partly back-facing gets the wrong hit on one part.
+
+**Detection** (smooth cube, oblique):
+
+| Test | Cost | Accuracy |
+|---|---|---|
+| Screen box from the edges' control points | 4 compares | misses 365 pixels (bulges outside the box) |
+| Edge K signs | — | 399 pixels wrongly in, 2,296 wrongly out |
+| Ray + side planes | — | right everywhere |
+| Row crossings | 57 cycles per row | 2,562 pixels wrongly out |
+
+**Who wins a pixel:**
+
+| | Time per frame | Memory |
+|---|---|---|
+| Nearest depth kept at write | 3.1 ms | 14 bytes per pixel |
+| Per-pixel lists, then resolve | 5.0 ms | 33 bytes per pixel |
+
+**Whole frames** (smooth cube, measured in JavaScript):
+
+| Pipeline | 1000² frame | Per pixel |
+|---|---|---|
+| A, now: spans → edge u, v → P(u, v) | 648 ms | 648 ns |
+| B: spans → ray, sign rule | 250 ms | 250 ns |
+| B′: spans → ray + forward-map check | 953 ms | 953 ns |
+| C, step 11: boxes → ray + check | 1,459 ms | 1,459 ns |
+
 ## Prior art
 
 Collected from memory at first. Step 7 checked the shared-edge part against abstracts and citing papers.

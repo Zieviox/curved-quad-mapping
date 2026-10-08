@@ -87,4 +87,8 @@ Pass 1: each piece walks only its own spans (each edge's crossing with a pixel r
 
 Only the closed form, written as plain arithmetic, storing the nearest depth per pixel and printing the depth array. Same depth as step 14; 5.4 ms instead of 43 ms per 200² frame in the browser.
 
+### 16 · Operation stress test — [Preview](https://htmlpreview.github.io/?https://github.com/Zieviox/curved-quad-mapping/blob/main/examples/11-op-stress-test.html) · [Source](examples/11-op-stress-test.html)
+
+Every solving and detection method on real pieces: measured time, counted operations and Skylake cycles, and accuracy in float64 and float32 against an independent answer key. Each method is written once; the float32 and counted versions are generated from it.
+
 Details and numbers are in the [R&D log](docs/rnd-log.md).

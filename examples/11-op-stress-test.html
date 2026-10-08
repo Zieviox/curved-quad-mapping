@@ -1,0 +1,581 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Operation Stress Test</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: phone-first. Steps, case controls, then one table per comparison (tables scroll sideways inside their box on small screens). Same tokens as the other examples. */
+:root{
+  --bg:#eef1f4;--surface:#ffffff;--fg:#151a21;--muted:#59626f;--line:#d6dce3;--accent:#2d56d2;--warn:#c8321f;--good:#1b7a52;
+  --pin:#b9c4d6;--pst:#9fcfc6;--pco:#d7b2d4;--border:#2d56d2;--fillet:#1f8a7a;--contact:#8a94a3;--cross:#d0721a;--corner:#a0459b;--handle:#151a21;--art:#c8321f;
+  --f-display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
+  --f-body:"IBM Plex Sans",ui-sans-serif,system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0e1115;--surface:#161a20;--fg:#e4e8ee;--muted:#98a1ae;--line:#2a313a;--accent:#7f9cff;--warn:#ff5f4a;--good:#5fd0a0;--pin:#4a5568;--pst:#2f6b62;--pco:#6b4569;--border:#7f9cff;--fillet:#4fd1bb;--contact:#7d8794;--cross:#f0a050;--corner:#d68ad0;--handle:#e4e8ee;--art:#ff5f4a;color-scheme:dark}}
+:root[data-theme="dark"]{--pin:#4a5568;--pst:#2f6b62;--pco:#6b4569;--bg:#0e1115;--surface:#161a20;--fg:#e4e8ee;--muted:#98a1ae;--line:#2a313a;--accent:#7f9cff;--warn:#ff5f4a;--good:#5fd0a0;--border:#7f9cff;--fillet:#4fd1bb;--contact:#7d8794;--cross:#f0a050;--corner:#d68ad0;--handle:#e4e8ee;--art:#ff5f4a;color-scheme:dark}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:15px;line-height:1.55}
+.wrap{max-width:1100px;margin:0 auto;padding-inline:16px;padding-block:22px 56px;display:flex;flex-direction:column;gap:22px}
+h1{font-family:var(--f-display);font-weight:700;font-size:clamp(26px,5vw,34px);line-height:1.1;margin:0;text-wrap:balance}
+h2{font-family:var(--f-display);font-weight:600;font-size:18px;margin:0}
+p{margin:0;max-width:68ch}
+.eyebrow{font-family:var(--f-mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+ol.steps{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:6px;max-width:72ch}
+.ctrls{display:flex;flex-direction:column;gap:10px}
+.crow{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center}
+.clab{font-family:var(--f-mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);width:84px;flex:none}
+.seg{display:inline-flex;flex-wrap:wrap;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surface)}
+.seg button{font:500 13px var(--f-body);color:var(--muted);background:transparent;border:0;padding:8px 12px;min-height:36px;cursor:pointer}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button.on{color:var(--fg);background:var(--bg);box-shadow:inset 0 -2px 0 var(--accent)}
+button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.slider{display:flex;align-items:center;gap:10px;flex:1;min-width:200px}
+.slider input{flex:1;min-width:0;accent-color:var(--accent);height:30px}
+.slider output{font:500 13px var(--f-mono);font-variant-numeric:tabular-nums;width:64px}
+.main{display:grid;grid-template-columns:1fr;gap:18px}
+@media (min-width:900px){.main{grid-template-columns:minmax(0,1.3fr) minmax(0,1fr)}}
+.view{display:flex;flex-direction:column;gap:8px;min-width:0}
+canvas.px{image-rendering:pixelated;cursor:crosshair}
+.stage{position:relative}
+.mark{position:absolute;outline:2px solid var(--fg);outline-offset:1px;pointer-events:none}
+canvas{width:100%;max-width:100%;aspect-ratio:1;display:block;border:1px solid var(--line);border-radius:10px;background:var(--surface);touch-action:none;cursor:grab}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12.5px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.ln{width:18px;height:3px;border-radius:2px;display:inline-block}
+.tw{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:13px;font-variant-numeric:tabular-nums}
+th,td{padding:7px 10px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-weight:500;color:var(--muted);font-size:12px}
+td.n{text-align:right;font-family:var(--f-mono);white-space:nowrap}
+td.ok{color:var(--good)}td.bad{color:var(--warn)}
+tr:last-child td{border-bottom:0}
+.note{font-size:13px;color:var(--muted)}
+.btn{font:500 13px var(--f-body);color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px 12px;min-height:36px;cursor:pointer}
+.log div{font:12px/1.5 var(--f-mono)}
+section{display:flex;flex-direction:column;gap:8px}
+td .note{font-size:12px}
+#solve td,#detect td{min-width:120px}.log .e{color:var(--warn)}
+</style>
+
+<div class="wrap">
+<a id="back" href="../index.html" hidden style="font:500 13px var(--f-body);color:var(--accent);text-decoration:none">← All steps</a>
+<script>(()=>{const h=location.hostname;if(location.protocol==="file:"||h.endsWith("github.io")||h==="localhost")document.getElementById("back").hidden=false})()</script>
+<header>
+  <div class="eyebrow">Curved quads · step 16 · what each operation costs, and whether it's right</div>
+  <h1>Operation Stress Test</h1>
+</header>
+<ol class="steps">
+  <li>Every method we have is written <b>once</b>. From that one source the page builds three versions: <b>float64</b> (timed), <b>float32</b> (every + − × ÷, √, ∛, cos, acos rounded to float32; a × b ± c rounded once), and <b>counted</b> (every operation tallied, for the Skylake model).</li>
+  <li>The inputs are real: the step 10 pieces of the chosen mesh, seen by a real camera at 200².</li>
+  <li><b>Answer key:</b> each piece's surface sampled densely (several samples per pixel), independent of every method below. A pixel counts as <b>decided</b> for a piece when the piece covers, or misses, its whole 3 × 3 block; detection errors are counted only there. Exact u, v and depth come from the winning piece's quadric along the pixel's ray, at the root that matches the sampled depth.</li>
+  <li><b>Slide</b> = where a method's (u, v) puts you on the surface, P(u, v), against where the pixel really looks, in % of the average edge length.</li>
+</ol>
+<section class="ctrls" aria-label="Case">
+  <div class="crow"><span class="clab">Mesh</span><div class="seg" id="g-mesh"><button data-v="0" class="on">Smooth cube</button><button data-v="1">Hard cube</button><button data-v="2">Mixed cube</button><button data-v="3">Wave</button></div></div>
+  <div class="crow"><span class="clab">View</span><div class="seg" id="g-view"><button data-v="0">Straight on</button><button data-v="1" class="on">Oblique</button><button data-v="2">Glancing</button></div></div>
+  <div class="crow"><span class="clab"></span><button class="btn" id="run">Run again</button><span class="note" id="prog"></span></div>
+  <p class="note" id="case"></p>
+</section>
+
+<section><h2>Calibration: one operation in this browser</h2><div class="tw"><table><thead><tr><th>Loop body (1,000,000 iterations)</th><th class="n">ns per iteration</th></tr></thead><tbody id="cal"></tbody></table></div>
+  <p class="note">The difference to the first row is what the added operation costs here. JavaScript runs float64 without SIMD, so these are not Skylake float32 numbers; they say how to read the measured columns below.</p></section>
+
+<section><h2>Solving: pixel → u, v and / or the 3D point</h2><div class="tw"><table><thead><tr><th>Method</th><th class="n">Measured ns per call</th><th>Operations per call (counted)</th><th class="n">Model cycles</th><th>Accuracy, float64</th><th>Accuracy, float32</th></tr></thead><tbody id="solve"></tbody></table></div>
+  <p class="note">Model cycles: Skylake float32, one core, throughput-bound: ADD / MUL / FMA / MAX / MIN / NEG 0.5 cycle, DIV and SQRT 3 (one divider), compares 1 — the largest of the three — plus 20 cycles per library call (cube root, acos, cos), an assumption. Same level gives u as the bottom and top edges' own arc parameter, which is not the surface's u naming, so part of its Δu is naming, not position; its slide uses P(u, v) with that u.</p></section>
+
+<section><h2>Detection: which piece covers a pixel</h2><div class="tw"><table><thead><tr><th>Test</th><th class="n">Measured ns per call</th><th>Operations per call (counted)</th><th class="n">Model cycles</th><th>Wrong, float64</th><th>Wrong, float32</th></tr></thead><tbody id="detect"></tbody></table></div>
+  <p class="note">Each test runs on the pairs (piece × pixel) the screen box lets through, except the box itself (all pairs). “Wrongly in”: the test says the piece covers the pixel and the answer key says it doesn't; “wrongly out”: the reverse.</p>
+  <h2 style="margin-top:14px">Which hit counts</h2><div class="tw"><table><thead><tr><th>Rule</th><th>float64</th><th>float32</th></tr></thead><tbody id="roots"></tbody></table></div>
+  <p class="note">On the solving samples (the winning piece of each pixel): wrong = the chosen hit's depth is off the exact one by more than 0.1%; no hit = the rule found none.</p>
+  <h2 style="margin-top:14px">Who wins a pixel</h2><div class="tw"><table><thead><tr><th>Method</th><th class="n">Time</th><th class="n">Memory</th><th class="n">Entries</th></tr></thead><tbody id="resolve"></tbody></table></div>
+  <p class="note">Same entries for both (spans + sign rule): piece, u, v, depth. Memory counts what is kept per pixel (lists: the entries and their links).</p></section>
+
+<section><h2>Whole frames: fixed cost against per-pixel cost</h2><div class="tw"><table><thead><tr><th>Pipeline</th><th class="n">100²</th><th class="n">400²</th><th class="n">1000²</th></tr></thead><tbody id="scale"></tbody></table></div>
+  <p class="note" id="scaleSetup"></p><p class="note">Measured, float64, one run after a warm-up. The frame setup per piece is fixed; everything else grows with the pixels a piece covers.</p></section>
+</div>
+
+<script>
+// ================= step 10 conversion, embedded unchanged (the last line also exports its vector helpers) =================
+const PIECES=(()=>{
+// ================= math, copied unchanged from example 04 =================
+const add=(a,b)=>[a[0]+b[0],a[1]+b[1],a[2]+b[2]],sub=(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]],mul=(a,s)=>[a[0]*s,a[1]*s,a[2]*s],dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2],cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]],len=a=>Math.hypot(a[0],a[1],a[2]),norm=a=>mul(a,1/(len(a)||1));
+const same=(a,b)=>Math.abs(a[0]-b[0])<1e-12&&Math.abs(a[1]-b[1])<1e-12&&Math.abs(a[2]-b[2])<1e-12;
+// ---------- source meshes: quads with corner positions and face-corner normals (raw, not normalized) ----------
+function cube(){return{v:[[-1,-1,-1],[1,-1,-1],[1,1,-1],[-1,1,-1],[-1,-1,1],[1,-1,1],[1,1,1],[-1,1,1]],f:[[0,3,2,1],[4,5,6,7],[0,1,5,4],[2,3,7,6],[0,4,7,3],[1,2,6,5]]}}
+function wave(){const v=[],f=[];for(let j=0;j<3;j++)for(let i=0;i<5;i++)v.push([(i-2)*0.9,(j-1)*0.9,i%2?-0.55:0.55]);for(let j=0;j<2;j++)for(let i=0;i<4;i++){const a=j*5+i;f.push([a,a+1,a+6,a+5])}return{v,f}}
+const faceN=(m,f)=>norm(cross(sub(m.v[f[2]],m.v[f[0]]),sub(m.v[f[3]],m.v[f[1]])));
+function vnorm(m){const n=m.v.map(()=>[0,0,0]);m.f.forEach(f=>{const fn=faceN(m,f);f.forEach(i=>n[i]=add(n[i],fn))});return n.map(norm)}
+function source(id){
+  if(id===0){const m=cube(),N=vnorm(m);return m.f.map(f=>({x:f.map(i=>m.v[i]),n:f.map(i=>N[i])}))}
+  if(id===1){const m=cube();return m.f.map(f=>{const fn=faceN(m,f);return{x:f.map(i=>m.v[i]),n:f.map(()=>fn)}})}
+  if(id===2){// top face sharp against the sides; sides smooth with each other; bottom smooth with everything
+    const m=cube(),N=vnorm(m),top=1;return m.f.map((f,fi)=>({x:f.map(i=>m.v[i]),n:f.map(i=>{if(fi===top)return faceN(m,f);if(m.v[i][2]>0){let s=[0,0,0];m.f.forEach((g,gi)=>{if(gi!==top&&g.includes(i))s=add(s,faceN(m,g))});return norm(s)}return N[i]})}))}
+  const m=wave(),N=vnorm(m);return m.f.map(f=>({x:f.map(i=>m.v[i]),n:f.map(i=>N[i])}))}
+
+// ---------- one ellipse arc between two handles ----------
+// Rational quadratic: end points P0, P2, apex A (where the end tangents meet), weight w.
+// w = L·cos(φ/2): L = average handle length, φ = how much the tangent turns. L = 1 with equal sides is a circular arc.
+// If the tangent lines don't meet in front of both ends (S-curve or twisted), split once at an artificial handle.
+let STATS;
+function arc(P0,n0,P2,n2){const d=sub(P2,P0);if(len(d)<1e-12)return[];const u0=norm(n0),u2=norm(n2),T0=sub(d,mul(u0,dot(d,u0))),T2=sub(d,mul(u2,dot(d,u2)));return arcT(P0,T0,len(n0),u0,P2,T2,len(n2),u2,0)}
+function arcT(P0,T0,L0,u0,P2,T2,L2,u2,depth){STATS.arcs++;const d=sub(P2,P0),D=len(d);
+  const D1=T0,D2=mul(T2,-1),w0=sub(P0,P2),a=dot(D1,D1),b=dot(D1,D2),c=dot(D2,D2),e1=dot(D1,w0),e2=dot(D2,w0),den=a*c-b*b;
+  if(len(cross(norm(T0),norm(d)))<1e-9&&len(cross(norm(T2),norm(d)))<1e-9)return[{P0,P2,straight:true}];
+  if(Math.abs(den)>1e-14*a*c){const s=(b*e2-c*e1)/den,t=(a*e2-b*e1)/den,A1=add(P0,mul(D1,s)),A2=add(P2,mul(D2,t));
+    if(len(sub(A1,A2))<1e-7*D&&s>1e-9&&t>1e-9){const ph=Math.acos(Math.max(-1,Math.min(1,dot(norm(T0),norm(T2))))),w=(L0+L2)/2*Math.cos(ph/2);return[{P0,P2,A:mul(add(A1,A2),0.5),w}]}}
+  if(depth>0){STATS.fail++;return[{P0,P2,straight:true,fail:true}]}
+  // artificial handle: on the handle cubic (handles scaled by length), at its inflection if it has one, else halfway
+  STATS.splits++;const C1=add(P0,mul(T0,L0/3)),C2=sub(P2,mul(T2,L2/3)),m=add(u0,u2),ia=dot(m,add(sub(C2,mul(C1,2)),P0)),ib=dot(m,add(sub(P2,mul(C2,2)),C1)),tm=ia*ib<0?ia/(ia-ib):0.5,r=1-tm;
+  const M=add(add(mul(P0,r*r*r),mul(C1,3*r*r*tm)),add(mul(C2,3*r*tm*tm),mul(P2,tm*tm*tm)));
+  // its tangent lies in both end planes (P0, T0, M) and (M, T2, P2), so each half is a flat curve and the two halves meet smoothly
+  let TM=cross(cross(T0,sub(M,P0)),cross(T2,sub(P2,M)));if(len(TM)<1e-12*D*D*D*D)TM=add(add(mul(sub(C1,P0),r*r),mul(sub(C2,C1),2*r*tm)),mul(sub(P2,C2),tm*tm));if(dot(TM,d)<0)TM=mul(TM,-1);
+  const uM=norm(add(mul(u0,r),mul(u2,tm))),LM=L0*r+L2*tm,nM=mul(norm(sub(uM,mul(norm(TM),dot(uM,norm(TM))))),LM);STATS.art.push({p:M,n:nM});
+  const h1=arcT(P0,T0,L0,u0,M,TM,LM,uM,1),res=h1.concat(arcT(M,TM,LM,uM,P2,T2,L2,u2,1));res.mid={p:M,n:nM,k:h1.length};return res}
+function evalArc(g,t){if(g.straight)return add(mul(g.P0,1-t),mul(g.P2,t));const r=1-t,b0=r*r,b1=2*g.w*r*t,b2=t*t,s=b0+b1+b2;return mul(add(add(mul(g.P0,b0),mul(g.A,b1)),mul(g.P2,b2)),1/s)}
+const sampleArcs=(segs,n)=>{const out=[];segs.forEach((g,i)=>{for(let k=i?1:0;k<=n;k++)out.push(evalArc(g,k/n))});return out};
+// ---------- S rule on pieces: an artificial handle on a side splits the piece too, so each part gets its own ellipsoid ----------
+// Split a single conic exactly at its middle (homogeneous de Casteljau), to give the opposite side a matching point.
+function halveConic(g){if(g.straight){const M=mul(add(g.P0,g.P2),0.5);return[{P0:g.P0,P2:M,straight:true},{P0:M,P2:g.P2,straight:true},M]}
+  const w=g.w,M=evalArc(g,0.5),wn=Math.sqrt((1+w)/2),AL=mul(add(g.P0,mul(g.A,w)),1/(1+w)),AR=mul(add(mul(g.A,w),g.P2),1/(1+w));return[{P0:g.P0,P2:M,A:AL,w:wn},{P0:M,P2:g.P2,A:AR,w:wn},M]}
+function splitSide(sg,hA,hB){// -> {first, second, p, n}; uses the artificial handle if the side has one, else halves the side
+  if(sg.mid)return{first:sg.slice(0,sg.mid.k),second:sg.slice(sg.mid.k),p:sg.mid.p,n:sg.mid.n};
+  if(sg.length!==1)return null;const[a,b,M]=halveConic(sg[0]),e=1e-4,T=norm(sub(evalArc(sg[0],0.5+e),evalArc(sg[0],0.5-e))),u=norm(add(norm(hA),norm(hB))),n=mul(norm(sub(u,mul(T,dot(u,T)))),(len(hA)+len(hB))/2);return{first:[a],second:[b],p:M,n}}
+const revArc=sg=>sg.slice().reverse().map(g=>g.straight?{P0:g.P2,P2:g.P0,straight:true}:{P0:g.P2,P2:g.P0,A:g.A,w:g.w});
+// ---------- 9b: one quadric per piece, fitted to its border arcs ----------
+// Hard: the piece's distinct corners. Soft: points along its 4 border arcs (Q = 0) and its corner handle directions (gradient parallel).
+// Scale fixed by trace(A) = 1. One fixed-size linear solve, no iteration.
+const WARC=1,ARCS=5;
+function fitPiece(pc){const U=[],UN=[];pc.P.forEach((p,i)=>{if(!U.some(u=>len(sub(u,p))<1e-12)){U.push(p);UN.push(pc.N[i])}});
+  const c0=mul(U.reduce((a,b)=>add(a,b),[0,0,0]),1/U.length),sc=U.length/U.reduce((a,u)=>a+len(sub(u,c0)),0)||1,loc=x=>mul(sub(x,c0),sc);
+  const row=x=>[x[0]*x[0],x[1]*x[1],x[2]*x[2],2*x[0]*x[1],2*x[0]*x[2],2*x[1]*x[2],x[0],x[1],x[2],1],grow=(x,t)=>[2*x[0]*t[0],2*x[1]*t[1],2*x[2]*t[2],2*(x[1]*t[0]+x[0]*t[1]),2*(x[2]*t[0]+x[0]*t[2]),2*(x[2]*t[1]+x[1]*t[2]),t[0],t[1],t[2],0];
+  const M=[];UN.forEach((n,i)=>{const u=norm(n),ax=Math.abs(u[0])<0.9?[1,0,0]:[0,1,0],t1=norm(cross(u,ax)),t2=cross(u,t1),L=loc(U[i]);M.push(grow(L,t1),grow(L,t2))});
+  pc.sides.forEach(sg=>{if(!sg.length)return;const pts=sampleArcs(sg,ARCS+1);for(let k=1;k<pts.length-1;k++)M.push(row(loc(pts[k])).map(v=>v*WARC))});
+  const H=U.map(u=>row(loc(u))).concat([[1,1,1,0,0,0,0,0,0,0]]),n=10+H.length,K=[];for(let i=0;i<n;i++)K.push(new Array(n+1).fill(0));
+  for(let i=0;i<10;i++){for(let j=0;j<10;j++){let v=0;M.forEach(r=>v+=r[i]*r[j]);K[i][j]=v+(i===j?1e-9:0)}H.forEach((h,hi)=>{K[i][10+hi]=h[i];K[10+hi][i]=h[i]})}K[n-1][n]=1;
+  for(let c=0;c<n;c++){let p=c;for(let r=c+1;r<n;r++)if(Math.abs(K[r][c])>Math.abs(K[p][c]))p=r;[K[c],K[p]]=[K[p],K[c]];if(Math.abs(K[c][c])<1e-300)continue;for(let r=0;r<n;r++)if(r!==c){const f=K[r][c]/K[c][c];if(f)for(let k=c;k<=n;k++)K[r][k]-=f*K[c][k]}}
+  const q=K.slice(0,10).map((r,i)=>r[n]/r[i]),A=[[q[0],q[3],q[4]],[q[3],q[1],q[5]],[q[4],q[5],q[2]]],g=[q[6],q[7],q[8]],k=q[9];
+  const Ax=x=>[dot(A[0],x),dot(A[1],x),dot(A[2],x)],Qf=x=>dot(x,Ax(x))+dot(g,x)+k,grad=x=>add(mul(Ax(x),2),g),det=dot(A[0],cross(A[1],A[2])),m1=A[0][0],m2=A[0][0]*A[1][1]-A[0][1]*A[0][1];
+  let cen=null;if(Math.abs(det)>1e-9){const inv=[cross(A[1],A[2]),cross(A[2],A[0]),cross(A[0],A[1])].map(r=>mul(r,1/det));cen=mul([dot(inv[0],g),dot(inv[1],g),dot(inv[2],g)],-0.5)}
+  const qc=cen?Qf(cen):0,ell=!!cen&&((m1>0&&m2>0&&det>0)||(m1<0&&m2>0&&det<0))&&qc*m1<0,dir=norm(UN.reduce((a,b)=>add(a,norm(b)),[0,0,0]));
+  const LP=pc.P.map(loc);let miss=0;
+  // piece point: bilinear base of its 4 corners, pushed onto the quadric (from the centre for an ellipsoid, else along the averaged handle direction)
+  pc.eval=(u,v)=>{const w=[(1-u)*(1-v),u*(1-v),u*v,(1-u)*v];let p=[0,0,0];for(let i=0;i<4;i++)p=add(p,mul(LP[i],w[i]));let X=p;
+    if(ell){const d=sub(p,cen),a=dot(d,Ax(d)),r=-qc/a;if(a!==0&&r>0)X=add(cen,mul(d,Math.sqrt(r)));else miss++}
+    else{const a=dot(dir,Ax(dir)),b=dot(grad(p),dir),c=Qf(p);let t=null;if(Math.abs(c)<1e-12)t=0;else if(Math.abs(a)<1e-12){if(Math.abs(b)>1e-15)t=-c/b;else if(Math.abs(c)<1e-12)t=0}else{let D=b*b-4*a*c;if(D<0&&D>-1e-9*(b*b+Math.abs(4*a*c)+1e-30))D=0;if(D>=0){const r1=(-b+Math.sqrt(D))/(2*a),r2=(-b-Math.sqrt(D))/(2*a);t=Math.abs(r1)<Math.abs(r2)?r1:r2}}if(t===null)miss++;else X=add(p,mul(dir,t))}
+    return add(c0,mul(X,1/sc))};
+  // ---- plane-pencil mapping: u blends the planes of the u=0 and u=1 border arcs, v those of v=0 and v=1.
+  // The u=0 / u=1 / v=0 / v=1 curves are then exactly the border arcs (when the arcs lie on the quadric).
+  // Forward (u,v) -> point: two planes meet in a line, the line hits the quadric (quadratic). Inverse: two plane evaluations.
+  const bil=(u,v)=>{const w=[(1-u)*(1-v),u*(1-v),u*v,(1-u)*v];let p=[0,0,0];for(let i=0;i<4;i++)p=add(p,mul(LP[i],w[i]));return p};
+  const sidePlane=k=>{const sg=pc.sides[k],a0=LP[k],a1=LP[(k+1)%4];
+    if(sg.length===1&&!sg[0].straight){const g=sg[0],P0=loc(g.P0),A=loc(g.A),P2=loc(g.P2),n=cross(sub(A,P0),sub(P2,P0));if(len(n)>1e-12*len(sub(P2,P0))**2)return{n:norm(n),p:P0}}
+    if(len(sub(a1,a0))<1e-12){const gq=grad(a0);if(len(gq)>1e-12)return{n:norm(gq),p:a0};return null}   // collapsed side: tangent plane at the point
+    if(sg.length>=1&&sg.every(g=>g.straight)){// straight side: plane through it and the surface normal there (the handles' direction where the slope is ~0, e.g. a doubled plane)
+      const m=mul(add(a0,a1),0.5);let gq=grad(m);if(len(gq)<1e-6)gq=add(norm(pc.N[k]),norm(pc.N[(k+1)%4]));const n=cross(sub(a1,a0),gq);if(len(n)>1e-9*len(sub(a1,a0)))return{n:norm(n),p:a0}}
+    const m=loc(evalArc(sg[Math.floor(sg.length/2)]||{P0:pc.P[k],P2:pc.P[(k+1)%4],straight:true},0.5)),n=cross(sub(m,a0),sub(a1,a0));return len(n)>1e-12?{n:norm(n),p:a0}:null};
+  const PL=[0,1,2,3].map(sidePlane);let pencil=PL.every(Boolean);
+  const side=(pl,x)=>dot(pl.n,sub(x,pl.p));
+  if(pencil){// orient: u=0 plane (side 3) positive inside, u=1 plane (side 1) negative inside; same for v (side 0 / side 2)
+    const ctr=bil(0.5,0.5),fix=(pl,wantPos)=>{const s0=side(pl,ctr);if((s0>0)!==wantPos)pl.n=mul(pl.n,-1)};fix(PL[3],true);fix(PL[1],false);fix(PL[0],true);fix(PL[2],false)}
+  const ev0=pc.eval;
+  const sideAt=(k,t)=>{const sg=pc.sides[k];if(!sg.length)return pc.P[k];const n=sg.length,i=Math.min(n-1,Math.floor(t*n));return evalArc(sg[i],t*n-i)};
+  const coons=(u,v)=>{const b0=sideAt(0,u),b1=sideAt(1,v),b2=sideAt(2,1-u),b3=sideAt(3,1-v),P=pc.P,c=add(add(mul(P[0],(1-u)*(1-v)),mul(P[1],u*(1-v))),add(mul(P[2],u*v),mul(P[3],(1-u)*v)));
+    return sub(add(add(mul(b0,1-v),mul(b2,v)),add(mul(b3,1-u),mul(b1,u))),c)};
+  if(pencil)pc.eval=(u,v)=>{const pu={n:add(mul(PL[3].n,1-u),mul(PL[1].n,u)),h:(1-u)*dot(PL[3].n,PL[3].p)+u*dot(PL[1].n,PL[1].p)},pv={n:add(mul(PL[0].n,1-v),mul(PL[2].n,v)),h:(1-v)*dot(PL[0].n,PL[0].p)+v*dot(PL[2].n,PL[2].p)};
+    const D=cross(pu.n,pv.n),DD=dot(D,D);if(!(DD>1e-20)){miss++;return null}const x0=mul(add(mul(cross(pv.n,D),pu.h),mul(cross(D,pu.n),pv.h)),1/DD),Dn=mul(D,1/Math.sqrt(DD));
+    const a=dot(Dn,Ax(Dn)),b=dot(grad(x0),Dn),c=Qf(x0),tr=dot(sub(loc(coons(u,v)),x0),Dn);let t=null;
+    if(Math.abs(a)<1e-12){if(Math.abs(b)>1e-15)t=-c/b}else{let Dq=b*b-4*a*c;if(Dq<0&&Dq>-1e-9*(b*b+Math.abs(4*a*c)+1e-30))Dq=0;if(Dq>=0){const r1=(-b+Math.sqrt(Dq))/(2*a),r2=(-b-Math.sqrt(Dq))/(2*a);t=Math.abs(r1-tr)<Math.abs(r2-tr)?r1:r2}}
+    if(t===null){miss++;return null}return add(c0,mul(add(x0,mul(Dn,t)),1/sc))};
+  pc.pencil=pencil;pc.geo={A,g,k,c0,sc,PL,pencil,Ax,Qf};   // (06) hand the fitted quadric and its 4 side planes to the pixel step
+  pc.ell=ell;pc.missCount=()=>miss;
+  // distance from a world point to the fitted quadric (first-order: |Q| / |grad Q|), for diagnosis
+  pc.dist=x=>{const X=loc(x),gq=len(grad(X));return Math.abs(Qf(X))/(gq||1e-30)/sc};
+}
+
+// ================= clean-slate conversion: quads -> arcs -> pieces -> surfaces =================
+// Each quad is converted on its own. It may read anything around it; later this becomes a packed cache.
+const key=p=>p.map(x=>Math.round(x*1e6)).join(',');
+const revMid=sg=>{const r=revArc(sg);if(sg.mid)r.mid={p:sg.mid.p,n:sg.mid.n,k:sg.length-sg.mid.k};return r};
+const TOL=1e-5;     // a crack below this fraction of an edge is treated as closed: it is the precision of the crack measurement itself
+const HANDLE_SPLITS=4;  // safety cap on chained artificial-handle splits inside one piece
+
+// 1. lookups
+function lookups(Q){const vtx=new Map(),edges=new Map();
+  Q.forEach((q,qi)=>{for(let i=0;i<4;i++){const k=key(q.x[i]);if(!vtx.has(k))vtx.set(k,{X:q.x[i],corners:[],nbr:new Set()});const V=vtx.get(k);V.corners.push({qi,i});V.nbr.add(key(q.x[(i+1)%4]));V.nbr.add(key(q.x[(i+3)%4]));
+    const kb=key(q.x[(i+1)%4]),ek=k<kb?k+'|'+kb:kb+'|'+k;if(!edges.has(ek))edges.set(ek,[]);edges.get(ek).push({qi,i})}});
+  // the neighbour's face-corner normal at position p, across edge (qi, i)
+  const across=(qi,i,p)=>{const q=Q[qi],ka=key(q.x[i]),kb=key(q.x[(i+1)%4]),o=edges.get(ka<kb?ka+'|'+kb:kb+'|'+ka).find(e=>e.qi!==qi);if(!o)return null;const r=Q[o.qi],kp=key(p);for(let k=0;k<4;k++)if(key(r.x[k])===kp)return r.n[k];return null};
+  return{vtx,edges,across}}
+
+// 2. vertex rounding (formulas from step 9a, unchanged)
+function roundVertex(V,Q,vtx,beta){const dirs=[];V.corners.forEach(({qi,i})=>{const n=Q[qi].n[i];if(!dirs.some(d=>same(d.raw,n)))dirs.push({raw:n,u:norm(n),L:len(n)})});
+  const el=[...V.nbr].map(k=>len(sub(vtx.get(k).X,V.X)));V.r=beta*el.reduce((a,b)=>a+b,0)/el.length;V.k=dirs.length;
+  if(V.k<=1){V.c=V.X;return}
+  if(V.k===2){const a=dirs[0].u,b=dirs[1].u;V.c=sub(V.X,mul(add(a,b),V.r/(1+dot(a,b))))}
+  else{const M=[[0,0,0],[0,0,0],[0,0,0]];let rhs=[0,0,0];dirs.forEach(({u})=>{for(let p=0;p<3;p++)for(let s=0;s<3;s++)M[p][s]+=u[p]*u[s];rhs=add(rhs,mul(u,-V.r))});
+    const det=dot(M[0],cross(M[1],M[2])),inv=[cross(M[1],M[2]),cross(M[2],M[0]),cross(M[0],M[1])];V.c=add(V.X,[dot(inv[0],rhs)/det,dot(inv[1],rhs)/det,dot(inv[2],rhs)/det])}
+  const s=dirs.reduce((a,d)=>add(a,d.u),[0,0,0]);V.corner=add(V.c,mul(norm(s),V.r));V.cornerN=mul(norm(s),dirs.reduce((a,d)=>a+d.L,0)/dirs.length)}
+
+// 3. arc cache: one curve per pair of handles, computed once, so every piece that uses it gets the identical curve
+function makeArcCache(){const m=new Map(),hk=(p,n)=>key(p)+'/'+key(n);
+  return(Pa,na,Pb,nb)=>{const ka=hk(Pa,na),kb=hk(Pb,nb);if(len(sub(Pa,Pb))<1e-12)return[];const fwd=ka<kb,k=fwd?ka+'#'+kb:kb+'#'+ka;if(!m.has(k))m.set(k,fwd?arc(Pa,na,Pb,nb):arc(Pb,nb,Pa,na));const sg=m.get(k);return fwd?sg:revMid(sg)}}
+
+// 4. one quad -> its pieces (layout from step 9b: inner piece, edge-strip halves, corner quarters)
+function quadPieces(Q,qi,LK,getArc){const q=Q[qi];
+  // end of edge i at one of its corners: shared border point + handle (fillet middle if sharp), and this face's contact point
+  const endAt=(i,c)=>{const V=LK.vtx.get(key(q.x[c])),nA=q.n[c],nB=LK.across(qi,i,q.x[c]),uA=norm(nA),contact=V.k<=1?q.x[c]:add(V.c,mul(uA,V.r));
+    if(nB&&!same(nA,nB)){const m=norm(add(uA,norm(nB)));return{sharp:true,p:add(V.c,mul(m,V.r)),n:mul(m,(len(nA)+len(nB))/2),contact,nA,V}}
+    return{sharp:false,p:contact,n:nA,contact,nA,V}};
+  const E=[0,1,2,3].map(i=>{const a=endAt(i,i),b=endAt(i,(i+1)%4),e={a,b,sharp:a.sharp||b.sharp};
+    e.border=getArc(a.p,a.n,b.p,b.n);e.contact=e.sharp?getArc(a.contact,a.nA,b.contact,b.nA):e.border;
+    e.crossA=a.sharp?getArc(a.contact,a.nA,a.p,a.n):[];e.crossB=b.sharp?getArc(b.contact,b.nA,b.p,b.n):[];return e});
+  const pcs=[{kind:0,P:E.map(e=>e.a.contact),N:E.map(e=>e.a.nA),sides:E.map(e=>e.contact)}];
+  E.forEach(e=>{if(e.sharp){const{a,b}=e;pcs.push({kind:1,P:[a.p,b.p,b.contact,a.contact],N:[a.n,b.n,b.nA,a.nA],sides:[e.border,revMid(e.crossB),revMid(e.contact),e.crossA]})}});
+  for(let i=0;i<4;i++){const a=E[i].a,z=E[(i+3)%4].b,V=a.V;if(V.k<3)continue;const ca=getArc(a.p,a.n,V.corner,V.cornerN),cz=getArc(z.p,z.n,V.corner,V.cornerN);if(!ca.length&&!cz.length)continue;
+    pcs.push({kind:2,P:[a.contact,a.p,V.corner,z.p],N:[a.nA,a.n,V.cornerN,z.n],sides:[E[i].crossA,ca,revMid(cz),revMid(E[(i+3)%4].crossB)]})}
+  return{E,pieces:pcs.filter(pc=>new Set(pc.P.map(key)).size>=3)}}
+
+// 5. splitting: cut a piece across the middles (or artificial handles) of two opposite sides; the cut is an arc between the two new handles
+function cut(pc,dir,getArc){const S=pc.sides,h=pc.N;
+  if(dir==='u'){const a=splitSide(S[0],h[0],h[1]),c=splitSide(S[2],h[2],h[3]);if(!a||!c)return null;const mid=getArc(a.p,a.n,c.p,c.n);
+    return[{kind:pc.kind,P:[pc.P[0],a.p,c.p,pc.P[3]],N:[h[0],a.n,c.n,h[3]],sides:[a.first,mid,c.second,S[3]]},{kind:pc.kind,P:[a.p,pc.P[1],pc.P[2],c.p],N:[a.n,h[1],h[2],c.n],sides:[a.second,S[1],c.first,revMid(mid)]}]}
+  const b=splitSide(S[1],h[1],h[2]),d=splitSide(S[3],h[3],h[0]);if(!b||!d)return null;const mid=getArc(b.p,b.n,d.p,d.n);
+  return[{kind:pc.kind,P:[pc.P[0],pc.P[1],b.p,d.p],N:[h[0],h[1],b.n,d.n],sides:[S[0],b.first,mid,d.second]},{kind:pc.kind,P:[d.p,b.p,pc.P[2],pc.P[3]],N:[d.n,b.n,h[2],h[3]],sides:[revMid(mid),b.second,S[2],d.first]}]}
+// largest first-order distance from the piece's border arcs to its fitted quadric
+const fitError=pc=>{let m=0;pc.sides.forEach(sg=>{if(sg.length)sampleArcs(sg,30).forEach(x=>m=Math.max(m,Math.min(pc.dist(x),1e3)))});return m};   // first-order |Q|/|∇Q|: reported only, unreliable on doubled planes
+function refine(pc,depth,maxDepth,hs,getArc,out,EL){
+  const S=pc.sides,hu=!!(S[0].mid||S[2].mid),hv=!!(S[1].mid||S[3].mid);
+  if((hu||hv)&&hs<HANDLE_SPLITS&&depth===0){const parts=cut(pc,hu?'u':'v',getArc);if(parts){parts.forEach(p=>refine(p,depth,maxDepth,hs+1,getArc,out,EL));return}}
+  pc.depth=depth;fitPiece(pc);pc.err=fitError(pc);pc.crack=crackOf(pc);
+  if(pc.crack>TOL*EL&&depth<maxDepth){for(const dir of depth%2?['v','u']:['u','v']){const parts=cut(pc,dir,getArc);if(parts){parts.forEach(p=>refine(p,depth+1,maxDepth,hs,getArc,out,EL));return}}}
+  out.push(pc)}
+
+// 6. measurement: crack = largest distance from the edge of a piece's surface to its border arc (holes count as infinite)
+function crackOf(pc){let c=0;const segDist=(p,a,b)=>{const ab=sub(b,a),t=Math.max(0,Math.min(1,dot(sub(p,a),ab)/(dot(ab,ab)||1)));return len(sub(p,add(a,mul(ab,t))))};
+  const sidePt=(k,t)=>k===0?pc.eval(t,0):k===1?pc.eval(1,t):k===2?pc.eval(1-t,1):pc.eval(0,1-t);
+  for(let k=0;k<4;k++){const sg=pc.sides[k];if(!sg.length)continue;const A=sampleArcs(sg,200);for(let i=0;i<=24;i++){const p=sidePt(k,i/24);if(!p)return Infinity;let m=1e9;for(let j=1;j<A.length;j++)m=Math.min(m,segDist(p,A[j-1],A[j]));c=Math.max(c,m)}}
+  return c}
+
+// interior check: points that leave their piece, i.e. land farther from the blend (Coons) of the piece's own 4 border arcs
+// than the piece is wide. Normal bulge (a sphere vs its flat-ish arc blend) stays well inside that; spikes don't.
+function strayOf(pc){const sideAt=(k,t)=>{const sg=pc.sides[k];if(!sg.length)return pc.P[k];const n=sg.length,i=Math.min(n-1,Math.floor(t*n));return evalArc(sg[i],t*n-i)};
+  let size=0;pc.P.forEach(a=>pc.P.forEach(b=>size=Math.max(size,len(sub(a,b)))));let m=0;for(let j=1;j<6;j++)for(let i=1;i<6;i++){const u=i/6,v=j/6,b0=sideAt(0,u),b1=sideAt(1,v),b2=sideAt(2,1-u),b3=sideAt(3,1-v),P=pc.P,c=add(add(mul(P[0],(1-u)*(1-v)),mul(P[1],u*(1-v))),add(mul(P[2],u*v),mul(P[3],(1-u)*v))),ref=sub(add(add(mul(b0,1-v),mul(b2,v)),add(mul(b3,1-u),mul(b1,u))),c),x=pc.eval(u,v);if(x&&len(sub(x,ref))>size)m++}
+  return m}
+
+// the whole conversion
+function convert(Q,beta,maxDepth){STATS={arcs:0,splits:0,fail:0,art:[]};
+  const LK=lookups(Q);LK.vtx.forEach(V=>roundVertex(V,Q,LK.vtx,beta));const getArc=makeArcCache();
+  let el=0;Q.forEach(q=>{for(let i=0;i<4;i++)el+=len(sub(q.x[(i+1)%4],q.x[i]))});const EL=el/(4*Q.length);
+  const quads=Q.map((q,qi)=>{const{E,pieces}=quadPieces(Q,qi,LK,getArc),out=[];pieces.forEach(pc=>refine(pc,0,maxDepth,0,getArc,out,EL));out.forEach(pc=>{pc.qi=qi;pc.stray=strayOf(pc)});return{E,pieces:out}});
+  // shared borders: the two quads on an edge must hold the same curve
+  let gap=0;LK.edges.forEach(l=>{if(l.length!==2)return;const[A,B]=l,pa=sampleArcs(quads[A.qi].E[A.i].border,16),pb=sampleArcs(quads[B.qi].E[B.i].border,16).reverse();if(pa.length!==pb.length){gap=Infinity;return}pa.forEach((p,k)=>gap=Math.max(gap,len(sub(p,pb[k]))))});
+  return{quads,pieces:quads.flatMap(q=>q.pieces),gap,EL,stats:STATS}}
+
+function roundedBoxDist(p,r){const h=1-r,q=p.map(x=>Math.abs(x)-h),o=Math.hypot(Math.max(q[0],0),Math.max(q[1],0),Math.max(q[2],0));return o+Math.min(Math.max(q[0],q[1],q[2]),0)-r}
+
+
+return{convert,source,vec:{add,sub,mul,dot,cross,len,norm}}})();   // (09) also hands out its vector helpers
+// ---- kernels, float64 (as written) ----
+function makeKernels64(){
+// ================= kernels: every method under test, written once =================
+// The page uses three builds of this code, made automatically from this one source:
+//  · float64: as written (timed);
+//  · float32: every + − × ÷ and every square root, cube root, cos, acos rounded to float32 (Math.fround) — a × b + c rounds once (fused);
+//  · counted: every operation tallied (ADD, MUL, FMA = a × b ± c, DIV, SQRT, MIN, MAX, CMP, NEG, LIB = cbrt / acos / cos) — for the cycle model.
+// Rules for this source: no compound assignment (+=); integers only for loop and array indices.
+
+// ---------- solving ----------
+
+// K of one edge, arc only: K = B1 − sg·√max(0, c·B0·B2); a straight edge (or an arc seen edge-on): K = B1
+function kArc(e,x,y){var b1=e.b1x*x+e.b1y*y+e.b10;if(e.t===0)return b1;var q=e.c*(e.b0x*x+e.b0y*y+e.b00)*(e.b2x*x+e.b2y*y+e.b20);return b1-e.sg*Math.sqrt(Math.max(0,q))}
+// K of one edge, full conic: K = s·B1² − s·4w'²·B0·B2 (also 0 on the rest of the ellipse)
+function kConic(e,x,y){var b1=e.b1x*x+e.b1y*y+e.b10;if(e.t===0)return b1;return e.s*b1*b1-e.cw*(e.b0x*x+e.b0y*y+e.b00)*(e.b2x*x+e.b2y*y+e.b20)}
+// u, v from the edges (steps 13–15): u = K3/(K3+K1), v = K0/(K0+K2). Returns true when all 4 K ≥ 0 (inside the edges).
+function uvEdgesArc(c,x,y,out){var K0=kArc(c.ka0,x,y),K1=kArc(c.ka1,x,y),K2=kArc(c.ka2,x,y),K3=kArc(c.ka3,x,y);out[0]=K3/(K3+K1);out[1]=K0/(K0+K2);return K0>=0&&K1>=0&&K2>=0&&K3>=0}
+function uvEdgesConic(c,x,y,out){var K0=kConic(c.kc0,x,y),K1=kConic(c.kc1,x,y),K2=kConic(c.kc2,x,y),K3=kConic(c.kc3,x,y);out[0]=K3/(K3+K1);out[1]=K0/(K0+K2);return K0>=0&&K1>=0&&K2>=0&&K3>=0}
+
+// one point of a rational quadratic arc {P0, A, P2, w} (straight: A = midpoint, w = 1) → ar[0..2]
+function arcAt(g,t,ar){var r=1-t,b0=r*r,b1=2*g.w*r*t,b2=t*t,s=1/(b0+b1+b2);ar[0]=(g.p0x*b0+g.ax*b1+g.p2x*b2)*s;ar[1]=(g.p0y*b0+g.ay*b1+g.p2y*b2)*s;ar[2]=(g.p0z*b0+g.az*b1+g.p2z*b2)*s}
+// P(u, v), the step 10 forward map: the planes of the u = 0 / u = 1 edges blended by u, of v = 0 / v = 1 by v; the two planes meet in a line; the line hits the
+// piece's quadric (one quadratic); of the two roots, the one nearest the blend of the 4 edge arcs. → out[0..2] (world). Returns false if there is no point.
+function pointAt(m,u,v,out,ar){var iu=1-u,iv=1-v;
+  var ux=m.n3x*iu+m.n1x*u,uy=m.n3y*iu+m.n1y*u,uz=m.n3z*iu+m.n1z*u,uh=m.h3*iu+m.h1*u;
+  var vx=m.n0x*iv+m.n2x*v,vy=m.n0y*iv+m.n2y*v,vz=m.n0z*iv+m.n2z*v,vh=m.h0*iv+m.h2*v;
+  var dx=uy*vz-uz*vy,dy=uz*vx-ux*vz,dz=ux*vy-uy*vx,DD=dx*dx+dy*dy+dz*dz;if(!(DD>1e-20))return false;
+  var x0=((vy*dz-vz*dy)*uh+(dy*uz-dz*uy)*vh)/DD,y0=((vz*dx-vx*dz)*uh+(dz*ux-dx*uz)*vh)/DD,z0=((vx*dy-vy*dx)*uh+(dx*uy-dy*ux)*vh)/DD;
+  var il=1/Math.sqrt(DD),ex=dx*il,ey=dy*il,ez=dz*il;
+  var Aex=m.A00*ex+m.A01*ey+m.A02*ez,Aey=m.A01*ex+m.A11*ey+m.A12*ez,Aez=m.A02*ex+m.A12*ey+m.A22*ez;
+  var Axx=m.A00*x0+m.A01*y0+m.A02*z0,Axy=m.A01*x0+m.A11*y0+m.A12*z0,Axz=m.A02*x0+m.A12*y0+m.A22*z0;
+  var a=ex*Aex+ey*Aey+ez*Aez,b=(2*Axx+m.gx)*ex+(2*Axy+m.gy)*ey+(2*Axz+m.gz)*ez,cq=x0*Axx+y0*Axy+z0*Axz+m.gx*x0+m.gy*y0+m.gz*z0+m.k;
+  var w00=iu*iv,w10=u*iv,w11=u*v,w01=iu*v;
+  arcAt(m.e0,u,ar);var bx=ar[0]*iv,by=ar[1]*iv,bz=ar[2]*iv;
+  arcAt(m.e2,iu,ar);bx=bx+ar[0]*v;by=by+ar[1]*v;bz=bz+ar[2]*v;
+  arcAt(m.e3,iv,ar);bx=bx+ar[0]*iu;by=by+ar[1]*iu;bz=bz+ar[2]*iu;
+  arcAt(m.e1,v,ar);bx=bx+ar[0]*u;by=by+ar[1]*u;bz=bz+ar[2]*u;
+  bx=bx-(m.P0x*w00+m.P1x*w10+m.P2x*w11+m.P3x*w01);by=by-(m.P0y*w00+m.P1y*w10+m.P2y*w11+m.P3y*w01);bz=bz-(m.P0z*w00+m.P1z*w10+m.P2z*w11+m.P3z*w01);
+  var tr=((bx-m.c0x)*m.sc-x0)*ex+((by-m.c0y)*m.sc-y0)*ey+((bz-m.c0z)*m.sc-z0)*ez,t=0;
+  if(Math.abs(a)<1e-12){if(!(Math.abs(b)>1e-15))return false;t=-cq/b}
+  else{var D=b*b-4*a*cq;if(D<0&&D>-1e-9*(b*b+Math.abs(4*a*cq)+1e-30))D=0;if(!(D>=0))return false;var s=Math.sqrt(D),r1=(-b+s)/(2*a),r2=(-b-s)/(2*a);t=Math.abs(r1-tr)<Math.abs(r2-tr)?r1:r2}
+  var is=1/m.sc;out[0]=m.c0x+(x0+ex*t)*is;out[1]=m.c0y+(y0+ey*t)*is;out[2]=m.c0z+(z0+ez*t)*is;return true}
+
+// the pixel's ray in the piece's local frame: direction d = D0 + x·Dx + y·Dy; quadric along it: a = d·A·d, b = (2·A·o + g)·d, c = Q(o) (fixed per frame)
+// side planes along it: s_k = so_k + t·(n_k·d). u = s3/(s3−s1), v = s0/(s0−s2); inside when s3 ≥ 0, s1 ≤ 0, s0 ≥ 0, s2 ≤ 0.
+function planesAt(c,t,dx,dy,dz,out){var s0=c.so0+t*(c.n0x*dx+c.n0y*dy+c.n0z*dz),s1=c.so1+t*(c.n1x*dx+c.n1y*dy+c.n1z*dz),s2=c.so2+t*(c.n2x*dx+c.n2y*dy+c.n2z*dz),s3=c.so3+t*(c.n3x*dx+c.n3y*dy+c.n3z*dz);
+  if(s3<-1e-9||s1>1e-9||s0<-1e-9||s2>1e-9)return false;out[0]=s3/(s3-s1);out[1]=s0/(s0-s2);out[2]=t;return true}
+// step 11 without its check: of the ray's hits (nearest first), the first inside the side planes
+function rayPlanes(c,x,y,out){var dx=c.D0x+x*c.Dxx+y*c.Dyx,dy=c.D0y+x*c.Dxy+y*c.Dyy,dz=c.D0z+x*c.Dxz+y*c.Dyz;
+  var Adx=c.A00*dx+c.A01*dy+c.A02*dz,Ady=c.A01*dx+c.A11*dy+c.A12*dz,Adz=c.A02*dx+c.A12*dy+c.A22*dz,a=dx*Adx+dy*Ady+dz*Adz,b=c.box*dx+c.boy*dy+c.boz*dz,t1=0,t2=0;
+  if(Math.abs(a)<1e-14){if(Math.abs(b)<1e-14)return false;t1=-c.cq/b;t2=t1}
+  else{var D=b*b-4*a*c.cq;if(D<0)return false;var s=Math.sqrt(D),q=-0.5*(b+(b<0?-s:s));t1=q/a;t2=c.cq/q;if(t2<t1){var tt=t1;t1=t2;t2=tt}}
+  if(t1>1e-9&&planesAt(c,t1,dx,dy,dz,out))return true;return t2>1e-9&&planesAt(c,t2,dx,dy,dz,out)}
+// step 11 as built: the same, and the hit must also be where P(u, v) lands (otherwise it is on the quadric's other sheet)
+function rayCheck(c,x,y,out,ar,p){var dx=c.D0x+x*c.Dxx+y*c.Dyx,dy=c.D0y+x*c.Dxy+y*c.Dyy,dz=c.D0z+x*c.Dxz+y*c.Dyz;
+  var Adx=c.A00*dx+c.A01*dy+c.A02*dz,Ady=c.A01*dx+c.A11*dy+c.A12*dz,Adz=c.A02*dx+c.A12*dy+c.A22*dz,a=dx*Adx+dy*Ady+dz*Adz,b=c.box*dx+c.boy*dy+c.boz*dz,t1=0,t2=0;
+  if(Math.abs(a)<1e-14){if(Math.abs(b)<1e-14)return false;t1=-c.cq/b;t2=t1}
+  else{var D=b*b-4*a*c.cq;if(D<0)return false;var s=Math.sqrt(D),q=-0.5*(b+(b<0?-s:s));t1=q/a;t2=c.cq/q;if(t2<t1){var tt=t1;t1=t2;t2=tt}}
+  if(t1>1e-9&&planesAt(c,t1,dx,dy,dz,out)&&onSheet(c,t1,dx,dy,dz,out,ar,p))return true;
+  return t2>1e-9&&planesAt(c,t2,dx,dy,dz,out)&&onSheet(c,t2,dx,dy,dz,out,ar,p)}
+function onSheet(c,t,dx,dy,dz,out,ar,p){if(!pointAt(c.m,Math.min(1,Math.max(0,out[0])),Math.min(1,Math.max(0,out[1])),p,ar))return false;
+  var is=1/c.sc,X=c.c0x+(c.ox+t*dx)*is,Y=c.c0y+(c.oy+t*dy)*is,Z=c.c0z+(c.oz+t*dz)*is,ex=p[0]-X,ey=p[1]-Y,ez=p[2]-Z;
+  return Math.sqrt(ex*ex+ey*ey+ez*ez)<=1e-6*(1+Math.sqrt(X*X+Y*Y+Z*Z))}
+// the sign rule: one root, t = (−b − s·√D)/2a with s = σ·f (σ: the quadric's gradient points outward (+1) or inward (−1); f: the piece faces the camera (+1) or away (−1))
+function raySign(c,x,y,out){var dx=c.D0x+x*c.Dxx+y*c.Dyx,dy=c.D0y+x*c.Dxy+y*c.Dyy,dz=c.D0z+x*c.Dxz+y*c.Dyz;
+  var Adx=c.A00*dx+c.A01*dy+c.A02*dz,Ady=c.A01*dx+c.A11*dy+c.A12*dz,Adz=c.A02*dx+c.A12*dy+c.A22*dz,a=dx*Adx+dy*Ady+dz*Adz,b=c.box*dx+c.boy*dy+c.boz*dz,t=0;
+  if(Math.abs(a)<1e-14){if(Math.abs(b)<1e-14)return false;t=-c.cq/b}
+  else{var D=b*b-4*a*c.cq;if(D<0&&D>-1e-9*(b*b+Math.abs(4*a*c.cq)+1e-30))D=0;if(!(D>=0))return false;t=(-b-c.sgn*Math.sqrt(D))/(2*a)}
+  return t>1e-9&&planesAt(c,t,dx,dy,dz,out)}
+
+// ---- same level (your idea): the u where the pixel lies on the line from the bottom edge's B(u) to the top edge's T(u); v = how far along that line (in 3D).
+// On the screen: det[pixel, B̂(u), T̂(u)] = 0, a quartic in u (B̂, T̂ are quadratic). Its 5 coefficients are affine in the pixel: q_i = x·qx_i + y·qy_i + q0_i.
+function sameLevel(c,x,y,out,r,ar,br){var n=solveQuartic(c.q4x*x+c.q4y*y+c.q40,c.q3x*x+c.q3y*y+c.q30,c.q2x*x+c.q2y*y+c.q20,c.q1x*x+c.q1y*y+c.q10,c.q0x*x+c.q0y*y+c.q00,r),found=false,bz=0;
+  for(var i=0;i<n;i++){var u=r[i];if(!(u>=-1e-9&&u<=1+1e-9))continue;arcAt(c.eb,u,ar);arcAt(c.et,u,br);   // B(u), T(u) in camera coordinates (right, down, forward)
+    var drr=br[0]-ar[0],ddd=br[1]-ar[1],dzz=br[2]-ar[2],xc=x-c.h,yc=y-c.h,nx=c.f*ar[0]-xc*ar[2],mx=xc*dzz-c.f*drr,ny=c.f*ar[1]-yc*ar[2],my=yc*dzz-c.f*ddd;
+    var lam=Math.abs(mx)>Math.abs(my)?nx/mx:ny/my;if(!(lam>=-1e-9&&lam<=1+1e-9))continue;var z=ar[2]+lam*dzz;
+    if(!found||z<bz){found=true;bz=z;out[0]=u;out[1]=lam;out[2]=z}}
+  return found}
+// closed-form polynomial roots (written into r, count returned): quadratic, cubic (Cardano / trigonometric), quartic (Ferrari)
+function solveQuadratic(a,b,c,r,k){if(Math.abs(a)<=1e-14*(Math.abs(b)+Math.abs(c))){if(b!==0){r[k++]=-c/b}return k}
+  var D=b*b-4*a*c;if(D<0)return k;var s=Math.sqrt(D),q=-0.5*(b+(b<0?-s:s));if(q!==0){r[k++]=q/a;r[k++]=c/q;return k}r[k++]=0;return k}
+function solveCubic(a,b,c,d,r,k){if(Math.abs(a)<=1e-14*(Math.abs(b)+Math.abs(c)+Math.abs(d)))return solveQuadratic(b,c,d,r,k);
+  var B=b/a,C=c/a,D=d/a,B3=B/3,P=C-B*B3,Q=(2*B3*B3-C)*B3+D,disc=0.25*Q*Q+P*P*P/27;
+  if(disc>0){var sd=Math.sqrt(disc);r[k++]=Math.cbrt(-0.5*Q+sd)+Math.cbrt(-0.5*Q-sd)-B3;return k}
+  if(P===0){r[k++]=-B3;return k}
+  var m=2*Math.sqrt(-P/3),arg=Math.max(-1,Math.min(1,(3*Q/(2*P))*Math.sqrt(-3/P))),phi=Math.acos(arg)/3;
+  r[k++]=m*Math.cos(phi)-B3;r[k++]=m*Math.cos(phi-2.0943951023931957)-B3;r[k++]=m*Math.cos(phi-4.1887902047863905)-B3;return k}
+function solveQuartic(a,b,c,d,e,r){if(Math.abs(a)<=1e-12*(Math.abs(b)+Math.abs(c)+Math.abs(d)+Math.abs(e)))return solveCubic(b,c,d,e,r,0);
+  var B=b/a,C=c/a,D=d/a,E=e/a,B4=B/4,BB=B*B,p=C-0.375*BB,q=D-0.5*B*C+0.125*BB*B,s4=E-0.25*B*D+0.0625*BB*C-0.01171875*BB*BB,k=0,j=0,i=0;
+  if(Math.abs(q)<=1e-14*(1+Math.abs(p)+Math.abs(s4))){j=solveQuadratic(1,p,s4,r,4);   // biquadratic: y² = z
+    for(i=4;i<j;i++){var z=r[i];if(z>=0){var sz=Math.sqrt(z);r[k++]=sz-B4;r[k++]=-sz-B4}}return k}
+  j=solveCubic(1,p,0.25*p*p-s4,-0.125*q*q,r,4);var mm=r[4];for(i=5;i<j;i++){if(r[i]>mm)mm=r[i]}if(!(mm>0))return 0;   // resolvent: the largest root
+  var sq=Math.sqrt(2*mm),h=0.5*p+mm,g=q/(2*sq);
+  j=solveQuadratic(1,sq,h-g,r,4);j=solveQuadratic(1,-sq,h+g,r,j);for(i=4;i<j;i++){r[k++]=r[i]-B4}return k}
+
+// ---------- detection ----------
+
+// screen box from the edges' projected control points (closed form; bounds the edges, not a fold's bulge)
+function inBox(c,x,y){return x>=c.bx0&&x<=c.bx1&&y>=c.by0&&y<=c.by1}
+// inside the 4 edges: all K ≥ 0
+function insideEdges(c,x,y){return kArc(c.ka0,x,y)>=0&&kArc(c.ka1,x,y)>=0&&kArc(c.ka2,x,y)>=0&&kArc(c.ka3,x,y)>=0}
+// one pixel row against one edge: f·down(t) − (Y − W/2)·forward(t) = 0 (quadratic; linear for a straight edge); crossings with t in [0, 1) inserted sorted into xs[0..n)
+function crossEdge(e,Y,xs,n){var yc=Y-e.h,h0=e.f*e.d0-yc*e.z0,A=0,B=0,t1=0,t2=0,m=0;
+  if(e.straight===1){B=(e.f*e.d2-yc*e.z2)-h0}else{var hb=e.w*(e.f*e.d1-yc*e.z1),hd=e.f*e.d2-yc*e.z2;A=h0-2*hb+hd;B=2*(hb-h0)}
+  if(Math.abs(A)<=1e-12*(Math.abs(B)+Math.abs(h0))){if(B===0)return n;t1=-h0/B;m=1}
+  else{var D=B*B-4*A*h0;if(D<0)return n;var s=Math.sqrt(D),q=-0.5*(B+(B<0?-s:s));if(q!==0){t1=q/A;t2=h0/q}m=2}
+  for(var i=0;i<m;i++){var t=i===0?t1:t2;if(!(t>=0&&t<1))continue;var r=0,z=0;
+    if(e.straight===1){r=e.r0+(e.r2-e.r0)*t;z=e.z0+(e.z2-e.z0)*t}else{var o=1-t,b0=o*o,b1=2*e.w*t*o,b2=t*t;r=b0*e.r0+b1*e.r1+b2*e.r2;z=b0*e.z0+b1*e.z1+b2*e.z2}
+    if(z>0){var X=e.h+e.f*r/z,j=n;n++;while(j>0&&xs[j-1]>X){xs[j]=xs[j-1];j--}xs[j]=X}}
+  return n}
+function crossRow(c,Y,xs){var n=crossEdge(c.ce0,Y,xs,0);n=crossEdge(c.ce1,Y,xs,n);n=crossEdge(c.ce2,Y,xs,n);return crossEdge(c.ce3,Y,xs,n)}
+
+return{kArc,kConic,uvEdgesArc,uvEdgesConic,arcAt,pointAt,planesAt,rayPlanes,rayCheck,onSheet,raySign,sameLevel,solveQuadratic,solveCubic,solveQuartic,inBox,insideEdges,crossEdge,crossRow};}
+// ---- kernels, float32: generated from the source above; every + − × ÷, √, ∛, cos, acos rounded to float32 (a × b ± c rounded once) ----
+function makeKernels32(){function kArc(e,x,y){var b1=Math.fround(Math.fround(e.b1x*x+Math.fround(e.b1y*y))+e.b10);if(e.t===0)return b1;var q=Math.fround(Math.fround(e.c*Math.fround(Math.fround(e.b0x*x+Math.fround(e.b0y*y))+e.b00))*Math.fround(Math.fround(e.b2x*x+Math.fround(e.b2y*y))+e.b20));return Math.fround(b1-e.sg*Math.fround(Math.sqrt(Math.max(0,q))));}function kConic(e,x,y){var b1=Math.fround(Math.fround(e.b1x*x+Math.fround(e.b1y*y))+e.b10);if(e.t===0)return b1;return Math.fround(Math.fround(e.s*b1)*b1-Math.fround(Math.fround(e.cw*Math.fround(Math.fround(e.b0x*x+Math.fround(e.b0y*y))+e.b00))*Math.fround(Math.fround(e.b2x*x+Math.fround(e.b2y*y))+e.b20)));}function uvEdgesArc(c,x,y,out){var K0=kArc(c.ka0,x,y),K1=kArc(c.ka1,x,y),K2=kArc(c.ka2,x,y),K3=kArc(c.ka3,x,y);out[0]=Math.fround(K3/Math.fround(K3+K1));out[1]=Math.fround(K0/Math.fround(K0+K2));return K0>=0&&K1>=0&&K2>=0&&K3>=0;}function uvEdgesConic(c,x,y,out){var K0=kConic(c.kc0,x,y),K1=kConic(c.kc1,x,y),K2=kConic(c.kc2,x,y),K3=kConic(c.kc3,x,y);out[0]=Math.fround(K3/Math.fround(K3+K1));out[1]=Math.fround(K0/Math.fround(K0+K2));return K0>=0&&K1>=0&&K2>=0&&K3>=0;}function arcAt(g,t,ar){var r=Math.fround(1-t),b0=Math.fround(r*r),b1=Math.fround(Math.fround(Math.fround(2*g.w)*r)*t),b2=Math.fround(t*t),s=Math.fround(1/Math.fround(Math.fround(b0+b1)+b2));ar[0]=Math.fround(Math.fround(Math.fround(g.p0x*b0+Math.fround(g.ax*b1))+g.p2x*b2)*s);ar[1]=Math.fround(Math.fround(Math.fround(g.p0y*b0+Math.fround(g.ay*b1))+g.p2y*b2)*s);ar[2]=Math.fround(Math.fround(Math.fround(g.p0z*b0+Math.fround(g.az*b1))+g.p2z*b2)*s);}function pointAt(m,u,v,out,ar){var iu=Math.fround(1-u),iv=Math.fround(1-v);var ux=Math.fround(m.n3x*iu+Math.fround(m.n1x*u)),uy=Math.fround(m.n3y*iu+Math.fround(m.n1y*u)),uz=Math.fround(m.n3z*iu+Math.fround(m.n1z*u)),uh=Math.fround(m.h3*iu+Math.fround(m.h1*u));var vx=Math.fround(m.n0x*iv+Math.fround(m.n2x*v)),vy=Math.fround(m.n0y*iv+Math.fround(m.n2y*v)),vz=Math.fround(m.n0z*iv+Math.fround(m.n2z*v)),vh=Math.fround(m.h0*iv+Math.fround(m.h2*v));var dx=Math.fround(uy*vz-Math.fround(uz*vy)),dy=Math.fround(uz*vx-Math.fround(ux*vz)),dz=Math.fround(ux*vy-Math.fround(uy*vx)),DD=Math.fround(Math.fround(dx*dx+Math.fround(dy*dy))+dz*dz);if(!(DD>9.999999682655225e-21))return false;var x0=Math.fround(Math.fround(Math.fround(vy*dz-Math.fround(vz*dy))*uh+Math.fround(Math.fround(dy*uz-Math.fround(dz*uy))*vh))/DD),y0=Math.fround(Math.fround(Math.fround(vz*dx-Math.fround(vx*dz))*uh+Math.fround(Math.fround(dz*ux-Math.fround(dx*uz))*vh))/DD),z0=Math.fround(Math.fround(Math.fround(vx*dy-Math.fround(vy*dx))*uh+Math.fround(Math.fround(dx*uy-Math.fround(dy*ux))*vh))/DD);var il=Math.fround(1/Math.fround(Math.sqrt(DD))),ex=Math.fround(dx*il),ey=Math.fround(dy*il),ez=Math.fround(dz*il);var Aex=Math.fround(Math.fround(m.A00*ex+Math.fround(m.A01*ey))+m.A02*ez),Aey=Math.fround(Math.fround(m.A01*ex+Math.fround(m.A11*ey))+m.A12*ez),Aez=Math.fround(Math.fround(m.A02*ex+Math.fround(m.A12*ey))+m.A22*ez);var Axx=Math.fround(Math.fround(m.A00*x0+Math.fround(m.A01*y0))+m.A02*z0),Axy=Math.fround(Math.fround(m.A01*x0+Math.fround(m.A11*y0))+m.A12*z0),Axz=Math.fround(Math.fround(m.A02*x0+Math.fround(m.A12*y0))+m.A22*z0);var a=Math.fround(Math.fround(ex*Aex+Math.fround(ey*Aey))+ez*Aez),b=Math.fround(Math.fround(Math.fround(2*Axx+m.gx)*ex+Math.fround(Math.fround(2*Axy+m.gy)*ey))+Math.fround(2*Axz+m.gz)*ez),cq=Math.fround(Math.fround(Math.fround(Math.fround(Math.fround(Math.fround(x0*Axx+Math.fround(y0*Axy))+z0*Axz)+m.gx*x0)+m.gy*y0)+m.gz*z0)+m.k);var w00=Math.fround(iu*iv),w10=Math.fround(u*iv),w11=Math.fround(u*v),w01=Math.fround(iu*v);arcAt(m.e0,u,ar);var bx=Math.fround(ar[0]*iv),by=Math.fround(ar[1]*iv),bz=Math.fround(ar[2]*iv);arcAt(m.e2,iu,ar);bx=Math.fround(bx+ar[0]*v);by=Math.fround(by+ar[1]*v);bz=Math.fround(bz+ar[2]*v);arcAt(m.e3,iv,ar);bx=Math.fround(bx+ar[0]*iu);by=Math.fround(by+ar[1]*iu);bz=Math.fround(bz+ar[2]*iu);arcAt(m.e1,v,ar);bx=Math.fround(bx+ar[0]*u);by=Math.fround(by+ar[1]*u);bz=Math.fround(bz+ar[2]*u);bx=Math.fround(bx-Math.fround(Math.fround(Math.fround(m.P0x*w00+Math.fround(m.P1x*w10))+m.P2x*w11)+m.P3x*w01));by=Math.fround(by-Math.fround(Math.fround(Math.fround(m.P0y*w00+Math.fround(m.P1y*w10))+m.P2y*w11)+m.P3y*w01));bz=Math.fround(bz-Math.fround(Math.fround(Math.fround(m.P0z*w00+Math.fround(m.P1z*w10))+m.P2z*w11)+m.P3z*w01));var tr=Math.fround(Math.fround(Math.fround(Math.fround(bx-m.c0x)*m.sc-x0)*ex+Math.fround(Math.fround(Math.fround(by-m.c0y)*m.sc-y0)*ey))+Math.fround(Math.fround(bz-m.c0z)*m.sc-z0)*ez),t=0;if(Math.abs(a)<9.999999960041972e-13){if(!(Math.abs(b)>1.0000000036274937e-15))return false;t=Math.fround(-cq/b);}else{var D=Math.fround(b*b-Math.fround(Math.fround(4*a)*cq));if(D<0&&D>Math.fround(-9.999999717180685e-10*Math.fround(Math.fround(b*b+Math.abs(Math.fround(Math.fround(4*a)*cq)))+1.0000000031710769e-30)))D=0;if(!(D>=0))return false;var s=Math.fround(Math.sqrt(D)),r1=Math.fround(Math.fround(-b+s)/Math.fround(2*a)),r2=Math.fround(Math.fround(-b-s)/Math.fround(2*a));t=Math.abs(Math.fround(r1-tr))<Math.abs(Math.fround(r2-tr))?r1:r2;}var is=Math.fround(1/m.sc);out[0]=Math.fround(m.c0x+Math.fround(x0+ex*t)*is);out[1]=Math.fround(m.c0y+Math.fround(y0+ey*t)*is);out[2]=Math.fround(m.c0z+Math.fround(z0+ez*t)*is);return true;}function planesAt(c,t,dx,dy,dz,out){var s0=Math.fround(c.so0+t*Math.fround(Math.fround(c.n0x*dx+Math.fround(c.n0y*dy))+c.n0z*dz)),s1=Math.fround(c.so1+t*Math.fround(Math.fround(c.n1x*dx+Math.fround(c.n1y*dy))+c.n1z*dz)),s2=Math.fround(c.so2+t*Math.fround(Math.fround(c.n2x*dx+Math.fround(c.n2y*dy))+c.n2z*dz)),s3=Math.fround(c.so3+t*Math.fround(Math.fround(c.n3x*dx+Math.fround(c.n3y*dy))+c.n3z*dz));if(s3<-9.999999717180685e-10||s1>9.999999717180685e-10||s0<-9.999999717180685e-10||s2>9.999999717180685e-10)return false;out[0]=Math.fround(s3/Math.fround(s3-s1));out[1]=Math.fround(s0/Math.fround(s0-s2));out[2]=t;return true;}function rayPlanes(c,x,y,out){var dx=Math.fround(Math.fround(c.D0x+x*c.Dxx)+y*c.Dyx),dy=Math.fround(Math.fround(c.D0y+x*c.Dxy)+y*c.Dyy),dz=Math.fround(Math.fround(c.D0z+x*c.Dxz)+y*c.Dyz);var Adx=Math.fround(Math.fround(c.A00*dx+Math.fround(c.A01*dy))+c.A02*dz),Ady=Math.fround(Math.fround(c.A01*dx+Math.fround(c.A11*dy))+c.A12*dz),Adz=Math.fround(Math.fround(c.A02*dx+Math.fround(c.A12*dy))+c.A22*dz),a=Math.fround(Math.fround(dx*Adx+Math.fround(dy*Ady))+dz*Adz),b=Math.fround(Math.fround(c.box*dx+Math.fround(c.boy*dy))+c.boz*dz),t1=0,t2=0;if(Math.abs(a)<9.9999998245167e-15){if(Math.abs(b)<9.9999998245167e-15)return false;t1=Math.fround(-c.cq/b);t2=t1;}else{var D=Math.fround(b*b-Math.fround(Math.fround(4*a)*c.cq));if(D<0)return false;var s=Math.fround(Math.sqrt(D)),q=Math.fround(-0.5*Math.fround(b+(b<0?-s:s)));t1=Math.fround(q/a);t2=Math.fround(c.cq/q);if(t2<t1){var tt=t1;t1=t2;t2=tt;}}if(t1>9.999999717180685e-10&&planesAt(c,t1,dx,dy,dz,out))return true;return t2>9.999999717180685e-10&&planesAt(c,t2,dx,dy,dz,out);}function rayCheck(c,x,y,out,ar,p){var dx=Math.fround(Math.fround(c.D0x+x*c.Dxx)+y*c.Dyx),dy=Math.fround(Math.fround(c.D0y+x*c.Dxy)+y*c.Dyy),dz=Math.fround(Math.fround(c.D0z+x*c.Dxz)+y*c.Dyz);var Adx=Math.fround(Math.fround(c.A00*dx+Math.fround(c.A01*dy))+c.A02*dz),Ady=Math.fround(Math.fround(c.A01*dx+Math.fround(c.A11*dy))+c.A12*dz),Adz=Math.fround(Math.fround(c.A02*dx+Math.fround(c.A12*dy))+c.A22*dz),a=Math.fround(Math.fround(dx*Adx+Math.fround(dy*Ady))+dz*Adz),b=Math.fround(Math.fround(c.box*dx+Math.fround(c.boy*dy))+c.boz*dz),t1=0,t2=0;if(Math.abs(a)<9.9999998245167e-15){if(Math.abs(b)<9.9999998245167e-15)return false;t1=Math.fround(-c.cq/b);t2=t1;}else{var D=Math.fround(b*b-Math.fround(Math.fround(4*a)*c.cq));if(D<0)return false;var s=Math.fround(Math.sqrt(D)),q=Math.fround(-0.5*Math.fround(b+(b<0?-s:s)));t1=Math.fround(q/a);t2=Math.fround(c.cq/q);if(t2<t1){var tt=t1;t1=t2;t2=tt;}}if(t1>9.999999717180685e-10&&planesAt(c,t1,dx,dy,dz,out)&&onSheet(c,t1,dx,dy,dz,out,ar,p))return true;return t2>9.999999717180685e-10&&planesAt(c,t2,dx,dy,dz,out)&&onSheet(c,t2,dx,dy,dz,out,ar,p);}function onSheet(c,t,dx,dy,dz,out,ar,p){if(!pointAt(c.m,Math.min(1,Math.max(0,out[0])),Math.min(1,Math.max(0,out[1])),p,ar))return false;var is=Math.fround(1/c.sc),X=Math.fround(c.c0x+Math.fround(c.ox+t*dx)*is),Y=Math.fround(c.c0y+Math.fround(c.oy+t*dy)*is),Z=Math.fround(c.c0z+Math.fround(c.oz+t*dz)*is),ex=Math.fround(p[0]-X),ey=Math.fround(p[1]-Y),ez=Math.fround(p[2]-Z);return Math.fround(Math.sqrt(Math.fround(Math.fround(ex*ex+Math.fround(ey*ey))+ez*ez)))<=Math.fround(9.999999974752427e-7*Math.fround(1+Math.fround(Math.sqrt(Math.fround(Math.fround(X*X+Math.fround(Y*Y))+Z*Z)))));}function raySign(c,x,y,out){var dx=Math.fround(Math.fround(c.D0x+x*c.Dxx)+y*c.Dyx),dy=Math.fround(Math.fround(c.D0y+x*c.Dxy)+y*c.Dyy),dz=Math.fround(Math.fround(c.D0z+x*c.Dxz)+y*c.Dyz);var Adx=Math.fround(Math.fround(c.A00*dx+Math.fround(c.A01*dy))+c.A02*dz),Ady=Math.fround(Math.fround(c.A01*dx+Math.fround(c.A11*dy))+c.A12*dz),Adz=Math.fround(Math.fround(c.A02*dx+Math.fround(c.A12*dy))+c.A22*dz),a=Math.fround(Math.fround(dx*Adx+Math.fround(dy*Ady))+dz*Adz),b=Math.fround(Math.fround(c.box*dx+Math.fround(c.boy*dy))+c.boz*dz),t=0;if(Math.abs(a)<9.9999998245167e-15){if(Math.abs(b)<9.9999998245167e-15)return false;t=Math.fround(-c.cq/b);}else{var D=Math.fround(b*b-Math.fround(Math.fround(4*a)*c.cq));if(D<0&&D>Math.fround(-9.999999717180685e-10*Math.fround(Math.fround(b*b+Math.abs(Math.fround(Math.fround(4*a)*c.cq)))+1.0000000031710769e-30)))D=0;if(!(D>=0))return false;t=Math.fround(Math.fround(-b-c.sgn*Math.fround(Math.sqrt(D)))/Math.fround(2*a));}return t>9.999999717180685e-10&&planesAt(c,t,dx,dy,dz,out);}function sameLevel(c,x,y,out,r,ar,br){var n=solveQuartic(Math.fround(Math.fround(c.q4x*x+Math.fround(c.q4y*y))+c.q40),Math.fround(Math.fround(c.q3x*x+Math.fround(c.q3y*y))+c.q30),Math.fround(Math.fround(c.q2x*x+Math.fround(c.q2y*y))+c.q20),Math.fround(Math.fround(c.q1x*x+Math.fround(c.q1y*y))+c.q10),Math.fround(Math.fround(c.q0x*x+Math.fround(c.q0y*y))+c.q00),r),found=false,bz=0;for(var i=0;i<n;i++){var u=r[i];if(!(u>=-9.999999717180685e-10&&u<=Math.fround(1+9.999999717180685e-10)))continue;arcAt(c.eb,u,ar);arcAt(c.et,u,br);var drr=Math.fround(br[0]-ar[0]),ddd=Math.fround(br[1]-ar[1]),dzz=Math.fround(br[2]-ar[2]),xc=Math.fround(x-c.h),yc=Math.fround(y-c.h),nx=Math.fround(c.f*ar[0]-Math.fround(xc*ar[2])),mx=Math.fround(xc*dzz-Math.fround(c.f*drr)),ny=Math.fround(c.f*ar[1]-Math.fround(yc*ar[2])),my=Math.fround(yc*dzz-Math.fround(c.f*ddd));var lam=Math.abs(mx)>Math.abs(my)?Math.fround(nx/mx):Math.fround(ny/my);if(!(lam>=-9.999999717180685e-10&&lam<=Math.fround(1+9.999999717180685e-10)))continue;var z=Math.fround(ar[2]+lam*dzz);if(!found||z<bz){found=true;bz=z;out[0]=u;out[1]=lam;out[2]=z;}}return found;}function solveQuadratic(a,b,c,r,k){if(Math.abs(a)<=Math.fround(9.9999998245167e-15*Math.fround(Math.abs(b)+Math.abs(c)))){if(b!==0){r[k++]=Math.fround(-c/b);}return k;}var D=Math.fround(b*b-Math.fround(Math.fround(4*a)*c));if(D<0)return k;var s=Math.fround(Math.sqrt(D)),q=Math.fround(-0.5*Math.fround(b+(b<0?-s:s)));if(q!==0){r[k++]=Math.fround(q/a);r[k++]=Math.fround(c/q);return k;}r[k++]=0;return k;}function solveCubic(a,b,c,d,r,k){if(Math.abs(a)<=Math.fround(9.9999998245167e-15*Math.fround(Math.fround(Math.abs(b)+Math.abs(c))+Math.abs(d))))return solveQuadratic(b,c,d,r,k);var B=Math.fround(b/a),C=Math.fround(c/a),D=Math.fround(d/a),B3=Math.fround(B/3),P=Math.fround(C-B*B3),Q=Math.fround(Math.fround(Math.fround(2*B3)*B3-C)*B3+D),disc=Math.fround(Math.fround(0.25*Q)*Q+Math.fround(Math.fround(Math.fround(P*P)*P)/27));if(disc>0){var sd=Math.fround(Math.sqrt(disc));r[k++]=Math.fround(Math.fround(Math.fround(Math.cbrt(Math.fround(-0.5*Q+sd)))+Math.fround(Math.cbrt(Math.fround(-0.5*Q-sd))))-B3);return k;}if(P===0){r[k++]=-B3;return k;}var m=Math.fround(2*Math.fround(Math.sqrt(Math.fround(-P/3)))),arg=Math.max(-1,Math.min(1,Math.fround(Math.fround(Math.fround(3*Q)/Math.fround(2*P))*Math.fround(Math.sqrt(Math.fround(-3/P)))))),phi=Math.fround(Math.fround(Math.acos(arg))/3);r[k++]=Math.fround(m*Math.fround(Math.cos(phi))-B3);r[k++]=Math.fround(m*Math.fround(Math.cos(Math.fround(phi-2.094395160675049)))-B3);r[k++]=Math.fround(m*Math.fround(Math.cos(Math.fround(phi-4.188790321350098)))-B3);return k;}function solveQuartic(a,b,c,d,e,r){if(Math.abs(a)<=Math.fround(9.999999960041972e-13*Math.fround(Math.fround(Math.fround(Math.abs(b)+Math.abs(c))+Math.abs(d))+Math.abs(e))))return solveCubic(b,c,d,e,r,0);var B=Math.fround(b/a),C=Math.fround(c/a),D=Math.fround(d/a),E=Math.fround(e/a),B4=Math.fround(B/4),BB=Math.fround(B*B),p=Math.fround(C-0.375*BB),q=Math.fround(Math.fround(D-Math.fround(0.5*B)*C)+Math.fround(0.125*BB)*B),s4=Math.fround(Math.fround(Math.fround(E-Math.fround(0.25*B)*D)+Math.fround(0.0625*BB)*C)-Math.fround(0.01171875*BB)*BB),k=0,j=0,i=0;if(Math.abs(q)<=Math.fround(9.9999998245167e-15*Math.fround(Math.fround(1+Math.abs(p))+Math.abs(s4)))){j=solveQuadratic(1,p,s4,r,4);for(i=4;i<j;i++){var z=r[i];if(z>=0){var sz=Math.fround(Math.sqrt(z));r[k++]=Math.fround(sz-B4);r[k++]=Math.fround(-sz-B4);}}return k;}j=solveCubic(1,p,Math.fround(Math.fround(0.25*p)*p-s4),Math.fround(Math.fround(-0.125*q)*q),r,4);var mm=r[4];for(i=5;i<j;i++){if(r[i]>mm)mm=r[i];}if(!(mm>0))return 0;var sq=Math.fround(Math.sqrt(Math.fround(2*mm))),h=Math.fround(0.5*p+mm),g=Math.fround(q/Math.fround(2*sq));j=solveQuadratic(1,sq,Math.fround(h-g),r,4);j=solveQuadratic(1,-sq,Math.fround(h+g),r,j);for(i=4;i<j;i++){r[k++]=Math.fround(r[i]-B4);}return k;}function inBox(c,x,y){return x>=c.bx0&&x<=c.bx1&&y>=c.by0&&y<=c.by1;}function insideEdges(c,x,y){return kArc(c.ka0,x,y)>=0&&kArc(c.ka1,x,y)>=0&&kArc(c.ka2,x,y)>=0&&kArc(c.ka3,x,y)>=0;}function crossEdge(e,Y,xs,n){var yc=Math.fround(Y-e.h),h0=Math.fround(e.f*e.d0-Math.fround(yc*e.z0)),A=0,B=0,t1=0,t2=0,m=0;if(e.straight===1){B=Math.fround(Math.fround(e.f*e.d2-Math.fround(yc*e.z2))-h0);}else{var hb=Math.fround(e.w*Math.fround(e.f*e.d1-Math.fround(yc*e.z1))),hd=Math.fround(e.f*e.d2-Math.fround(yc*e.z2));A=Math.fround(Math.fround(h0-2*hb)+hd);B=Math.fround(2*Math.fround(hb-h0));}if(Math.abs(A)<=Math.fround(9.999999960041972e-13*Math.fround(Math.abs(B)+Math.abs(h0)))){if(B===0)return n;t1=Math.fround(-h0/B);m=1;}else{var D=Math.fround(B*B-Math.fround(Math.fround(4*A)*h0));if(D<0)return n;var s=Math.fround(Math.sqrt(D)),q=Math.fround(-0.5*Math.fround(B+(B<0?-s:s)));if(q!==0){t1=Math.fround(q/A);t2=Math.fround(h0/q);}m=2;}for(var i=0;i<m;i++){var t=i===0?t1:t2;if(!(t>=0&&t<1))continue;var r=0,z=0;if(e.straight===1){r=Math.fround(e.r0+Math.fround(e.r2-e.r0)*t);z=Math.fround(e.z0+Math.fround(e.z2-e.z0)*t);}else{var o=Math.fround(1-t),b0=Math.fround(o*o),b1=Math.fround(Math.fround(Math.fround(2*e.w)*t)*o),b2=Math.fround(t*t);r=Math.fround(Math.fround(b0*e.r0+Math.fround(b1*e.r1))+b2*e.r2);z=Math.fround(Math.fround(b0*e.z0+Math.fround(b1*e.z1))+b2*e.z2);}if(z>0){var X=Math.fround(e.h+Math.fround(Math.fround(e.f*r)/z)),j=n;n++;while(j>0&&xs[Math.fround(j-1)]>X){xs[j]=xs[Math.fround(j-1)];j--;}xs[j]=X;}}return n;}function crossRow(c,Y,xs){var n=crossEdge(c.ce0,Y,xs,0);n=crossEdge(c.ce1,Y,xs,n);n=crossEdge(c.ce2,Y,xs,n);return crossEdge(c.ce3,Y,xs,n);}return{kArc,kConic,uvEdgesArc,uvEdgesConic,arcAt,pointAt,planesAt,rayPlanes,rayCheck,onSheet,raySign,sameLevel,solveQuadratic,solveCubic,solveQuartic,inBox,insideEdges,crossEdge,crossRow};}
+// ---- kernels, counted: generated from the source above; every operation tallied into OPS ----
+function makeKernelsCounted(OPS){function kArc(e,x,y){var b1=(OPS.add++,(OPS.fma++,e.b1x*x+(OPS.mul++,e.b1y*y))+e.b10);if(OPS.cmp++,e.t===0)return b1;var q=(OPS.mul++,(OPS.mul++,e.c*(OPS.add++,(OPS.fma++,e.b0x*x+(OPS.mul++,e.b0y*y))+e.b00))*(OPS.add++,(OPS.fma++,e.b2x*x+(OPS.mul++,e.b2y*y))+e.b20));return OPS.fma++,b1-e.sg*(OPS.sqrt++,Math.sqrt((OPS.max++,Math.max(0,q))));}function kConic(e,x,y){var b1=(OPS.add++,(OPS.fma++,e.b1x*x+(OPS.mul++,e.b1y*y))+e.b10);if(OPS.cmp++,e.t===0)return b1;return OPS.fma++,(OPS.mul++,e.s*b1)*b1-(OPS.mul++,(OPS.mul++,e.cw*(OPS.add++,(OPS.fma++,e.b0x*x+(OPS.mul++,e.b0y*y))+e.b00))*(OPS.add++,(OPS.fma++,e.b2x*x+(OPS.mul++,e.b2y*y))+e.b20));}function uvEdgesArc(c,x,y,out){var K0=kArc(c.ka0,x,y),K1=kArc(c.ka1,x,y),K2=kArc(c.ka2,x,y),K3=kArc(c.ka3,x,y);out[0]=(OPS.div++,K3/(OPS.add++,K3+K1));out[1]=(OPS.div++,K0/(OPS.add++,K0+K2));return(OPS.cmp++,K0>=0)&&(OPS.cmp++,K1>=0)&&(OPS.cmp++,K2>=0)&&(OPS.cmp++,K3>=0);}function uvEdgesConic(c,x,y,out){var K0=kConic(c.kc0,x,y),K1=kConic(c.kc1,x,y),K2=kConic(c.kc2,x,y),K3=kConic(c.kc3,x,y);out[0]=(OPS.div++,K3/(OPS.add++,K3+K1));out[1]=(OPS.div++,K0/(OPS.add++,K0+K2));return(OPS.cmp++,K0>=0)&&(OPS.cmp++,K1>=0)&&(OPS.cmp++,K2>=0)&&(OPS.cmp++,K3>=0);}function arcAt(g,t,ar){var r=(OPS.add++,1-t),b0=(OPS.mul++,r*r),b1=(OPS.mul++,(OPS.mul++,(OPS.mul++,2*g.w)*r)*t),b2=(OPS.mul++,t*t),s=(OPS.div++,1/(OPS.add++,(OPS.add++,b0+b1)+b2));ar[0]=(OPS.mul++,(OPS.fma++,(OPS.fma++,g.p0x*b0+(OPS.mul++,g.ax*b1))+g.p2x*b2)*s);ar[1]=(OPS.mul++,(OPS.fma++,(OPS.fma++,g.p0y*b0+(OPS.mul++,g.ay*b1))+g.p2y*b2)*s);ar[2]=(OPS.mul++,(OPS.fma++,(OPS.fma++,g.p0z*b0+(OPS.mul++,g.az*b1))+g.p2z*b2)*s);}function pointAt(m,u,v,out,ar){var iu=(OPS.add++,1-u),iv=(OPS.add++,1-v);var ux=(OPS.fma++,m.n3x*iu+(OPS.mul++,m.n1x*u)),uy=(OPS.fma++,m.n3y*iu+(OPS.mul++,m.n1y*u)),uz=(OPS.fma++,m.n3z*iu+(OPS.mul++,m.n1z*u)),uh=(OPS.fma++,m.h3*iu+(OPS.mul++,m.h1*u));var vx=(OPS.fma++,m.n0x*iv+(OPS.mul++,m.n2x*v)),vy=(OPS.fma++,m.n0y*iv+(OPS.mul++,m.n2y*v)),vz=(OPS.fma++,m.n0z*iv+(OPS.mul++,m.n2z*v)),vh=(OPS.fma++,m.h0*iv+(OPS.mul++,m.h2*v));var dx=(OPS.fma++,uy*vz-(OPS.mul++,uz*vy)),dy=(OPS.fma++,uz*vx-(OPS.mul++,ux*vz)),dz=(OPS.fma++,ux*vy-(OPS.mul++,uy*vx)),DD=(OPS.fma++,(OPS.fma++,dx*dx+(OPS.mul++,dy*dy))+dz*dz);if(!(OPS.cmp++,DD>1e-20))return false;var x0=(OPS.div++,(OPS.fma++,(OPS.fma++,vy*dz-(OPS.mul++,vz*dy))*uh+(OPS.mul++,(OPS.fma++,dy*uz-(OPS.mul++,dz*uy))*vh))/DD),y0=(OPS.div++,(OPS.fma++,(OPS.fma++,vz*dx-(OPS.mul++,vx*dz))*uh+(OPS.mul++,(OPS.fma++,dz*ux-(OPS.mul++,dx*uz))*vh))/DD),z0=(OPS.div++,(OPS.fma++,(OPS.fma++,vx*dy-(OPS.mul++,vy*dx))*uh+(OPS.mul++,(OPS.fma++,dx*uy-(OPS.mul++,dy*ux))*vh))/DD);var il=(OPS.div++,1/(OPS.sqrt++,Math.sqrt(DD))),ex=(OPS.mul++,dx*il),ey=(OPS.mul++,dy*il),ez=(OPS.mul++,dz*il);var Aex=(OPS.fma++,(OPS.fma++,m.A00*ex+(OPS.mul++,m.A01*ey))+m.A02*ez),Aey=(OPS.fma++,(OPS.fma++,m.A01*ex+(OPS.mul++,m.A11*ey))+m.A12*ez),Aez=(OPS.fma++,(OPS.fma++,m.A02*ex+(OPS.mul++,m.A12*ey))+m.A22*ez);var Axx=(OPS.fma++,(OPS.fma++,m.A00*x0+(OPS.mul++,m.A01*y0))+m.A02*z0),Axy=(OPS.fma++,(OPS.fma++,m.A01*x0+(OPS.mul++,m.A11*y0))+m.A12*z0),Axz=(OPS.fma++,(OPS.fma++,m.A02*x0+(OPS.mul++,m.A12*y0))+m.A22*z0);var a=(OPS.fma++,(OPS.fma++,ex*Aex+(OPS.mul++,ey*Aey))+ez*Aez),b=(OPS.fma++,(OPS.fma++,(OPS.fma++,2*Axx+m.gx)*ex+(OPS.mul++,(OPS.fma++,2*Axy+m.gy)*ey))+(OPS.fma++,2*Axz+m.gz)*ez),cq=(OPS.add++,(OPS.fma++,(OPS.fma++,(OPS.fma++,(OPS.fma++,(OPS.fma++,x0*Axx+(OPS.mul++,y0*Axy))+z0*Axz)+m.gx*x0)+m.gy*y0)+m.gz*z0)+m.k);var w00=(OPS.mul++,iu*iv),w10=(OPS.mul++,u*iv),w11=(OPS.mul++,u*v),w01=(OPS.mul++,iu*v);arcAt(m.e0,u,ar);var bx=(OPS.mul++,ar[0]*iv),by=(OPS.mul++,ar[1]*iv),bz=(OPS.mul++,ar[2]*iv);arcAt(m.e2,iu,ar);bx=(OPS.fma++,bx+ar[0]*v);by=(OPS.fma++,by+ar[1]*v);bz=(OPS.fma++,bz+ar[2]*v);arcAt(m.e3,iv,ar);bx=(OPS.fma++,bx+ar[0]*iu);by=(OPS.fma++,by+ar[1]*iu);bz=(OPS.fma++,bz+ar[2]*iu);arcAt(m.e1,v,ar);bx=(OPS.fma++,bx+ar[0]*u);by=(OPS.fma++,by+ar[1]*u);bz=(OPS.fma++,bz+ar[2]*u);bx=(OPS.add++,bx-(OPS.fma++,(OPS.fma++,(OPS.fma++,m.P0x*w00+(OPS.mul++,m.P1x*w10))+m.P2x*w11)+m.P3x*w01));by=(OPS.add++,by-(OPS.fma++,(OPS.fma++,(OPS.fma++,m.P0y*w00+(OPS.mul++,m.P1y*w10))+m.P2y*w11)+m.P3y*w01));bz=(OPS.add++,bz-(OPS.fma++,(OPS.fma++,(OPS.fma++,m.P0z*w00+(OPS.mul++,m.P1z*w10))+m.P2z*w11)+m.P3z*w01));var tr=(OPS.fma++,(OPS.fma++,(OPS.fma++,(OPS.add++,bx-m.c0x)*m.sc-x0)*ex+(OPS.mul++,(OPS.fma++,(OPS.add++,by-m.c0y)*m.sc-y0)*ey))+(OPS.fma++,(OPS.add++,bz-m.c0z)*m.sc-z0)*ez),t=0;if(OPS.cmp++,(OPS.max++,Math.abs(a))<1e-12){if(!(OPS.cmp++,(OPS.max++,Math.abs(b))>1e-15))return false;t=(OPS.div++,(OPS.neg++,-cq)/b);}else{var D=(OPS.fma++,b*b-(OPS.mul++,(OPS.mul++,4*a)*cq));if((OPS.cmp++,D<0)&&(OPS.cmp++,D>(OPS.mul++,-1e-9*(OPS.add++,(OPS.fma++,b*b+(OPS.max++,Math.abs((OPS.mul++,(OPS.mul++,4*a)*cq))))+1e-30))))D=0;if(!(OPS.cmp++,D>=0))return false;var s=(OPS.sqrt++,Math.sqrt(D)),r1=(OPS.div++,(OPS.add++,(OPS.neg++,-b)+s)/(OPS.mul++,2*a)),r2=(OPS.div++,(OPS.add++,(OPS.neg++,-b)-s)/(OPS.mul++,2*a));t=(OPS.cmp++,(OPS.max++,Math.abs((OPS.add++,r1-tr)))<(OPS.max++,Math.abs((OPS.add++,r2-tr))))?r1:r2;}var is=(OPS.div++,1/m.sc);out[0]=(OPS.fma++,m.c0x+(OPS.fma++,x0+ex*t)*is);out[1]=(OPS.fma++,m.c0y+(OPS.fma++,y0+ey*t)*is);out[2]=(OPS.fma++,m.c0z+(OPS.fma++,z0+ez*t)*is);return true;}function planesAt(c,t,dx,dy,dz,out){var s0=(OPS.fma++,c.so0+t*(OPS.fma++,(OPS.fma++,c.n0x*dx+(OPS.mul++,c.n0y*dy))+c.n0z*dz)),s1=(OPS.fma++,c.so1+t*(OPS.fma++,(OPS.fma++,c.n1x*dx+(OPS.mul++,c.n1y*dy))+c.n1z*dz)),s2=(OPS.fma++,c.so2+t*(OPS.fma++,(OPS.fma++,c.n2x*dx+(OPS.mul++,c.n2y*dy))+c.n2z*dz)),s3=(OPS.fma++,c.so3+t*(OPS.fma++,(OPS.fma++,c.n3x*dx+(OPS.mul++,c.n3y*dy))+c.n3z*dz));if((OPS.cmp++,s3<-1e-9)||(OPS.cmp++,s1>1e-9)||(OPS.cmp++,s0<-1e-9)||(OPS.cmp++,s2>1e-9))return false;out[0]=(OPS.div++,s3/(OPS.add++,s3-s1));out[1]=(OPS.div++,s0/(OPS.add++,s0-s2));out[2]=t;return true;}function rayPlanes(c,x,y,out){var dx=(OPS.fma++,(OPS.fma++,c.D0x+x*c.Dxx)+y*c.Dyx),dy=(OPS.fma++,(OPS.fma++,c.D0y+x*c.Dxy)+y*c.Dyy),dz=(OPS.fma++,(OPS.fma++,c.D0z+x*c.Dxz)+y*c.Dyz);var Adx=(OPS.fma++,(OPS.fma++,c.A00*dx+(OPS.mul++,c.A01*dy))+c.A02*dz),Ady=(OPS.fma++,(OPS.fma++,c.A01*dx+(OPS.mul++,c.A11*dy))+c.A12*dz),Adz=(OPS.fma++,(OPS.fma++,c.A02*dx+(OPS.mul++,c.A12*dy))+c.A22*dz),a=(OPS.fma++,(OPS.fma++,dx*Adx+(OPS.mul++,dy*Ady))+dz*Adz),b=(OPS.fma++,(OPS.fma++,c.box*dx+(OPS.mul++,c.boy*dy))+c.boz*dz),t1=0,t2=0;if(OPS.cmp++,(OPS.max++,Math.abs(a))<1e-14){if(OPS.cmp++,(OPS.max++,Math.abs(b))<1e-14)return false;t1=(OPS.div++,(OPS.neg++,-c.cq)/b);t2=t1;}else{var D=(OPS.fma++,b*b-(OPS.mul++,(OPS.mul++,4*a)*c.cq));if(OPS.cmp++,D<0)return false;var s=(OPS.sqrt++,Math.sqrt(D)),q=(OPS.mul++,-0.5*(OPS.add++,b+((OPS.cmp++,b<0)?(OPS.neg++,-s):s)));t1=(OPS.div++,q/a);t2=(OPS.div++,c.cq/q);if(OPS.cmp++,t2<t1){var tt=t1;t1=t2;t2=tt;}}if((OPS.cmp++,t1>1e-9)&&planesAt(c,t1,dx,dy,dz,out))return true;return(OPS.cmp++,t2>1e-9)&&planesAt(c,t2,dx,dy,dz,out);}function rayCheck(c,x,y,out,ar,p){var dx=(OPS.fma++,(OPS.fma++,c.D0x+x*c.Dxx)+y*c.Dyx),dy=(OPS.fma++,(OPS.fma++,c.D0y+x*c.Dxy)+y*c.Dyy),dz=(OPS.fma++,(OPS.fma++,c.D0z+x*c.Dxz)+y*c.Dyz);var Adx=(OPS.fma++,(OPS.fma++,c.A00*dx+(OPS.mul++,c.A01*dy))+c.A02*dz),Ady=(OPS.fma++,(OPS.fma++,c.A01*dx+(OPS.mul++,c.A11*dy))+c.A12*dz),Adz=(OPS.fma++,(OPS.fma++,c.A02*dx+(OPS.mul++,c.A12*dy))+c.A22*dz),a=(OPS.fma++,(OPS.fma++,dx*Adx+(OPS.mul++,dy*Ady))+dz*Adz),b=(OPS.fma++,(OPS.fma++,c.box*dx+(OPS.mul++,c.boy*dy))+c.boz*dz),t1=0,t2=0;if(OPS.cmp++,(OPS.max++,Math.abs(a))<1e-14){if(OPS.cmp++,(OPS.max++,Math.abs(b))<1e-14)return false;t1=(OPS.div++,(OPS.neg++,-c.cq)/b);t2=t1;}else{var D=(OPS.fma++,b*b-(OPS.mul++,(OPS.mul++,4*a)*c.cq));if(OPS.cmp++,D<0)return false;var s=(OPS.sqrt++,Math.sqrt(D)),q=(OPS.mul++,-0.5*(OPS.add++,b+((OPS.cmp++,b<0)?(OPS.neg++,-s):s)));t1=(OPS.div++,q/a);t2=(OPS.div++,c.cq/q);if(OPS.cmp++,t2<t1){var tt=t1;t1=t2;t2=tt;}}if((OPS.cmp++,t1>1e-9)&&planesAt(c,t1,dx,dy,dz,out)&&onSheet(c,t1,dx,dy,dz,out,ar,p))return true;return(OPS.cmp++,t2>1e-9)&&planesAt(c,t2,dx,dy,dz,out)&&onSheet(c,t2,dx,dy,dz,out,ar,p);}function onSheet(c,t,dx,dy,dz,out,ar,p){if(!pointAt(c.m,(OPS.min++,Math.min(1,(OPS.max++,Math.max(0,out[0])))),(OPS.min++,Math.min(1,(OPS.max++,Math.max(0,out[1])))),p,ar))return false;var is=(OPS.div++,1/c.sc),X=(OPS.fma++,c.c0x+(OPS.fma++,c.ox+t*dx)*is),Y=(OPS.fma++,c.c0y+(OPS.fma++,c.oy+t*dy)*is),Z=(OPS.fma++,c.c0z+(OPS.fma++,c.oz+t*dz)*is),ex=(OPS.add++,p[0]-X),ey=(OPS.add++,p[1]-Y),ez=(OPS.add++,p[2]-Z);return OPS.cmp++,(OPS.sqrt++,Math.sqrt((OPS.fma++,(OPS.fma++,ex*ex+(OPS.mul++,ey*ey))+ez*ez)))<=(OPS.mul++,0.000001*(OPS.add++,1+(OPS.sqrt++,Math.sqrt((OPS.fma++,(OPS.fma++,X*X+(OPS.mul++,Y*Y))+Z*Z)))));}function raySign(c,x,y,out){var dx=(OPS.fma++,(OPS.fma++,c.D0x+x*c.Dxx)+y*c.Dyx),dy=(OPS.fma++,(OPS.fma++,c.D0y+x*c.Dxy)+y*c.Dyy),dz=(OPS.fma++,(OPS.fma++,c.D0z+x*c.Dxz)+y*c.Dyz);var Adx=(OPS.fma++,(OPS.fma++,c.A00*dx+(OPS.mul++,c.A01*dy))+c.A02*dz),Ady=(OPS.fma++,(OPS.fma++,c.A01*dx+(OPS.mul++,c.A11*dy))+c.A12*dz),Adz=(OPS.fma++,(OPS.fma++,c.A02*dx+(OPS.mul++,c.A12*dy))+c.A22*dz),a=(OPS.fma++,(OPS.fma++,dx*Adx+(OPS.mul++,dy*Ady))+dz*Adz),b=(OPS.fma++,(OPS.fma++,c.box*dx+(OPS.mul++,c.boy*dy))+c.boz*dz),t=0;if(OPS.cmp++,(OPS.max++,Math.abs(a))<1e-14){if(OPS.cmp++,(OPS.max++,Math.abs(b))<1e-14)return false;t=(OPS.div++,(OPS.neg++,-c.cq)/b);}else{var D=(OPS.fma++,b*b-(OPS.mul++,(OPS.mul++,4*a)*c.cq));if((OPS.cmp++,D<0)&&(OPS.cmp++,D>(OPS.mul++,-1e-9*(OPS.add++,(OPS.fma++,b*b+(OPS.max++,Math.abs((OPS.mul++,(OPS.mul++,4*a)*c.cq))))+1e-30))))D=0;if(!(OPS.cmp++,D>=0))return false;t=(OPS.div++,(OPS.fma++,(OPS.neg++,-b)-c.sgn*(OPS.sqrt++,Math.sqrt(D)))/(OPS.mul++,2*a));}return(OPS.cmp++,t>1e-9)&&planesAt(c,t,dx,dy,dz,out);}function sameLevel(c,x,y,out,r,ar,br){var n=solveQuartic((OPS.add++,(OPS.fma++,c.q4x*x+(OPS.mul++,c.q4y*y))+c.q40),(OPS.add++,(OPS.fma++,c.q3x*x+(OPS.mul++,c.q3y*y))+c.q30),(OPS.add++,(OPS.fma++,c.q2x*x+(OPS.mul++,c.q2y*y))+c.q20),(OPS.add++,(OPS.fma++,c.q1x*x+(OPS.mul++,c.q1y*y))+c.q10),(OPS.add++,(OPS.fma++,c.q0x*x+(OPS.mul++,c.q0y*y))+c.q00),r),found=false,bz=0;for(var i=0;OPS.cmp++,i<n;i++){var u=r[i];if(!((OPS.cmp++,u>=-1e-9)&&(OPS.cmp++,u<=(OPS.add++,1+1e-9))))continue;arcAt(c.eb,u,ar);arcAt(c.et,u,br);var drr=(OPS.add++,br[0]-ar[0]),ddd=(OPS.add++,br[1]-ar[1]),dzz=(OPS.add++,br[2]-ar[2]),xc=(OPS.add++,x-c.h),yc=(OPS.add++,y-c.h),nx=(OPS.fma++,c.f*ar[0]-(OPS.mul++,xc*ar[2])),mx=(OPS.fma++,xc*dzz-(OPS.mul++,c.f*drr)),ny=(OPS.fma++,c.f*ar[1]-(OPS.mul++,yc*ar[2])),my=(OPS.fma++,yc*dzz-(OPS.mul++,c.f*ddd));var lam=(OPS.cmp++,(OPS.max++,Math.abs(mx))>(OPS.max++,Math.abs(my)))?(OPS.div++,nx/mx):(OPS.div++,ny/my);if(!((OPS.cmp++,lam>=-1e-9)&&(OPS.cmp++,lam<=(OPS.add++,1+1e-9))))continue;var z=(OPS.fma++,ar[2]+lam*dzz);if(!found||(OPS.cmp++,z<bz)){found=true;bz=z;out[0]=u;out[1]=lam;out[2]=z;}}return found;}function solveQuadratic(a,b,c,r,k){if(OPS.cmp++,(OPS.max++,Math.abs(a))<=(OPS.mul++,1e-14*(OPS.add++,(OPS.max++,Math.abs(b))+(OPS.max++,Math.abs(c))))){if(OPS.cmp++,b!==0){r[k++]=(OPS.div++,(OPS.neg++,-c)/b);}return k;}var D=(OPS.fma++,b*b-(OPS.mul++,(OPS.mul++,4*a)*c));if(OPS.cmp++,D<0)return k;var s=(OPS.sqrt++,Math.sqrt(D)),q=(OPS.mul++,-0.5*(OPS.add++,b+((OPS.cmp++,b<0)?(OPS.neg++,-s):s)));if(OPS.cmp++,q!==0){r[k++]=(OPS.div++,q/a);r[k++]=(OPS.div++,c/q);return k;}r[k++]=0;return k;}function solveCubic(a,b,c,d,r,k){if(OPS.cmp++,(OPS.max++,Math.abs(a))<=(OPS.mul++,1e-14*(OPS.add++,(OPS.add++,(OPS.max++,Math.abs(b))+(OPS.max++,Math.abs(c)))+(OPS.max++,Math.abs(d)))))return solveQuadratic(b,c,d,r,k);var B=(OPS.div++,b/a),C=(OPS.div++,c/a),D=(OPS.div++,d/a),B3=(OPS.div++,B/3),P=(OPS.fma++,C-B*B3),Q=(OPS.fma++,(OPS.fma++,(OPS.mul++,2*B3)*B3-C)*B3+D),disc=(OPS.fma++,(OPS.mul++,0.25*Q)*Q+(OPS.div++,(OPS.mul++,(OPS.mul++,P*P)*P)/27));if(OPS.cmp++,disc>0){var sd=(OPS.sqrt++,Math.sqrt(disc));r[k++]=(OPS.add++,(OPS.add++,(OPS.lib++,Math.cbrt((OPS.fma++,-0.5*Q+sd)))+(OPS.lib++,Math.cbrt((OPS.fma++,-0.5*Q-sd))))-B3);return k;}if(OPS.cmp++,P===0){r[k++]=(OPS.neg++,-B3);return k;}var m=(OPS.mul++,2*(OPS.sqrt++,Math.sqrt((OPS.div++,(OPS.neg++,-P)/3)))),arg=(OPS.max++,Math.max(-1,(OPS.min++,Math.min(1,(OPS.mul++,(OPS.div++,(OPS.mul++,3*Q)/(OPS.mul++,2*P))*(OPS.sqrt++,Math.sqrt((OPS.div++,-3/P)))))))),phi=(OPS.div++,(OPS.lib++,Math.acos(arg))/3);r[k++]=(OPS.fma++,m*(OPS.lib++,Math.cos(phi))-B3);r[k++]=(OPS.fma++,m*(OPS.lib++,Math.cos((OPS.add++,phi-2.0943951023931957)))-B3);r[k++]=(OPS.fma++,m*(OPS.lib++,Math.cos((OPS.add++,phi-4.1887902047863905)))-B3);return k;}function solveQuartic(a,b,c,d,e,r){if(OPS.cmp++,(OPS.max++,Math.abs(a))<=(OPS.mul++,1e-12*(OPS.add++,(OPS.add++,(OPS.add++,(OPS.max++,Math.abs(b))+(OPS.max++,Math.abs(c)))+(OPS.max++,Math.abs(d)))+(OPS.max++,Math.abs(e)))))return solveCubic(b,c,d,e,r,0);var B=(OPS.div++,b/a),C=(OPS.div++,c/a),D=(OPS.div++,d/a),E=(OPS.div++,e/a),B4=(OPS.div++,B/4),BB=(OPS.mul++,B*B),p=(OPS.fma++,C-0.375*BB),q=(OPS.fma++,(OPS.fma++,D-(OPS.mul++,0.5*B)*C)+(OPS.mul++,0.125*BB)*B),s4=(OPS.fma++,(OPS.fma++,(OPS.fma++,E-(OPS.mul++,0.25*B)*D)+(OPS.mul++,0.0625*BB)*C)-(OPS.mul++,0.01171875*BB)*BB),k=0,j=0,i=0;if(OPS.cmp++,(OPS.max++,Math.abs(q))<=(OPS.mul++,1e-14*(OPS.add++,(OPS.add++,1+(OPS.max++,Math.abs(p)))+(OPS.max++,Math.abs(s4))))){j=solveQuadratic(1,p,s4,r,4);for(i=4;OPS.cmp++,i<j;i++){var z=r[i];if(OPS.cmp++,z>=0){var sz=(OPS.sqrt++,Math.sqrt(z));r[k++]=(OPS.add++,sz-B4);r[k++]=(OPS.add++,(OPS.neg++,-sz)-B4);}}return k;}j=solveCubic(1,p,(OPS.fma++,(OPS.mul++,0.25*p)*p-s4),(OPS.mul++,(OPS.mul++,-0.125*q)*q),r,4);var mm=r[4];for(i=5;OPS.cmp++,i<j;i++){if(OPS.cmp++,r[i]>mm)mm=r[i];}if(!(OPS.cmp++,mm>0))return 0;var sq=(OPS.sqrt++,Math.sqrt((OPS.mul++,2*mm))),h=(OPS.fma++,0.5*p+mm),g=(OPS.div++,q/(OPS.mul++,2*sq));j=solveQuadratic(1,sq,(OPS.add++,h-g),r,4);j=solveQuadratic(1,(OPS.neg++,-sq),(OPS.add++,h+g),r,j);for(i=4;OPS.cmp++,i<j;i++){r[k++]=(OPS.add++,r[i]-B4);}return k;}function inBox(c,x,y){return(OPS.cmp++,x>=c.bx0)&&(OPS.cmp++,x<=c.bx1)&&(OPS.cmp++,y>=c.by0)&&(OPS.cmp++,y<=c.by1);}function insideEdges(c,x,y){return(OPS.cmp++,kArc(c.ka0,x,y)>=0)&&(OPS.cmp++,kArc(c.ka1,x,y)>=0)&&(OPS.cmp++,kArc(c.ka2,x,y)>=0)&&(OPS.cmp++,kArc(c.ka3,x,y)>=0);}function crossEdge(e,Y,xs,n){var yc=(OPS.add++,Y-e.h),h0=(OPS.fma++,e.f*e.d0-(OPS.mul++,yc*e.z0)),A=0,B=0,t1=0,t2=0,m=0;if(OPS.cmp++,e.straight===1){B=(OPS.add++,(OPS.fma++,e.f*e.d2-(OPS.mul++,yc*e.z2))-h0);}else{var hb=(OPS.mul++,e.w*(OPS.fma++,e.f*e.d1-(OPS.mul++,yc*e.z1))),hd=(OPS.fma++,e.f*e.d2-(OPS.mul++,yc*e.z2));A=(OPS.add++,(OPS.fma++,h0-2*hb)+hd);B=(OPS.mul++,2*(OPS.add++,hb-h0));}if(OPS.cmp++,(OPS.max++,Math.abs(A))<=(OPS.mul++,1e-12*(OPS.add++,(OPS.max++,Math.abs(B))+(OPS.max++,Math.abs(h0))))){if(OPS.cmp++,B===0)return n;t1=(OPS.div++,(OPS.neg++,-h0)/B);m=1;}else{var D=(OPS.fma++,B*B-(OPS.mul++,(OPS.mul++,4*A)*h0));if(OPS.cmp++,D<0)return n;var s=(OPS.sqrt++,Math.sqrt(D)),q=(OPS.mul++,-0.5*(OPS.add++,B+((OPS.cmp++,B<0)?(OPS.neg++,-s):s)));if(OPS.cmp++,q!==0){t1=(OPS.div++,q/A);t2=(OPS.div++,h0/q);}m=2;}for(var i=0;OPS.cmp++,i<m;i++){var t=(OPS.cmp++,i===0)?t1:t2;if(!((OPS.cmp++,t>=0)&&(OPS.cmp++,t<1)))continue;var r=0,z=0;if(OPS.cmp++,e.straight===1){r=(OPS.fma++,e.r0+(OPS.add++,e.r2-e.r0)*t);z=(OPS.fma++,e.z0+(OPS.add++,e.z2-e.z0)*t);}else{var o=(OPS.add++,1-t),b0=(OPS.mul++,o*o),b1=(OPS.mul++,(OPS.mul++,(OPS.mul++,2*e.w)*t)*o),b2=(OPS.mul++,t*t);r=(OPS.fma++,(OPS.fma++,b0*e.r0+(OPS.mul++,b1*e.r1))+b2*e.r2);z=(OPS.fma++,(OPS.fma++,b0*e.z0+(OPS.mul++,b1*e.z1))+b2*e.z2);}if(OPS.cmp++,z>0){var X=(OPS.add++,e.h+(OPS.div++,(OPS.mul++,e.f*r)/z)),j=n;n++;while((OPS.cmp++,j>0)&&(OPS.cmp++,xs[OPS.add++,j-1]>X)){xs[j]=xs[OPS.add++,j-1];j--;}xs[j]=X;}}return n;}function crossRow(c,Y,xs){var n=crossEdge(c.ce0,Y,xs,0);n=crossEdge(c.ce1,Y,xs,n);n=crossEdge(c.ce2,Y,xs,n);return crossEdge(c.ce3,Y,xs,n);}return{kArc,kConic,uvEdgesArc,uvEdgesConic,arcAt,pointAt,planesAt,rayPlanes,rayCheck,onSheet,raySign,sameLevel,solveQuadratic,solveCubic,solveQuartic,inBox,insideEdges,crossEdge,crossRow};}
+
+// ================= step 16: stress test =================
+const{add,sub,mul,dot,cross,norm}=PIECES.vec;
+const K64=makeKernels64(),K32=makeKernels32(),OPS={add:0,mul:0,fma:0,div:0,sqrt:0,min:0,max:0,cmp:0,neg:0,lib:0},KC=makeKernelsCounted(OPS);
+const FOV=40*Math.PI/180,LIB_CYCLES=20;   // cbrt, acos, cos are library calls, not single instructions: assumed 20 cycles each
+const round32=o=>typeof o==='number'?Math.fround(o):Array.isArray(o)?o.map(round32):o&&typeof o==='object'?Object.fromEntries(Object.entries(o).map(([k,v])=>[k,round32(v)])):o;
+const sleep=()=>new Promise(r=>setTimeout(r,0)),$=id=>document.getElementById(id);
+
+// ---------------- the scene: pieces from step 10, a camera, and each piece's numbers for this frame ----------------
+function makeCamera(W,target,yaw,pitch,dist){const cp=Math.cos(pitch),pos=add(target,mul([cp*Math.sin(yaw),-cp*Math.cos(yaw),Math.sin(pitch)],dist)),fwd=norm(sub(target,pos)),right=norm(cross(fwd,[0,0,1]));
+  return{W,h:W/2,pos,fwd,right,down:cross(fwd,right),f:(W/2)/Math.tan(FOV/2)}}
+const toCam=(cam,p)=>{const q=sub(p,cam.pos);return[dot(q,cam.right),dot(q,cam.down),dot(q,cam.fwd)]};
+const toScr=(cam,c)=>[cam.h+cam.f*c[0]/c[2],cam.h+cam.f*c[1]/c[2]];
+const cr2=(p,q)=>p[0]*q[1]-p[1]*q[0],affineOf=fn=>{const o=fn(0,0);return[fn(1,0)-o,fn(0,1)-o,o]};
+const VIEWS=[['Straight on',0,0],['Oblique',0.75,0.3],['Glancing',1.3,0.1]];
+const SCENES={};
+function loadMesh(mesh){if(SCENES[mesh])return SCENES[mesh];const Q=PIECES.source(mesh),C=PIECES.convert(Q,0.03,0),pts=Q.flatMap(q=>q.x),centre=mul(pts.reduce(add,[0,0,0]),1/pts.length);
+  const radius=Math.max(...pts.map(p=>Math.hypot(...sub(p,centre)))),front=Q[mesh===3?1:2],n=norm(front.n.reduce((s,p)=>add(s,norm(p)),[0,0,0]));
+  const pieces=C.pieces.map(pc=>({pc,m:forwardRecord(pc)})).filter(p=>p.m);const ar=new Float64Array(3),p=new Float64Array(3);
+  pieces.forEach(P=>{P.centre=K64.pointAt(P.m,0.5,0.5,p,ar)?[p[0],p[1],p[2]]:null});
+  return SCENES[mesh]={mesh,pieces:pieces.filter(P=>P.centre),centre,radius,EL:C.EL,yaw0:Math.atan2(n[0],-n[1]),pitch0:Math.asin(Math.max(-1,Math.min(1,n[2])))}}
+// the forward map's fixed numbers (frame-independent), flattened for the kernels
+function forwardRecord(pc){const G=pc.geo;if(!G||!G.pencil||pc.sides.some(sg=>sg.length!==1))return null;const A=G.A,n=G.PL.map(P=>P.n),h=G.PL.map(P=>dot(P.n,P.p)),m={k:G.k,sc:G.sc,gx:G.g[0],gy:G.g[1],gz:G.g[2],c0x:G.c0[0],c0y:G.c0[1],c0z:G.c0[2],A00:A[0][0],A01:A[0][1],A02:A[0][2],A11:A[1][1],A12:A[1][2],A22:A[2][2]};
+  for(let k=0;k<4;k++){m['n'+k+'x']=n[k][0];m['n'+k+'y']=n[k][1];m['n'+k+'z']=n[k][2];m['h'+k]=h[k];const P=pc.P[k];m['P'+k+'x']=P[0];m['P'+k+'y']=P[1];m['P'+k+'z']=P[2];m['e'+k]=arcRecord(pc.sides[k][0])}return m}
+const arcRecord=(g,f=x=>x)=>{const A=g.straight?mul(add(g.P0,g.P2),0.5):g.A,a=f(g.P0),b=f(A),c=f(g.P2);return{p0x:a[0],p0y:a[1],p0z:a[2],ax:b[0],ay:b[1],az:b[2],p2x:c[0],p2y:c[1],p2z:c[2],w:g.straight?1:g.w}};
+// one piece, one frame: everything each kernel reads
+function frameRecord(P,cam){const pc=P.pc,G=pc.geo,E=pc.sides.map(sg=>sg[0]),cc=E.map(g=>(g.straight?[g.P0,mul(add(g.P0,g.P2),0.5),g.P2]:[g.P0,g.A,g.P2]).map(p=>toCam(cam,p)));
+  if(cc.some(c=>c.some(q=>!(q[2]>1e-6))))return null;const ccen=toCam(cam,P.centre);if(!(ccen[2]>0))return null;const[xc,yc]=toScr(cam,ccen);
+  const r={m:P.m,c0x:G.c0[0],c0y:G.c0[1],c0z:G.c0[2],sc:G.sc,f:cam.f,h:cam.h};
+  E.forEach((g,k)=>{const c=cc[k],p=c.map(q=>toScr(cam,q)),p0=p[0],p2=p[2],d=[p2[0]-p0[0],p2[1]-p0[1]],line=affineOf((x,y)=>cr2(d,[x-p0[0],y-p0[1]]));
+    let arc=null;if(!g.straight){const a=p[1],D=cr2([a[0]-p0[0],a[1]-p0[1]],d);if(Math.abs(D)>1e-6*(d[0]*d[0]+d[1]*d[1])){const w=g.w*c[1][2]/Math.sqrt(c[0][2]*c[2][2]);
+      arc={b0:affineOf((x,y)=>cr2([a[0]-x,a[1]-y],[p2[0]-x,p2[1]-y])/D),b1:affineOf((x,y)=>cr2([x-p0[0],y-p0[1]],d)/D),b2:affineOf((x,y)=>cr2([a[0]-p0[0],a[1]-p0[1]],[x-p0[0],y-p0[1]])/D),W4:4*w*w}}}
+    const ev=F=>F[0]*xc+F[1]*yc+F[2],set=(o,F,pre)=>{o[pre+'x']=F[0];o[pre+'y']=F[1];o[pre+'0']=F[2]};
+    if(!arc){const s=1/ev(line),L=line.map(v=>v*s),ka={t:0,b0x:0,b0y:0,b00:0,b2x:0,b2y:0,b20:0,c:0,sg:1,s:1,cw:0};set(ka,L,'b1');r['ka'+k]=ka;r['kc'+k]={...ka}}
+    else{const Ka=ev(arc.b1)-Math.sqrt(Math.max(0,arc.W4*ev(arc.b0)*ev(arc.b2))),Kc=ev(arc.b1)**2-arc.W4*ev(arc.b0)*ev(arc.b2),sa=1/Ka,scn=1/Kc;
+      const ka={t:1,c:sa*sa*arc.W4,sg:Math.sign(sa)},kc={t:1,s:scn,cw:scn*arc.W4};set(ka,arc.b1.map(v=>v*sa),'b1');set(ka,arc.b0,'b0');set(ka,arc.b2,'b2');set(kc,arc.b1,'b1');set(kc,arc.b0,'b0');set(kc,arc.b2,'b2');r['ka'+k]=ka;r['kc'+k]=kc}
+    r['ce'+k]={straight:g.straight?1:0,f:cam.f,h:cam.h,w:g.straight?1:g.w,r0:c[0][0],d0:c[0][1],z0:c[0][2],r1:c[1][0],d1:c[1][1],z1:c[1][2],r2:c[2][0],d2:c[2][1],z2:c[2][2]}});
+  // screen box from the edges' projected control points; every row a piece's edges can touch
+  const sp=cc.flat().map(q=>toScr(cam,q)),xs=sp.map(q=>q[0]),ys=sp.map(q=>q[1]),ok=E.every(g=>g.straight||g.w>0);
+  Object.assign(r,ok?{bx0:Math.min(...xs),bx1:Math.max(...xs),by0:Math.min(...ys),by1:Math.max(...ys)}:{bx0:0,bx1:cam.W,by0:0,by1:cam.W});
+  // the pixel's ray in the piece's local frame, the quadric along it, the side planes, the sign rule
+  const sc=G.sc,o=mul(sub(cam.pos,G.c0),sc),A=G.A,Ax=v=>[dot(A[0],v),dot(A[1],v),dot(A[2],v)],D0=mul(sub(cam.fwd,mul(add(cam.right,cam.down),cam.h/cam.f)),sc),Dx=mul(cam.right,sc/cam.f),Dy=mul(cam.down,sc/cam.f),bo=add(mul(Ax(o),2),G.g);
+  Object.assign(r,{ox:o[0],oy:o[1],oz:o[2],D0x:D0[0],D0y:D0[1],D0z:D0[2],Dxx:Dx[0],Dxy:Dx[1],Dxz:Dx[2],Dyx:Dy[0],Dyy:Dy[1],Dyz:Dy[2],A00:A[0][0],A01:A[0][1],A02:A[0][2],A11:A[1][1],A12:A[1][2],A22:A[2][2],box:bo[0],boy:bo[1],boz:bo[2],cq:dot(o,Ax(o))+dot(G.g,o)+G.k});
+  G.PL.forEach((pl,k)=>{r['n'+k+'x']=pl.n[0];r['n'+k+'y']=pl.n[1];r['n'+k+'z']=pl.n[2];r['so'+k]=dot(pl.n,sub(o,pl.p))});
+  const out=norm(pc.N.reduce((s,q)=>add(s,norm(q)),[0,0,0])),Lc=mul(sub(P.centre,G.c0),sc),gr=add(mul(Ax(Lc),2),G.g);r.sgn=Math.sign(dot(gr,out))*(dot(out,sub(cam.pos,P.centre))>=0?1:-1);
+  // same level: bottom edge B(u) (side 0) and top edge T(u) (side 2, reversed so it also runs u = 0 → 1), in camera coordinates; det[pixel, B̂(u), T̂(u)] as a quartic
+  r.eb=arcRecord(E[0],q=>toCam(cam,q));const top=E[2];r.et=arcRecord({...top,P0:top.P2,P2:top.P0},q=>toCam(cam,q));
+  const scrH=c=>[cam.f*c[0]+cam.h*c[2],cam.f*c[1]+cam.h*c[2],c[2]],powers=a=>{const C0=[a.p0x,a.p0y,a.p0z],C1=mul([a.ax,a.ay,a.az],a.w),C2=[a.p2x,a.p2y,a.p2z];return[C0,add(mul(C0,-2),mul(C1,2)),add(sub(C0,mul(C1,2)),C2)].map(scrH)};
+  const Bp=powers(r.eb),Tp=powers(r.et),Kn=[0,1,2,3,4].map(()=>[0,0,0]);for(let i=0;i<3;i++)for(let j=0;j<3;j++)Kn[i+j]=add(Kn[i+j],cross(Bp[i],Tp[j]));
+  Kn.forEach((v,n)=>{r['q'+n+'x']=v[0];r['q'+n+'y']=v[1];r['q'+n+'0']=v[2]});
+  return r}
+function makeFrame(mesh,view,W){const S=loadMesh(mesh),[,dy,dp]=VIEWS[view],cam=makeCamera(W,S.centre,S.yaw0+dy,Math.max(-1.3,Math.min(1.3,S.pitch0+dp)),3.6*S.radius);
+  const t0=performance.now(),rec=S.pieces.map(P=>frameRecord(P,cam)),setupMs=performance.now()-t0;
+  return{S,cam,W,rec,rec32:rec.map(r=>r&&round32({...r,m:r.m})),setupMs,near:3.6*S.radius-1.35*S.radius,far:3.6*S.radius+1.35*S.radius}}
+
+// ---------------- the answer key: each piece's surface sampled densely (independent of every method under test) ----------------
+function answerKey(Fr){const{S,cam,W}=Fr,N=W*W,n=S.pieces.length,cover=new Uint8Array(n*N),zbuf=new Float64Array(N).fill(Infinity),win=new Int16Array(N).fill(-1),bbox=[],p=new Float64Array(3),ar=new Float64Array(3);
+  S.pieces.forEach((P,i)=>{if(!Fr.rec[i]){bbox.push(null);return}let span=0;const pr=[];for(let j=0;j<=8;j++)for(let k=0;k<=8;k++)pr.push(K64.pointAt(P.m,k/8,j/8,p,ar)?toScr(cam,toCam(cam,[p[0],p[1],p[2]])):null);
+    for(let j=0;j<=8;j++)for(let k=0;k<8;k++){const a=pr[j*9+k],b=pr[j*9+k+1],c=pr[k*9+j],d=pr[(k+1)*9+j];if(a&&b)span=Math.max(span,Math.hypot(b[0]-a[0],b[1]-a[1])*8);if(c&&d)span=Math.max(span,Math.hypot(d[0]-c[0],d[1]-c[1])*8)}
+    const s=Math.max(16,Math.min(1400,Math.ceil(span*4.5)));let b=[1e9,1e9,-1e9,-1e9];
+    for(let j=0;j<=s;j++)for(let k=0;k<=s;k++){if(!K64.pointAt(P.m,k/s,j/s,p,ar))continue;const c=toCam(cam,[p[0],p[1],p[2]]);if(c[2]<=0)continue;const x=Math.floor(cam.h+cam.f*c[0]/c[2]),y=Math.floor(cam.h+cam.f*c[1]/c[2]);if(x<0||y<0||x>=W||y>=W)continue;
+      const o=y*W+x;cover[i*N+o]=1;if(c[2]<zbuf[o]){zbuf[o]=c[2];win[o]=i}b=[Math.min(b[0],x),Math.min(b[1],y),Math.max(b[2],x),Math.max(b[3],y)]}
+    bbox.push(b[2]<b[0]?null:[Math.max(0,b[0]-2),Math.max(0,b[1]-2),Math.min(W-1,b[2]+2),Math.min(W-1,b[3]+2)])});
+  // decided: the piece covers (or misses) the whole 3 × 3 block around the pixel, so pixel-centre methods and sampling must agree
+  const decided=(i,x,y)=>{const v=cover[i*N+y*W+x];for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const X=x+dx,Y=y+dy;if(X<0||Y<0||X>=W||Y>=W)continue;if(cover[i*N+Y*W+X]!==v)return false}return true};
+  // solving samples: decided pixels of the winning piece; exact (u, v), point and depth from that piece's quadric along the pixel's ray (the root nearest the sampled depth)
+  const sx=[],sy=[],sp=[],tu=[],tv=[],tz=[],tX=[];
+  for(let y=1;y<W-1;y++)for(let x=1;x<W-1;x++){const o=y*W+x,i=win[o];if(i<0||!decided(i,x,y)||!decided(i,x,y))continue;const r=Fr.rec[i],X=x+0.5,Y=y+0.5;
+    const dx=r.D0x+X*r.Dxx+Y*r.Dyx,dy=r.D0y+X*r.Dxy+Y*r.Dyy,dz=r.D0z+X*r.Dxz+Y*r.Dyz,Ad=[r.A00*dx+r.A01*dy+r.A02*dz,r.A01*dx+r.A11*dy+r.A12*dz,r.A02*dx+r.A12*dy+r.A22*dz],a=dx*Ad[0]+dy*Ad[1]+dz*Ad[2],b=r.box*dx+r.boy*dy+r.boz*dz;
+    let D=b*b-4*a*r.cq;if(D<0)D=0;const s=Math.sqrt(D),ts=Math.abs(a)<1e-14?[-r.cq/b]:[(-b-s)/(2*a),(-b+s)/(2*a)],t=ts.reduce((p,q)=>Math.abs(q-zbuf[o])<Math.abs(p-zbuf[o])?q:p);
+    if(!(Math.abs(t-zbuf[o])<0.05*zbuf[o]))continue;   // the quadric and the sampled surface disagree here: no exact answer, leave the pixel out
+    const sk=[0,1,2,3].map(k=>r['so'+k]+t*(r['n'+k+'x']*dx+r['n'+k+'y']*dy+r['n'+k+'z']*dz)),is=1/r.sc;
+    sx.push(X);sy.push(Y);sp.push(i);tu.push(sk[3]/(sk[3]-sk[1]));tv.push(sk[0]/(sk[0]-sk[2]));tz.push(t);tX.push([r.c0x+(r.ox+t*dx)*is,r.c0y+(r.oy+t*dy)*is,r.c0z+(r.oz+t*dz)*is])}
+  // detection pairs: each piece × the pixels around where its samples landed, with the answer for decided ones
+  const px=[],py=[],pp=[],pcov=[],pdec=[];bbox.forEach((b,i)=>{if(!b)return;for(let y=b[1];y<=b[3];y++)for(let x=b[0];x<=b[2];x++){px.push(x+0.5);py.push(y+0.5);pp.push(i);pcov.push(cover[i*N+y*W+x]);pdec.push(decided(i,x,y)?1:0)}});
+  return{cover,win,zbuf,samples:{x:sx,y:sy,p:sp,u:tu,v:tv,z:tz,X:tX,n:sx.length},pairs:{x:px,y:py,p:pp,cov:pcov,dec:pdec,n:px.length}}}
+
+// ---------------- measuring ----------------
+// ns per call: run the whole set again and again for at least 150 ms (after one warm-up pass)
+function nsPer(fn){fn();let calls=0,t0=performance.now(),t;do{calls+=fn();t=performance.now()}while(t-t0<150);return(t-t0)*1e6/calls}
+// average operations per call, from the counted kernels
+function opsPer(fn){for(const k in OPS)OPS[k]=0;const calls=fn();const o={};for(const k in OPS)o[k]=OPS[k]/Math.max(1,calls);return o}
+const ALU=o=>o.add+o.mul+o.fma+o.max+o.min+o.neg,model=o=>Math.max(ALU(o)*0.5,(o.div+o.sqrt)*3,o.cmp)+o.lib*LIB_CYCLES;
+const opText=o=>[['fma','FMA'],['mul','MUL'],['add','ADD'],['div','DIV'],['sqrt','SQRT'],['lib','LIB'],['max','MAX'],['min','MIN'],['neg','NEG'],['cmp','CMP']].filter(([k])=>o[k]>=0.05).map(([k,n])=>(+o[k].toFixed(1))+' '+n).join(', ');
+const pctEl=(d,S)=>d/S.EL*100;
+const f=(x,d=1)=>x==null||!isFinite(x)?'—':x.toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});
+const fe=(x,d=2)=>x>0&&x<Math.pow(10,-d)?x.toExponential(1):f(x,d);   // small errors (float32) in scientific notation instead of rounding to 0
+
+// solving: each method over the solving samples; accuracy against the exact answer
+function solvingTests(Fr,AK){const s=AK.samples,S=Fr.S,out=new Float64Array(3),ar=new Float64Array(3),br=new Float64Array(3),rr=new Float64Array(12),p=new Float64Array(3),q=new Float64Array(3);
+  const pick=(set,K)=>({rec:set,K}),M64=pick(Fr.rec,K64),M32=pick(Fr.rec32,K32),MC=pick(Fr.rec,KC);
+  // slide: where the method's (u, v) sends you on the surface (P(u, v), float64), against where the pixel really looks
+  const slide=(i,u,v)=>K64.pointAt(S.pieces[s.p[i]].m,Math.min(1,Math.max(0,u)),Math.min(1,Math.max(0,v)),q,ar)?pctEl(Math.hypot(q[0]-s.X[i][0],q[1]-s.X[i][1],q[2]-s.X[i][2]),S):Infinity;
+  const methods=[
+    {name:'Edge K ratios, arc only',gives:'u, v',from:'steps 13–15',run:(M,i)=>(M.K.uvEdgesArc(M.rec[s.p[i]],s.x[i],s.y[i],out),true),uv:true},
+    {name:'Edge K ratios, full conic',gives:'u, v',from:'step 13 variant',run:(M,i)=>(M.K.uvEdgesConic(M.rec[s.p[i]],s.x[i],s.y[i],out),true),uv:true},
+    {name:'Same level (quartic)',gives:'u, v, depth',from:'your idea',run:(M,i)=>M.K.sameLevel(M.rec[s.p[i]],s.x[i],s.y[i],out,rr,ar,br),uv:true,z:true},
+    {name:'P(u, v) forward map, given the exact u, v',gives:'3D point',from:'step 10',run:(M,i)=>M.K.pointAt(M.rec[s.p[i]].m,s.u[i],s.v[i],p,ar),point:true},
+    {name:'Ray × ellipsoid + side planes',gives:'u, v, depth',from:'step 11 without its check',run:(M,i)=>M.K.rayPlanes(M.rec[s.p[i]],s.x[i],s.y[i],out),uv:true,z:true,exact:true},
+    {name:'Same + forward-map check',gives:'u, v, depth',from:'step 11 as built',run:(M,i)=>M.K.rayCheck(M.rec[s.p[i]],s.x[i],s.y[i],out,ar,p),uv:true,z:true,exact:true},
+    {name:'Ray × ellipsoid, sign rule + side planes',gives:'u, v, depth',from:'step 13 depth',run:(M,i)=>M.K.raySign(M.rec[s.p[i]],s.x[i],s.y[i],out),uv:true,z:true,exact:true}];
+  return methods.map(m=>{const loop=M=>()=>{let k=0;for(let i=0;i<s.n;i++)if(m.run(M,i))k++;return s.n};
+    const r={...m,ns:nsPer(loop(M64)),ops:opsPer(loop(MC))};
+    for(const[key,M]of[['a64',M64],['a32',M32]]){let miss=0,outside=0,du=0,dum=0,sl=0,slm=0,dz=0,n=0;
+      for(let i=0;i<s.n;i++){if(!m.run(M,i)){miss++;continue}n++;
+        if(m.point){const d=pctEl(Math.hypot(p[0]-s.X[i][0],p[1]-s.X[i][1],p[2]-s.X[i][2]),S);sl=Math.max(sl,d);slm+=d;continue}
+        const u=out[0],v=out[1];if(!(u>=-1e-6&&u<=1+1e-6&&v>=-1e-6&&v<=1+1e-6))outside++;const e=Math.max(Math.abs(u-s.u[i]),Math.abs(v-s.v[i]));du=Math.max(du,e);dum+=e;
+        const d=slide(i,u,v);sl=Math.max(sl,d);slm+=isFinite(d)?d:0;if(m.z)dz=Math.max(dz,Math.abs(out[2]-s.z[i])/s.z[i])}
+      r[key]={miss,outside,du,dum:dum/Math.max(1,n),sl,slm:slm/Math.max(1,n),dz,n}}
+    return r})}
+
+// detection: each test over the pairs (piece × pixel); wrong answers counted only where the answer key is decided
+function detectionTests(Fr,AK){const P=AK.pairs,W=Fr.W,n=Fr.rec.length,out=new Float64Array(3),ar=new Float64Array(3),p=new Float64Array(3),xs=new Float64Array(32);
+  const M64={rec:Fr.rec,K:K64},M32={rec:Fr.rec32,K:K32},MC={rec:Fr.rec,K:KC},rows=[];
+  const pairTest=(name,decides,from,test,setFor)=>{const set=setFor||[...Array(P.n).keys()].filter(i=>Fr.rec[P.p[i]]),loop=M=>()=>{let k=0;for(const i of set)if(test(M,i))k++;return set.length};
+    const r={name,decides,from,ns:nsPer(loop(M64)),ops:opsPer(loop(MC)),calls:set.length};
+    for(const[key,M]of[['a64',M64],['a32',M32]]){let fp=0,fn=0,dec=0;for(const i of set){if(!P.dec[i])continue;dec++;const t=test(M,i);if(t&&!P.cov[i])fp++;if(!t&&P.cov[i])fn++}r[key]={fp,fn,dec}}
+    rows.push(r)};
+  pairTest('Screen box (edges’ control points)','candidate pieces for a pixel','step 11',(M,i)=>M.K.inBox(M.rec[P.p[i]],P.x[i],P.y[i]));
+  const inBox=[...Array(P.n).keys()].filter(i=>Fr.rec[P.p[i]]&&K64.inBox(Fr.rec[P.p[i]],P.x[i],P.y[i]));
+  pairTest('Edge K signs (all 4 ≥ 0)','pixel inside the piece’s edges','step 13',(M,i)=>M.K.insideEdges(M.rec[P.p[i]],P.x[i],P.y[i]),inBox);
+  pairTest('Ray × ellipsoid + side planes','the hit is inside the piece','step 11 without its check',(M,i)=>M.K.rayPlanes(M.rec[P.p[i]],P.x[i],P.y[i],out),inBox);
+  pairTest('Same + forward-map check','the hit is on the piece’s sheet','step 11 as built',(M,i)=>M.K.rayCheck(M.rec[P.p[i]],P.x[i],P.y[i],out,ar,p),inBox);
+  pairTest('Ray, sign rule + side planes','the hit is on the piece’s sheet','step 12 candidate',(M,i)=>M.K.raySign(M.rec[P.p[i]],P.x[i],P.y[i],out),inBox);
+  // row crossings: per piece per row (one quadratic per edge); coverage = pixel centres between the sorted crossings
+  {const jobs=[];Fr.rec.forEach((r,i)=>{if(!r)return;const y0=Math.max(0,Math.ceil(r.by0-0.5)),y1=Math.min(W-1,Math.floor(r.by1-0.5));for(let y=y0;y<=y1;y++)jobs.push([i,y+0.5])});
+    const loop=M=>()=>{for(const[i,Y]of jobs)M.K.crossRow(M.rec[i],Y,xs);return jobs.length},r={name:'Row crossings → spans',decides:'the pixels a piece walks','from':'steps 14–15',ns:nsPer(loop(M64)),ops:opsPer(loop(MC)),calls:jobs.length,perRow:true};
+    for(const[key,M]of[['a64',M64],['a32',M32]]){const cov=new Uint8Array(n*W*W);for(const[i,Y]of jobs){const m=M.K.crossRow(M.rec[i],Y,xs),y=Y-0.5;for(let s=0;s+1<m;s+=2){const x0=Math.max(0,Math.ceil(xs[s]-0.5)),x1=Math.min(W-1,Math.ceil(xs[s+1]-0.5)-1);for(let x=x0;x<=x1;x++)cov[i*W*W+y*W+x]=1}}
+      let fp=0,fn=0,dec=0;for(let k=0;k<P.n;k++){if(!P.dec[k]||!Fr.rec[P.p[k]])continue;dec++;const t=cov[P.p[k]*W*W+(P.y[k]-0.5)*W+(P.x[k]-0.5)];if(t&&!P.cov[k])fp++;if(!t&&P.cov[k])fn++}r[key]={fp,fn,dec}}
+    rows.push(r)}
+  return rows}
+// which hit counts: each rule's root against the exact one, on the solving samples
+function rootTests(Fr,AK){const s=AK.samples,out=new Float64Array(3),ar=new Float64Array(3),p=new Float64Array(3);
+  return[['Nearest hit inside the side planes',(K,r,i)=>K.rayPlanes(r,s.x[i],s.y[i],out)],['Forward-map check',(K,r,i)=>K.rayCheck(r,s.x[i],s.y[i],out,ar,p)],['Sign rule',(K,r,i)=>K.raySign(r,s.x[i],s.y[i],out)]].map(([name,fn])=>{
+    const res={name};for(const[key,K,R]of[['a64',K64,Fr.rec],['a32',K32,Fr.rec32]]){let wrong=0,miss=0;for(let i=0;i<s.n;i++){if(!fn(K,R[s.p[i]],i)){miss++;continue}if(Math.abs(out[2]-s.z[i])>1e-3*s.z[i])wrong++}res[key]={wrong,miss,n:s.n}}return res})}
+
+// who wins a pixel: nearest depth kept at write, against per-pixel lists then a resolve pass (same entries: spans + sign rule)
+function resolveTests(Fr){const W=Fr.W,N=W*W,out=new Float64Array(3),xs=new Float64Array(32),entries=[];
+  Fr.rec.forEach((r,i)=>{if(!r)return;const y0=Math.max(0,Math.ceil(r.by0-0.5)),y1=Math.min(W-1,Math.floor(r.by1-0.5));for(let y=y0;y<=y1;y++){const Y=y+0.5,m=K64.crossRow(r,Y,xs);for(let s=0;s+1<m;s+=2){const x0=Math.max(0,Math.ceil(xs[s]-0.5)),x1=Math.min(W-1,Math.ceil(xs[s+1]-0.5)-1);for(let x=x0;x<=x1;x++)if(K64.raySign(r,x+0.5,Y,out))entries.push([y*W+x,i,out[0],out[1],out[2]])}}});
+  const E=entries.length,eo=new Int32Array(E),ei=new Int16Array(E),eu=new Float32Array(E),ev=new Float32Array(E),ez=new Float32Array(E);entries.forEach((e,k)=>{eo[k]=e[0];ei[k]=e[1];eu[k]=e[2];ev[k]=e[3];ez[k]=e[4]});
+  const zb=()=>{const z=new Float32Array(N),pid=new Int16Array(N).fill(-1),u=new Float32Array(N),v=new Float32Array(N);for(let k=0;k<E;k++){const o=eo[k];if(z[o]===0||ez[k]<z[o]){z[o]=ez[k];pid[o]=ei[k];u[o]=eu[k];v[o]=ev[k]}}return E};
+  const lists=()=>{const head=new Int32Array(N).fill(-1),next=new Int32Array(E),pid=new Int16Array(N).fill(-1),z=new Float32Array(N),u=new Float32Array(N),v=new Float32Array(N);for(let k=0;k<E;k++){next[k]=head[eo[k]];head[eo[k]]=k}
+    for(let o=0;o<N;o++){let b=-1;for(let j=head[o];j>=0;j=next[j])if(b<0||ez[j]<ez[b])b=j;if(b>=0){pid[o]=ei[b];z[o]=ez[b];u[o]=eu[b];v[o]=ev[b]}}return E};
+  return[{name:'Nearest depth kept at write',ns:nsPer(zb),bytes:4+2+4+4,entries:E,pixels:N},{name:'Per-pixel lists, then resolve',ns:nsPer(lists),bytes:4+2+4+4+(E/N)*(4+2+4+4+4+4),entries:E,pixels:N}]}
+
+// whole frames: each pipeline at three resolutions (float64)
+async function scalingTests(mesh,view,progress){const res=[100,400,1000],P=[
+  {name:'A · spans → edge u, v → P(u, v) → depth',from:'step 15 (now)'},{name:'B · spans → ray, sign rule → u, v, depth',from:'proposed revert'},{name:'B′ · spans → ray + forward-map check',from:'proposed revert, safer'},{name:'C · per pixel: boxes → ray + check',from:'step 11'}];
+  for(const W of res){progress('Whole frames at '+W+'²…');await sleep();const Fr=makeFrame(mesh,view,W),N=W*W,out=new Float64Array(3),ar=new Float64Array(3),p=new Float64Array(3),xs=new Float64Array(32),z=new Float32Array(N);
+    const spans=fn=>()=>{z.fill(0);let k=0;Fr.rec.forEach((r,i)=>{if(!r)return;const y0=Math.max(0,Math.ceil(r.by0-0.5)),y1=Math.min(W-1,Math.floor(r.by1-0.5));for(let y=y0;y<=y1;y++){const Y=y+0.5,m=K64.crossRow(r,Y,xs);
+      for(let s=0;s+1<m;s+=2){const x0=Math.max(0,Math.ceil(xs[s]-0.5)),x1=Math.min(W-1,Math.ceil(xs[s+1]-0.5)-1);for(let x=x0;x<=x1;x++){const d=fn(r,x+0.5,Y);k++;if(d>0){const o=y*W+x;if(z[o]===0||d<z[o])z[o]=d}}}}});return N};
+    const fA=spans((r,X,Y)=>{K64.uvEdgesArc(r,X,Y,out);const u=Math.min(1,Math.max(0,out[0])),v=Math.min(1,Math.max(0,out[1]));if(!K64.pointAt(r.m,u,v,p,ar))return 0;return dot(sub([p[0],p[1],p[2]],Fr.cam.pos),Fr.cam.fwd)}),
+      fB=spans((r,X,Y)=>K64.raySign(r,X,Y,out)?out[2]:0),fB2=spans((r,X,Y)=>K64.rayCheck(r,X,Y,out,ar,p)?out[2]:0),
+      fC=()=>{z.fill(0);for(let y=0;y<W;y++)for(let x=0;x<W;x++){const X=x+0.5,Y=y+0.5;let best=0;for(const r of Fr.rec){if(!r||!K64.inBox(r,X,Y))continue;if(K64.rayCheck(r,X,Y,out,ar,p)&&(best===0||out[2]<best))best=out[2]}z[y*W+x]=best}return N};
+    for(const[k,fn]of[[0,fA],[1,fB],[2,fB2],[3,fC]]){progress('Whole frames at '+W+'²: pipeline '+['A','B','B′','C'][k]+'…');await sleep();fn();const t0=performance.now();fn();P[k]['ms'+W]=performance.now()-t0+Fr.setupMs;P[k]['set'+W]=Fr.setupMs}}
+  return{P,res}}
+
+// calibration: what one operation costs in this browser (1,000,000 iterations each; the first row is the loop alone)
+function calibration(){const n=1e6,a=new Float64Array(n),b=new Float64Array(n);for(let i=0;i<n;i++){a[i]=1+Math.random();b[i]=1+Math.random()}
+  const T=[['Loop, one load and one add',()=>{let s=0;for(let i=0;i<n;i++)s=s+a[i];return s}],['… plus a MUL',()=>{let s=0;for(let i=0;i<n;i++)s=s+a[i]*b[i];return s}],['… plus a DIV',()=>{let s=0;for(let i=0;i<n;i++)s=s+a[i]/b[i];return s}],
+    ['… plus a SQRT',()=>{let s=0;for(let i=0;i<n;i++)s=s+Math.sqrt(a[i]);return s}],['… plus a cube root (library)',()=>{let s=0;for(let i=0;i<n;i++)s=s+Math.cbrt(a[i]);return s}],['… plus Math.fround (float32 rounding)',()=>{let s=0;for(let i=0;i<n;i++)s=s+Math.fround(a[i]*b[i]);return s}]];
+  return T.map(([name,fn])=>{fn();let reps=0,t0=performance.now(),t;do{fn();reps++;t=performance.now()}while(t-t0<120);return{name,ns:(t-t0)*1e6/(reps*n)}})}
+
+// ---------------- page ----------------
+let mesh=0,view=1,busy=false;
+const rowsHTML=(rows,cls=[])=>rows.map(r=>'<tr>'+r.map((c,i)=>'<td'+(cls[i]?' class="'+cls[i]+'"':'')+'>'+c+'</td>').join('')+'</tr>').join('');
+async function runAll(){if(busy)return;busy=true;const prog=t=>$('prog').textContent=t;$('run').disabled=true;try{
+  prog('Converting and setting up the frame…');await sleep();const Fr=makeFrame(mesh,view,200);
+  prog('Answer key: sampling each piece densely…');await sleep();const AK=answerKey(Fr);
+  $('case').textContent=['Smooth cube','Hard cube','Mixed cube','Wave'][mesh]+' · '+VIEWS[view][0]+' · 200² · '+Fr.rec.filter(Boolean).length+' pieces in front of the camera · '+f(AK.samples.n,0)+' solving samples · '+f(AK.pairs.n,0)+' piece × pixel pairs ('+f(AK.pairs.dec.reduce((s,v)=>s+v,0),0)+' decided)';
+  prog('Calibration…');await sleep();$('cal').innerHTML=rowsHTML(calibration().map(r=>[r.name,f(r.ns,2)]),['','n']);
+  prog('Solving: timing, counting, accuracy…');await sleep();const SV=solvingTests(Fr,AK);
+  $('solve').innerHTML=rowsHTML(SV.map(r=>{const acc=a=>r.point?'point off by '+fe(a.slm,2)+'% avg, '+fe(a.sl,2)+'% max'+(a.miss?' · '+f(a.miss,0)+' no answer':''):
+      'Δu,v '+fe(a.dum,3)+' avg / '+fe(a.du,3)+' max · slide '+fe(a.slm,2)+'% / '+fe(a.sl,2)+'%'+(r.z?' · depth '+fe(a.dz*100,3)+'%':'')+(a.outside?' · '+f(a.outside,0)+' outside 0…1':'')+(a.miss?' · '+f(a.miss,0)+' no answer':'');
+    return['<b>'+r.name+'</b><br><span class="note">'+r.gives+' · '+r.from+'</span>',f(r.ns,0),opText(r.ops),f(model(r.ops),0),acc(r.a64),acc(r.a32)]}),['','n','','n','','']);
+  prog('Detection: timing, counting, accuracy…');await sleep();const DT=detectionTests(Fr,AK);
+  $('detect').innerHTML=rowsHTML(DT.map(r=>{const acc=a=>(r.name.startsWith('Screen box')?f(a.fn,0)+' pixels of the piece missed':f(a.fp,0)+' wrongly in, '+f(a.fn,0)+' wrongly out')+' (of '+f(a.dec,0)+')';
+    return['<b>'+r.name+'</b><br><span class="note">'+r.decides+' · '+r.from+'</span>',f(r.ns,0)+(r.perRow?' per row':''),opText(r.ops),f(model(r.ops),0)+(r.perRow?' per row':''),acc(r.a64),acc(r.a32)]}),['','n','','n','','']);
+  const RT=rootTests(Fr,AK);$('roots').innerHTML=rowsHTML(RT.map(r=>[r.name,...['a64','a32'].map(k=>f(r[k].wrong,0)+' wrong, '+f(r[k].miss,0)+' no hit (of '+f(r[k].n,0)+')')]));
+  prog('Who wins a pixel…');await sleep();const RS=resolveTests(Fr);$('resolve').innerHTML=rowsHTML(RS.map(r=>[r.name,f(r.ns*r.entries/1e6,2)+' ms per frame',f(r.bytes,1)+' bytes per pixel',f(r.entries/r.pixels,2)+' entries per pixel']),['','n','n','n']);
+  const SC=await scalingTests(mesh,view,prog);$('scale').innerHTML=rowsHTML(SC.P.map(p=>['<b>'+p.name+'</b><br><span class="note">'+p.from+'</span>',...SC.res.map(W=>f(p['ms'+W],1)+' ms<br><span class="note">'+f(p['ms'+W]*1e6/(W*W),0)+' ns/pixel</span>')]),['','n','n','n']);
+  $('scaleSetup').textContent='Frame setup (per piece, all pieces) included: '+SC.res.map(W=>W+'²: '+f(SC.P[0]['set'+W],2)+' ms').join(' · ');
+  prog('Done.')}catch(e){prog('ERROR '+(e.stack||e))}busy=false;$('run').disabled=false}
+function seg(id,set){const bs=[...$(id).querySelectorAll('button')];bs.forEach(b=>b.onclick=()=>{bs.forEach(x=>x.classList.toggle('on',x===b));set(+b.dataset.v);runAll()})}
+seg('g-mesh',v=>mesh=v);seg('g-view',v=>view=v);$('run').onclick=runAll;runAll();
+</script>
