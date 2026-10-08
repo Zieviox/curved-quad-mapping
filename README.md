@@ -49,8 +49,8 @@ Two conics share one quadric only if they meet twice, so one quadric per quad ca
 
 ### 8–9 · Handles and arcs — [Preview](https://htmlpreview.github.io/?https://github.com/Zieviox/curved-quad-mapping/blob/main/examples/04-handles-arcs.html) · [Source](examples/04-handles-arcs.html)
 
-Face-corner normals as handles (direction = tangent, length = bulge), one ellipse arc between every two handles, and sharp edges rounded inside each quad by a blending distance. Shared borders match exactly. The hard cube becomes an exact rounded box, and the smooth cube's arcs lie exactly on the sphere.
+Face-corner normals as handles (direction = tangent, length = bulge), one ellipse arc between every two handles, and sharp edges rounded inside each quad by a blending distance. Shared borders match exactly. The hard cube becomes an exact rounded box, and the smooth cube's arcs lie exactly on the sphere. Each piece is then filled with one quadric (step 9b): compatible borders close (cube, sphere, wave), incompatible ones don't yet (mixed cube, 36%).
 
-![Handles and arcs: mixed cube with a rounded top edge](docs/img/04-handles-arcs.png)
+![Handles and arcs: hard cube filled as a rounded box](docs/img/04-handles-arcs.png)
 
 Details and numbers are in the [R&D log](docs/rnd-log.md).

@@ -104,7 +104,7 @@ code{font-family:var(--f-mono);font-size:.92em}
   <li><span class="num">8–9</span><div class="body">
     <h2>Handles and arcs <span class="tag current">current</span></h2>
     <p class="q">Normals as handles (direction = tangent, length = bulge), one ellipse arc between every two handles, sharp edges rounded inside each quad.</p>
-    <ul class="find"><li>Shared borders match exactly on every edge.</li><li>Hard cube → an exact rounded box. Smooth cube → arcs exactly on the sphere.</li><li>S-curves and twists split at an artificial handle, with 0 failures.</li><li>Next: fill each piece with an ellipsoid that follows its arcs.</li></ul>
+    <ul class="find"><li>Shared borders match exactly on every edge.</li><li>Hard cube → an exact rounded box. Smooth cube → arcs exactly on the sphere.</li><li>S-curves and twists split at an artificial handle, with 0 failures.</li><li>Pieces filled with one quadric each: rounded box, sphere and wave close to the measurement floor (wave 0.0025%). The mixed cube's side pieces miss by 36%: their 4 arcs don't fit one quadric. Open.</li></ul>
     <div class="links"><a class="btn" href="examples/04-handles-arcs.html">Open handles and arcs</a></div></div></li>
 </ol>
 
