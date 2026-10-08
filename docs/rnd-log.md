@@ -299,6 +299,13 @@ Findings:
 
 Status: stuck on exactness for incompatible borders, as agreed: move on. Example 05 defaults to depth 1.
 
+### 10b. Lab update
+
+- **Old ellipsoid views (single, S-split, trim):** when the push misses the quadric, the lab used to fall back silently to the flat quad point. It now leaves a hole: cells touching it aren't drawn, error is measured only where there is a surface, and misses are counted.
+- **New view "Ellipsoid pieces (handles & arcs, step 10)":** example 05's conversion, embedded unchanged as a module (blending 3%, split depth 1). It works in all three displacement modes. "Map as baked" takes the quad (u, v) of each piece corner from the quad's flat base. Pieces have their own (u, v), so this view's error is the distance from each target point to the nearest point on the surface.
+  - Cube: the sphere, mean 43.1% / max 54.8% (no map), edge crack 0.
+  - Wave: mean **12.2%** / max 27.9% (no map), mean 10.3% (map as baked), edge crack 0. That's the lowest mean of all surfaces in the lab.
+
 ## Prior art
 
 Collected from memory at first. Step 7 checked the shared-edge part against abstracts and citing papers.
