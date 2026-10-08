@@ -156,9 +156,33 @@ Goal: no cracks between pieces. Each piece keeps its own quadric, and its border
 
 Result: dropped. Watertight pieces need shared edge curves (each shared edge one exact curve that both pieces contain). One curve fixes 5 of a quadric's 9 numbers, so that needs more pieces per quad, as in Dahmen's piecewise quadrics.
 
+## 7. Literature check: shared edge curves
+
+Goal: every quad edge carries one exact curve, and both neighbouring pieces contain it, so there are no cracks.
+
+**Rule (confirmed):** two conics in different planes lie on one quadric only if they meet the line where their planes cross at the same two points. Cayley states the "if" direction ("touching conics … have two points of intersection, and consequently lie on the same quadric surface"). The converse follows by restricting the quadric to that line.
+
+So two edge curves that meet only at their shared corner can't sit on one quadric. A single quadric per quad can't hold all four of its edge curves. The pieces have to be split.
+
+What the literature does (from abstracts and citing papers; the full texts weren't reachable from here):
+
+| Work | Pieces | Notes |
+|---|---|---|
+| Dahmen 1989, "Smooth piecewise quadric surfaces" (Lyche & Schumaker eds., pp. 181–193) | each face split into micro quadric patches, Powell-Sabin style | Tangent-plane continuous and interpolates the vertices. Exact piece count not confirmed. Standard Powell-Sabin splits give 6 or 12 pieces per triangle. |
+| "Representation of arbitrary shapes using implicit quadrics" (Springer, BF01908449) | 1 per triangle, no split | Only if the prescribed tangent planes satisfy a condition, not visible in the abstract. Then a local construction exists. |
+| Bajaj & Ihm 1992, "Smoothing polyhedra using implicit algebraic splines" | 1 per face | Implicit surfaces of degree up to 5. A ray vs degree 5 has no closed form. |
+| Bajaj et al., A-patches (cubic implicit patches) | 1 per face (triangle) | Degree 3, so a ray hit is a cubic, which has a closed form (Cardano). |
+| 2025, "What smooth surfaces can be constructed from total degree 2 splines?" (CAGD) | — | Warns that the least-degree Powell-Sabin polynomial construction already fails to give G1 surfaces on an octahedron. |
+
+What this means here, counted on our own quads (triangle-based methods need each quad cut into triangles first):
+
+- **Quadric pieces, split:** 2 or 4 triangles per quad × 6 (or 12) pieces each = 12 to 48 pieces per quad. Per pixel corner it stays 29 cycles, plus a cheap test to pick the piece. The fit cost scales with the piece count. The construction details need the Dahmen chapter.
+- **No-split quadrics:** the condition on the tangent planes is unknown. It might rule out our free vertex normals.
+- **One cubic implicit patch per face:** fewer pieces, and the ray hit is still closed form (Cardano), but each pixel corner costs more. Not counted yet.
+
 ## Prior art
 
-Collected from memory; not checked against the papers yet.
+Collected from memory at first. Step 7 checked the shared-edge part against abstracts and citing papers.
 
 | Piece | Status | Where it comes from |
 |---|---|---|
