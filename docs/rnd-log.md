@@ -419,6 +419,28 @@ Question: take (u, v) straight from the projected side arcs (option b), which is
 - The page shows a live FPS counter (frames drawn, plus the pixel pass time in JavaScript) and an auto orbit.
 - **Camera fix:** pages 01, 06 and 08 orbit the camera and turned the shape the wrong way on a sideways drag. Now dragging right turns the front to the right, as on the other pages.
 
+**13c. Whole mesh, with depth.** The edges decide which pieces contain a pixel and give its (u, v). Depth works as in step 11: each such piece shoots the pixel's ray at its own quadric, and the nearest wins and writes the occlusion map.
+- **Root choice:** of the quadric's two hits, take t = (−b − s·√D) / 2a with s = σ·f.
+  - σ: whether the quadric's gradient points outward at the piece centre (fixed per piece).
+  - f: whether the piece centre faces the camera (per frame).
+  - This is the "sign of ∇Q · ray" rule from step 12, problem 3.
+- **Check against step 11** (which piece wins each pixel), default camera, 200²:
+
+| Mesh | Same piece as step 11 | Different piece | Only step 11 covers | Only (b) covers |
+|---|---|---|---|---|
+| Smooth cube | 53.7% | 12,282 | 1,434 | 0 |
+| Rounded box | 99.3% | 130 | 3 | 0 |
+| Mixed cube | 93.8% | 705 | 442 | 440 |
+| Wave | 100% | 0 | 0 | 0 |
+
+- **Folds are the blocker.** A piece that curves past the silhouette projects its far edge back across its own visible part. Pixels the camera really sees on it then fall outside its edges and go to the piece behind.
+  - Each smooth-cube face is one piece spanning 90° of the sphere, so it folds at most views.
+  - The wave matches exactly at all 7 test angles when nothing folds; when parts fold, up to 173 pixels differ.
+- **Cost** (rounded box, 54 pieces, 200²):
+  - edge test 13 cycles per piece tested (2.27 per pixel);
+  - depth + (u, v) 12 cycles per piece whose edges contain the pixel (0.93 per pixel);
+  - about 20 cycles per pixel and 265 µs per frame at 3 GHz.
+
 ## Prior art
 
 Collected from memory at first. Step 7 checked the shared-edge part against abstracts and citing papers.

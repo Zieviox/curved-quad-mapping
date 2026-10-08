@@ -67,7 +67,8 @@ tr:last-child td{border-bottom:0}
 <ol class="steps">
   <li><b>Option (b):</b> each side arc of a piece is projected onto the screen, where it is a 2D conic K. Then <code>u = K3 / (K3 + K1)</code> and <code>v = K0 / (K0 + K2)</code>. Each K is scaled to 1 at the piece's projected centre, so the centre gets (0.5, 0.5).</li>
   <li><b>Two forms of K.</b> The projected arc is part of a whole ellipse. The <b>full conic</b> K is also 0 on the ellipse's other half, which can run back across the piece (smooth cube): then u drops to 0 in the wrong place. The <b>arc only</b> form is 0 on the arc alone, at the price of a square root per side.</li>
-  <li><b>Left:</b> what the camera sees, coloured by that screen (u, v). <b>Right:</b> the same quad from a second camera that stays put. Its surface is painted with the <i>left</i> camera's screen (u, v). The thin lines are the surface's own (u, v) from step 11.</li>
+  <li><b>Depth</b> as in step 11: every piece whose edges contain a pixel shoots that pixel's ray at its own quadric (one quadratic). The nearest wins and writes its normalized distance to the occlusion map. Of the quadric's two hits, the piece takes the one whose outward side faces the camera the way the piece does.</li>
+  <li><b>Left:</b> what the camera sees, the whole mesh, coloured by the screen (u, v). The chosen quad is in full colour. <b>Right:</b> the same mesh from a second camera that stays put, painted with the <i>left</i> camera's screen (u, v) wherever the left camera sees it. The thin lines are the chosen quad's own (u, v) from step 11.</li>
   <li><b>Drag the left view.</b> If the checker on the right moves across the thin lines, the (u, v) is sliding on the surface.</li>
   <li><span style="color:var(--good)">●</span> the surface point at the marker (u, v). <span style="color:var(--warn)">●</span> where the left camera's screen (u, v) says the marker is. The dotted path is the red dot for 25 camera angles around the quad.</li>
 </ol>
@@ -76,7 +77,8 @@ tr:last-child td{border-bottom:0}
   <div class="crow"><span class="clab">Mesh</span><div class="seg" id="g-mesh"><button data-v="0">Smooth cube</button><button data-v="1">Hard cube</button><button data-v="2">Mixed cube</button><button data-v="3">Wave</button></div></div>
   <div class="crow"><span class="clab">Quad</span><div class="seg" id="g-quad"></div></div>
   <div class="crow"><span class="clab">Side curve K</span><div class="seg" id="g-form"><button data-v="0">Arc only: b1 − 2w′√(b0·b2)</button><button data-v="1">Full conic: b1² − 4w′²·b0·b2</button></div></div>
-  <div class="crow"><span class="clab">Left view</span><div class="seg" id="g-mode"><button data-v="0">Screen (u, v): option b</button><button data-v="1">Surface (u, v): step 11</button></div></div>
+  <div class="crow"><span class="clab">Show</span><div class="seg" id="g-view"><button data-v="0">(u, v) checker</button><button data-v="1">Occlusion map (depth)</button><button data-v="2">Check against step 11</button></div></div>
+  <div class="crow"><span class="clab">(u, v) from</span><div class="seg" id="g-mode"><button data-v="0">Screen (u, v): option b</button><button data-v="1">Surface (u, v): step 11</button></div></div>
   <div class="crow"><span class="clab">Marker u</span><div class="slider"><input id="mu" type="range" min="0.02" max="0.98" step="0.01" aria-label="Marker u"><output id="muo"></output></div></div>
   <div class="crow"><span class="clab">Marker v</span><div class="slider"><input id="mv" type="range" min="0.02" max="0.98" step="0.01" aria-label="Marker v"><output id="mvo"></output></div></div>
   <div class="crow"><span class="clab">Resolution</span><div class="seg" id="g-res"><button data-v="100">100²</button><button data-v="200">200²</button><button data-v="400">400²</button><button data-v="800">800²</button></div></div>
@@ -85,9 +87,10 @@ tr:last-child td{border-bottom:0}
 
 <div class="main">
   <div class="view"><h2>Left: the moving camera</h2><div class="stage"><canvas id="cv" aria-label="What the moving camera sees. Drag to orbit."></canvas><div class="fps" id="fps"></div></div>
+    <div class="legend" id="lleg"></div>
     <p class="note" id="lnote">Each pixel's (u, v) is computed from the projected side arcs only. Drag to orbit.</p></div>
   <div class="view"><h2>Right: a fixed second camera</h2><canvas id="ov" aria-label="The same quad from a fixed camera, painted with the left camera's screen (u, v). Drag to orbit this view."></canvas>
-    <div class="legend"><span><span class="ln" style="background:var(--pin)"></span>Checker: the left camera's screen (u, v)</span><span><span class="ln" style="background:var(--fg)"></span>Thin lines: the surface's own (u, v)</span><span><span class="ln" style="background:var(--warn)"></span>Screen (u, v) outside 0…1: a projected side runs across it (fold)</span><span><span class="ln" style="background:var(--line)"></span>Turned away from the left camera</span></div>
+    <div class="legend"><span><span class="ln" style="background:var(--pin)"></span>Checker: the left camera's screen (u, v)</span><span><span class="ln" style="background:var(--fg)"></span>Thin lines: the surface's own (u, v)</span><span><span class="ln" style="background:var(--warn)"></span>Screen (u, v) outside 0…1: a projected side runs across it (fold)</span><span><span class="ln" style="background:var(--line)"></span>Not seen by the left camera (hidden by the depth test)</span></div>
     <p class="note">If the two agree, the checker squares sit exactly between the thin lines.</p></div>
 </div>
 
@@ -329,44 +332,59 @@ function landing(pc,S,cam,ut,vt){const F=(a,b)=>{const X=pc.eval(a,b);if(!X)retu
   const f=F(a,b);if(!f||Math.hypot(f[0],f[1])>1e-5)return null;return{a,b,X:pc.eval(a,b)}}
 
 // ---------------- state ----------------
-let st={mesh:0,quad:2,mode:0,form:0,res:200,mu:0.3,mv:0.65,cy:0,cp:0,oy:0,op:0,init:false},R=null;
+let st={mesh:0,quad:2,mode:0,form:0,view:0,res:200,mu:0.3,mv:0.65,cy:0,cp:0,oy:0,op:0,init:false},R=null;
 try{const s=JSON.parse(localStorage.getItem('uv8')||'null');if(s)Object.assign(st,s)}catch(e){}
 const save=()=>{try{localStorage.setItem('uv8',JSON.stringify(st))}catch(e){}};
 let CONV=null,CONVKEY='';
-function conv(){const k=String(st.mesh);if(CONVKEY!==k){CONV=PIECES.convert(PIECES.source(st.mesh),0.03,0);CONVKEY=k}return CONV}
-function quadInfo(){const C=conv(),q=PIECES.source(st.mesh)[st.quad],T=mul(q.x.reduce((s,p)=>add(s,p),[0,0,0]),0.25);let side=0;for(let i=0;i<4;i++)side=Math.max(side,len(sub(q.x[(i+1)%4],q.x[i])));
+function conv(){const k=String(st.mesh);if(CONVKEY!==k){CONV=PIECES.convert(PIECES.source(st.mesh),0.03,0);CONVKEY=k;
+  // per piece, fixed on the surface: its centre and outward direction, and σ = which way its quadric's gradient points (outward or inward)
+  CONV.pieces.forEach(pc=>{const X=pc.eval(0.5,0.5),n=norm(pc.N.reduce((s,p)=>add(s,norm(p)),[0,0,0]));pc.ctr=X;pc.out=n;pc.sigma=0;
+    if(X&&pc.geo){const G=pc.geo,L=mul(sub(X,G.c0),G.sc),gr=add(mul(G.Ax(L),2),G.g);pc.sigma=Math.sign(dot(gr,n))}})}return CONV}
+function quadInfo(){const C=conv(),src=PIECES.source(st.mesh),q=src[st.quad];let side=0;for(let i=0;i<4;i++)side=Math.max(side,len(sub(q.x[(i+1)%4],q.x[i])));
+  const all=src.flatMap(f=>f.x),ctr=mul(all.reduce((s,p)=>add(s,p),[0,0,0]),1/all.length);let rad=0;all.forEach(p=>rad=Math.max(rad,len(sub(p,ctr))));
   const n=norm(q.n.reduce((s,p)=>add(s,norm(p)),[0,0,0])),pcs=C.quads[st.quad].pieces;
-  // the marker lives on the inner piece (or the first piece)
-  const mk=pcs.find(p=>p.kind===0)||pcs[0];return{C,T,dist:2.1*side,yaw0:Math.atan2(n[0],-n[1]),pitch0:Math.max(-1.25,Math.min(1.25,Math.asin(Math.max(-1,Math.min(1,n[2]))))),pcs,mk,n}}
+  // the marker lives on the inner piece (or the first piece) of the chosen quad
+  const mk=pcs.find(p=>p.kind===0)||pcs[0];return{C,T:ctr,rad,dist:3.0*rad,EL:C.EL,yaw0:Math.atan2(n[0],-n[1]),pitch0:Math.max(-1.25,Math.min(1.25,Math.asin(Math.max(-1,Math.min(1,n[2]))))),pcs,mk,n}}
 function resetCams(Q){st.cy=Q.yaw0+0.75;st.cp=Math.max(-1.3,Math.min(1.3,Q.pitch0+0.3));st.oy=Q.yaw0-0.15;st.op=Math.max(-1.3,Math.min(1.3,Q.pitch0+0.2));st.init=true}
 
 // ---- the pixel pass, as the method would run it: per piece, per row, forward differences along the row ----
-// each side becomes: t0 straight (K affine), t1 arc only (b1 affine, q = c·b0·b2 quadratic, K = b1 − sg·√max(0,q)), t2 full conic (K quadratic)
+// edges: each side is t0 straight (K affine), t1 arc only (b1 affine, q = c·b0·b2 quadratic, K = b1 − sg·√max(0,q)), t2 full conic (K quadratic)
 function prep(S){return S.map(c=>{const s=c.s;if(!c.conic){const g=Kraw(c,0,0)*s;return{t:0,a:Kraw(c,1,0)*s-g,b:Kraw(c,0,1)*s-g,g}}
   const{p0,a,p2,D}=c,B=(x,y)=>[((a[0]-x)*(p2[1]-y)-(a[1]-y)*(p2[0]-x))/D,((x-p0[0])*(p2[1]-p0[1])-(y-p0[1])*(p2[0]-p0[0]))/D,((a[0]-p0[0])*(y-p0[1])-(a[1]-p0[1])*(x-p0[0]))/D],
     o=B(0,0),X=B(1,0),Y=B(0,1),aff=i=>[X[i]-o[i],Y[i]-o[i],o[i]];
   return st.form===1?{t:2,b0:aff(0),b1:aff(1),b2:aff(2),s,c:s*c.W4}:{t:1,b0:aff(0),b1:aff(1).map(v=>v*s),b2:aff(2),c:s*s*c.W4,sg:Math.sign(s)}})}
 const af=(f,x,y)=>f[0]*x+f[1]*y+f[2];
 const quadAt=(d,x,y)=>d.t===1?d.c*af(d.b0,x,y)*af(d.b2,x,y):d.s*af(d.b1,x,y)**2-d.c*af(d.b0,x,y)*af(d.b2,x,y);
-function pixelPass(P,W){const pid=new Int16Array(W*W).fill(-1),cnt=new Uint8Array(W*W),pu=new Float32Array(W*W),pv=new Float32Array(W*W);let tests=0,rows=0;
-  const L=P.map(e=>e.S&&e.box?prep(e.S):null),st4=[0,0,0,0].map(()=>({k:0,d:0,dd:0,b:0,db:0}));
+// depth: the pixel's ray against the piece's quadric, in the piece's local frame. a(x, y) = d·A·d is quadratic in the pixel, b = 2·o·A·d + g·d is affine, c = Q(o) is constant.
+// Of the two hits, the piece's own is the one where the outward normal faces the way the piece faces the camera:
+// t = (−b − s·√D) / 2a with s = σ·f (σ: the quadric's gradient points outward (+1) or inward (−1); f: the piece faces the camera (+1) or away (−1)).
+function depthPrep(pc,cam){const G=pc.geo;if(!G||!pc.ctr)return null;const o=mul(sub(cam.pos,G.c0),G.sc),f=dot(pc.out,sub(cam.pos,pc.ctr))>=0?1:-1;
+  const dir=(x,y)=>mul(rayDir(cam,x,y),G.sc),A=(x,y)=>{const d=dir(x,y);return dot(d,G.Ax(d))},B=(x,y)=>{const d=dir(x,y);return 2*dot(o,G.Ax(d))+dot(G.g,d)};
+  return{A,B,c:G.Qf(o),s:pc.sigma*f}}
+function pixelPass(P,cam,W,near,far){const N=W*W,pid=new Int16Array(N).fill(-1),pu=new Float32Array(N),pv=new Float32Array(N),zb=new Float32Array(N).fill(Infinity),cov=new Uint8Array(N),miss=new Uint8Array(N);
+  let tests=0,inside=0,rows=0;const L=P.map(e=>e.S&&e.box?prep(e.S):null),Z=P.map((e,i)=>L[i]?depthPrep(e.pc,cam):null),st4=[0,0,0,0].map(()=>({k:0,d:0,dd:0,b:0,db:0}));
   for(let y=0;y<W;y++){const sy=y+0.5;
-    for(let i=0;i<P.length;i++){const D=L[i];if(!D)continue;const bx=P[i].box;if(sy<bx[1]||sy>bx[3])continue;const x0=Math.max(0,Math.ceil(bx[0]-0.5)),x1=Math.min(W-1,Math.floor(bx[2]-0.5));if(x1<x0)continue;rows++;
-      // row start: each side's value and its differences at x0 + 0.5
+    for(let i=0;i<P.length;i++){const D=L[i],Zp=Z[i];if(!D)continue;const bx=P[i].box;if(sy<bx[1]||sy>bx[3])continue;const x0=Math.max(0,Math.ceil(bx[0]-0.5)),x1=Math.min(W-1,Math.floor(bx[2]-0.5));if(x1<x0)continue;rows++;
+      // row start: each side's value and its differences at x0 + 0.5; the same for the depth quadratic a and the affine b
       const sx=x0+0.5;for(let k=0;k<4;k++){const d=D[k],r=st4[k];r.dd=0;r.b=0;r.db=0;if(d.t===0){r.k=af([d.a,d.b,d.g],sx,sy);r.d=d.a}
         else{const q0=quadAt(d,sx,sy),q1=quadAt(d,sx+1,sy),q2=quadAt(d,sx+2,sy);r.k=q0;r.d=q1-q0;r.dd=q2-2*q1+q0;if(d.t===1){r.b=af(d.b1,sx,sy);r.db=d.b1[0]}}}
-      const t0=D[0].t,t1=D[1].t,t2=D[2].t,t3=D[3].t,r0=st4[0],r1=st4[1],r2=st4[2],r3=st4[3],g0=D[0].sg,g1=D[1].sg,g2=D[2].sg,g3=D[3].sg;
+      let za=0,zda=0,zdda=0,zb0=0,zdb=0;if(Zp){const a0=Zp.A(sx,sy),a1=Zp.A(sx+1,sy),a2=Zp.A(sx+2,sy);za=a0;zda=a1-a0;zdda=a2-2*a1+a0;zb0=Zp.B(sx,sy);zdb=Zp.B(sx+1,sy)-zb0}
+      const t0=D[0].t,t1=D[1].t,t2=D[2].t,t3=D[3].t,r0=st4[0],r1=st4[1],r2=st4[2],r3=st4[3],g0=D[0].sg,g1=D[1].sg,g2=D[2].sg,g3=D[3].sg,zc=Zp?Zp.c:0,zs=Zp?Zp.s:0;
       for(let x=x0;x<=x1;x++){tests++;
         const K0=t0===1?r0.b-g0*Math.sqrt(Math.max(0,r0.k)):r0.k,K1=t1===1?r1.b-g1*Math.sqrt(Math.max(0,r1.k)):r1.k,K2=t2===1?r2.b-g2*Math.sqrt(Math.max(0,r2.k)):r2.k,K3=t3===1?r3.b-g3*Math.sqrt(Math.max(0,r3.k)):r3.k;
-        if(Math.min(K0,K1,K2,K3)>=-1e-9){const o=y*W+x;if(cnt[o]++===0){pid[o]=i;pu[o]=K3/(K3+K1);pv[o]=K0/(K0+K2)}}
-        r0.k+=r0.d;r0.d+=r0.dd;r0.b+=r0.db;r1.k+=r1.d;r1.d+=r1.dd;r1.b+=r1.db;r2.k+=r2.d;r2.d+=r2.dd;r2.b+=r2.db;r3.k+=r3.d;r3.d+=r3.dd;r3.b+=r3.db}}}
-  let owned=0,twice=0;for(let o=0;o<W*W;o++){if(cnt[o])owned++;if(cnt[o]>1)twice++}
-  return{pid,pu,pv,owned,twice,tests,rows,L}}
-function rayPass(P,cam,W){const pid=new Int16Array(W*W).fill(-1),pu=new Float32Array(W*W),pv=new Float32Array(W*W);let owned=0,tests=0;
+        if(Math.min(K0,K1,K2,K3)>=-1e-9){const o=y*W+x;inside++;if(cov[o]<255)cov[o]++;
+          // depth (same relative tolerance on the discriminant as the conversion's own quadratic: a doubled plane touches the ray in one point)
+          let t=NaN;if(Zp){let Dd=zb0*zb0-4*za*zc;if(Dd<0&&Dd>-1e-9*(zb0*zb0+Math.abs(4*za*zc)+1e-30))Dd=0;if(Dd>=0)t=Math.abs(za)>1e-14?(-zb0-zs*Math.sqrt(Dd))/(2*za):-zc/zb0}
+          if(!(t>1e-6))miss[o]=1;else if(t<zb[o]){zb[o]=t;pid[o]=i;pu[o]=K3/(K3+K1);pv[o]=K0/(K0+K2)}}
+        r0.k+=r0.d;r0.d+=r0.dd;r0.b+=r0.db;r1.k+=r1.d;r1.d+=r1.dd;r1.b+=r1.db;r2.k+=r2.d;r2.d+=r2.dd;r2.b+=r2.db;r3.k+=r3.d;r3.d+=r3.dd;r3.b+=r3.db;za+=zda;zda+=zdda;zb0+=zdb}}}
+  // occlusion map: normalized distance (t − near)/(far − near) per pixel, 0 = nothing written
+  const occ=new Float32Array(N);let owned=0,deep=0,lost=0;for(let o=0;o<N;o++){if(pid[o]>=0){owned++;occ[o]=Math.max(1e-6,Math.min(1,(zb[o]-near)/(far-near)))}else if(miss[o])lost++;if(cov[o]>1)deep++}
+  return{pid,pu,pv,zb,occ,miss,owned,deep,lost,tests,inside,rows,L}}
+function rayPass(P,cam,W,near,far){const N=W*W,pid=new Int16Array(N).fill(-1),pu=new Float32Array(N),pv=new Float32Array(N),zb=new Float32Array(N).fill(Infinity),occ=new Float32Array(N);let owned=0,tests=0;
   for(let y=0;y<W;y++)for(let x=0;x<W;x++){const sx=x+0.5,sy=y+0.5,o=y*W+x;let best=null;const d=rayDir(cam,sx,sy);
     P.forEach((e,i)=>{if(!e.pc.geo||!e.pc.geo.pencil||!e.box||sx<e.box[0]||sx>e.box[2]||sy<e.box[1]||sy>e.box[3])return;tests++;const h=hitPiece(e.pc,cam,d);if(h&&(!best||h.t<best.t))best={...h,i}});
-    if(best){pid[o]=best.i;pu[o]=best.u;pv[o]=best.v;owned++}}
-  return{pid,pu,pv,owned,twice:0,tests,rows:0,L:null}}
+    if(best){pid[o]=best.i;pu[o]=best.u;pv[o]=best.v;zb[o]=best.t;occ[o]=Math.max(1e-6,Math.min(1,(best.t-near)/(far-near)));owned++}}
+  return{pid,pu,pv,zb,occ,miss:null,owned,deep:0,lost:0,tests,inside:0,rows:0,L:null}}
 
 // ---- cost model (Skylake float32, one core, throughput-bound): ALU ops 0.5 cycle, divider ops (DIV, SQRT) 3, compares 1 ----
 const OPN=['add','mul','fma','max','min','sqrt','div','cmp'];
@@ -375,32 +393,38 @@ const cyc=T=>Math.max(((T.add||0)+(T.mul||0)+(T.fma||0)+(T.max||0)+(T.min||0))*0
 const flops=T=>OPN.reduce((s,k)=>s+(T[k]||0)*(k==='fma'?2:1),0);
 const opStr=T=>OPN.filter(k=>T[k]).map(k=>(+T[k].toFixed(1))+' '+k.toUpperCase()).join(', ');
 const PIX={0:{add:1},1:{add:4,max:1,sqrt:1},2:{add:2}};                       // per side, per pixel: step the differences, then K
-const PIXQ={add:2,div:2,min:3,cmp:1};                                          // per pixel: u, v, inside test
+const PIXQ={min:3,cmp:1};                                                      // per pixel and piece: inside test (the depth differences, 3 ADD, are added with it)
+const PIXZ={add:3,mul:1,fma:3,sqrt:1,div:3,cmp:3};                             // per inside pixel: discriminant, root, depth test; u, v (2 ADD, 2 DIV); normalized distance (1 FMA)
 const ROW={0:{fma:2},1:{fma:8,mul:3,add:1},2:{fma:10,mul:4,add:2}};             // per side, per row start
-const ROWQ={cmp:2};
+const ROWQ={cmp:2,fma:12,mul:3,add:3};                                         // per piece, per row start: box clip; depth a (3 values) and b (2 values)
 const PROJ={add:5,mul:3,fma:6,div:1};                                          // one point onto the screen
 const FRAME={0:{add:4,mul:2,div:1},1:{add:8,mul:8,fma:6,sqrt:1,div:2},2:{add:8,mul:8,fma:6,sqrt:1,div:2}};
 const CENTRE={fma:12,add:8,mul:4,sqrt:4,div:4};                                  // the 4 K at the projected centre, and their scales
+const ZFRAME={add:10,mul:12,fma:40,cmp:1};                                     // camera into the piece's frame, A·d terms, c = Q(o), facing sign
 function costOf(R){const T={pix:{},row:{},frame:{}},F=R.F;if(!F.L)return null;
-  R.P.forEach((e,i)=>{const D=F.L[i];if(!D)return;const n=R.pixTests[i]||0,r=R.rowCount[i]||0;D.forEach(d=>{addOps(T.pix,PIX[d.t],n);addOps(T.row,ROW[d.t],r);addOps(T.frame,FRAME[d.t])});addOps(T.pix,PIXQ,n);addOps(T.row,ROWQ,r);
-    const curved=D.filter(d=>d.t).length;addOps(T.frame,PROJ,4+curved+1);addOps(T.frame,CENTRE)});
-  return T}
+  R.P.forEach((e,i)=>{const D=F.L[i];if(!D)return;const n=R.pixTests[i]||0,r=R.rowCount[i]||0;D.forEach(d=>{addOps(T.pix,PIX[d.t],n);addOps(T.row,ROW[d.t],r);addOps(T.frame,FRAME[d.t])});addOps(T.pix,PIXQ,n);addOps(T.pix,{add:3},n);addOps(T.row,ROWQ,r);
+    const curved=D.filter(d=>d.t).length;addOps(T.frame,PROJ,4+curved+1);addOps(T.frame,CENTRE);addOps(T.frame,ZFRAME)});
+  addOps(T.pix,PIXZ,F.inside);return T}
 
 function run(fast){try{const Q=quadInfo();if(!st.init)resetCams(Q);const W=st.res,tf0=performance.now();
-  const cam=makeCam(W,Q.T,st.cy,st.cp,Q.dist),EL=Q.C.EL;
-  const P=Q.pcs.map(pc=>{const S=screenSetup(pc,cam);let box=null;if(S){let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;for(let j=0;j<=10;j++)for(let i=0;i<=10;i++){const X=pc.eval(i/10,j/10);if(!X)continue;const p=project(cam,X);if(p[2]<=0)continue;x0=Math.min(x0,p[0]);y0=Math.min(y0,p[1]);x1=Math.max(x1,p[0]);y1=Math.max(y1,p[1])}if(x1>=x0)box=[x0-2,y0-2,x1+2,y1+2]}return{pc,S,box}});
-  const tp0=performance.now(),F=st.mode===0?pixelPass(P,W):rayPass(P,cam,W),tp1=performance.now();
+  const cam=makeCam(W,Q.T,st.cy,st.cp,Q.dist),EL=Q.EL,near=Q.dist-1.35*Q.rad,far=Q.dist+1.35*Q.rad;
+  const P=Q.C.pieces.map(pc=>{const S=screenSetup(pc,cam);let box=null;if(S){let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;for(let j=0;j<=10;j++)for(let i=0;i<=10;i++){const X=pc.eval(i/10,j/10);if(!X)continue;const p=project(cam,X);if(p[2]<=0)continue;x0=Math.min(x0,p[0]);y0=Math.min(y0,p[1]);x1=Math.max(x1,p[0]);y1=Math.max(y1,p[1])}if(x1>=x0)box=[x0-2,y0-2,x1+2,y1+2]}return{pc,S,box,sel:pc.qi===st.quad}});
+  const tp0=performance.now(),F=st.mode===0?pixelPass(P,cam,W,near,far):rayPass(P,cam,W,near,far),tp1=performance.now();
   // per piece: pixels tested and row starts (for the cost model; same loops as the pass, counting only)
   const pixTests=[],rowCount=[];if(F.L)P.forEach((e,i)=>{if(!F.L[i])return;let n=0,r=0;for(let y=0;y<W;y++){const sy=y+0.5;if(sy<e.box[1]||sy>e.box[3])continue;const x0=Math.max(0,Math.ceil(e.box[0]-0.5)),x1=Math.min(W-1,Math.floor(e.box[2]-0.5));if(x1<x0)continue;r++;n+=x1-x0+1}pixTests[i]=n;rowCount[i]=r});
-  const {pid,pu,pv,twice,owned}=F;
-  // slide over the quad
-  let smax=0,ssum=0,sn=0,uvmax=0,back=0,tot=0;P.forEach(e=>{if(!e.S)return;for(let j=1;j<10;j++)for(let i=1;i<10;i++){const u=i/10,v=j/10,X=e.pc.eval(u,v);if(!X)continue;tot++;if(!faces(e.pc,u,v,cam)){back++;continue}const p=project(cam,X);const r=suv(e.S,p[0],p[1]);
+  // a surface point is seen by the left camera when its pixel (or a 4-neighbour, for pixels on a seam) went to its own piece in the depth test
+  const seen=(i,X)=>{const p=project(cam,X);if(p[2]<=0)return false;const x=Math.floor(p[0]),y=Math.floor(p[1]);for(const[dx,dy]of[[0,0],[1,0],[-1,0],[0,1],[0,-1]]){const X2=x+dx,Y2=y+dy;if(X2>=0&&Y2>=0&&X2<W&&Y2<W&&F.pid[Y2*W+X2]===i)return true}return false};
+  // slide over the chosen quad
+  let smax=0,ssum=0,sn=0,uvmax=0,hid=0,tot=0;P.forEach((e,i)=>{if(!e.sel||!e.S)return;for(let j=1;j<10;j++)for(let k=1;k<10;k++){const u=k/10,v=j/10,X=e.pc.eval(u,v);if(!X)continue;tot++;if(!seen(i,X)){hid++;continue}const p=project(cam,X);const r=suv(e.S,p[0],p[1]);
     const X2=e.pc.eval(clamp01(r.u),clamp01(r.v));if(!X2)continue;const d=len(sub(X2,X))/EL;smax=Math.max(smax,d);ssum+=d;sn++;uvmax=Math.max(uvmax,Math.abs(clamp01(r.u)-u),Math.abs(clamp01(r.v)-v))}});
   // marker and its trail
-  const mi=Q.pcs.indexOf(Q.mk),G=Q.mk.eval(st.mu,st.mv),Sm=P[mi].S,land=Sm&&faces(Q.mk,st.mu,st.mv,cam)?landing(Q.mk,Sm,cam,st.mu,st.mv):null;
+  const mi=P.findIndex(e=>e.pc===Q.mk),G=Q.mk.eval(st.mu,st.mv),Sm=P[mi].S,land=Sm&&G&&seen(mi,G)?landing(Q.mk,Sm,cam,st.mu,st.mv):null;
   const tkey=[st.mesh,st.quad,st.cp,st.mu,st.mv,st.form].join('|');let trail=TRAIL.key===tkey?TRAIL.trail:null;if(!trail){trail=[];for(let k=0;k<=24;k++){const yaw=Q.yaw0-1.2+2.4*k/24,c=makeCam(W,Q.T,yaw,st.cp,Q.dist);if(!faces(Q.mk,st.mu,st.mv,c)){trail.push(null);continue}const S=screenSetup(Q.mk,c),l=S?landing(Q.mk,S,c,st.mu,st.mv):null;trail.push(l?l.X:null)}TRAIL={key:tkey,trail}}
-  let tlen=0,tspan=0;const tv=trail.filter(Boolean);for(let i=1;i<trail.length;i++)if(trail[i]&&trail[i-1])tlen+=len(sub(trail[i],trail[i-1]));tv.forEach(a=>tv.forEach(b=>tspan=Math.max(tspan,len(sub(a,b)))));
-  R={Q,cam,W,F,pixTests,rowCount,passMs:tp1-tp0,P,pid,pu,pv,twice,owned,smax,smean:sn?ssum/sn:0,uvmax,back,tot,G,land,trail,tspan,EL,noScreen:P.filter(e=>!e.S).length};
+  let tspan=0;const tv=trail.filter(Boolean);tv.forEach(a=>tv.forEach(b=>tspan=Math.max(tspan,len(sub(a,b)))));
+  // check: the same pixels through the step 11 ray pass (the surface's own pieces, exact hits); only when that view is open
+  let CMP=null;if(st.view===2&&st.mode===0){const B=rayPass(P,cam,W,near,far),N=W*W,cls=new Uint8Array(N);let same=0,other=0,onlyB=0,onlyA=0;
+    for(let o=0;o<N;o++){const a=F.pid[o],b=B.pid[o];if(a>=0&&b>=0){if(a===b){cls[o]=1;same++}else{cls[o]=2;other++}}else if(b>=0){cls[o]=3;onlyB++}else if(a>=0){cls[o]=4;onlyA++}}CMP={cls,same,other,onlyB,onlyA}}
+  R={Q,cam,W,F,CMP,near,far,pixTests,rowCount,passMs:tp1-tp0,P,seen,pid:F.pid,pu:F.pu,pv:F.pv,smax,smean:sn?ssum/sn:0,uvmax,hid,tot,G,land,trail,tspan,EL,noScreen:P.filter(e=>e.sel&&!e.S).length};
   drawAll();R.frameMs=performance.now()-tf0;tick();checks()}catch(e){log('ERROR '+(e.stack||e),true)}}
 let TRAIL={key:''};
 // FPS: frames actually drawn in the last second (they only happen while something moves: drag, auto orbit, sliders)
@@ -414,51 +438,56 @@ const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),ov=document.getEl
 function readC(){const g=getComputedStyle(document.documentElement);['fg','muted','line','surface','pin','pst','pco','good','warn','accent'].forEach(k=>C[k]=g.getPropertyValue('--'+k).trim())}
 const rgb=h=>{h=h.replace('#','');return[0,2,4].map(i=>parseInt(h.slice(i,i+2),16))};
 const mix=(a,b,t)=>a.map((x,i)=>Math.round(x*(1-t)+b[i]*t));
-function uvColour(kind,u,v){if(!(u>=-1e-6&&u<=1+1e-6&&v>=-1e-6&&v<=1+1e-6))return rgb(C.warn);const base=rgb([C.pin,C.pst,C.pco][kind]||C.pin),odd=(Math.floor(clamp01(u)*CHK-1e-9)+Math.floor(clamp01(v)*CHK-1e-9))&1;return odd?mix(base,rgb(C.fg),0.42):base}
+// the chosen quad in full colour, the rest of the mesh faded toward the background
+function uvColour(kind,u,v,sel){if(!(u>=-1e-6&&u<=1+1e-6&&v>=-1e-6&&v<=1+1e-6))return rgb(C.warn);const base=rgb([C.pin,C.pst,C.pco][kind]||C.pin),odd=(Math.floor(clamp01(u)*CHK-1e-9)+Math.floor(clamp01(v)*CHK-1e-9))&1,c=odd?mix(base,rgb(C.fg),0.42):base;return sel===false?mix(c,rgb(C.surface),0.55):c}
 function sizeCanvas(c){const r=c.getBoundingClientRect(),d=Math.min(2,window.devicePixelRatio||1),w=Math.max(200,Math.round(r.width*d));if(c.width!==w){c.width=w;c.height=w}return w}
 function dot2(g,p,r,col,ring){g.beginPath();g.arc(p[0],p[1],r,0,7);g.fillStyle=col;g.fill();if(ring){g.lineWidth=2;g.strokeStyle=C.surface;g.stroke()}}
-function drawLeft(){const W=R.W,D=sizeCanvas(cv),{pid,pu,pv,P}=R;off.width=W;off.height=W;const o=off.getContext('2d'),im=o.createImageData(W,W),d=im.data,bg=rgb(C.surface);
-  for(let i=0;i<W*W;i++){const c=pid[i]<0?bg:uvColour(P[pid[i]].pc.kind,pu[i],pv[i]);d[4*i]=c[0];d[4*i+1]=c[1];d[4*i+2]=c[2];d[4*i+3]=255}o.putImageData(im,0,0);
-  ctx.imageSmoothingEnabled=false;ctx.clearRect(0,0,D,D);ctx.drawImage(off,0,0,D,D);const s=D/W,pr=X=>{const p=project(R.cam,X);return p[2]>0?[p[0]*s,p[1]*s]:null};
+function drawLeft(){const W=R.W,D=sizeCanvas(cv),{pid,pu,pv,P,F}=R;off.width=W;off.height=W;const o=off.getContext('2d'),im=o.createImageData(W,W),d=im.data,bg=rgb(C.surface),fg=rgb(C.fg),warn=rgb(C.warn);
+  const cmpc=[bg,mix(fg,bg,0.78),warn,rgb(C.accent),rgb(C.good)];for(let i=0;i<W*W;i++){let c;if(st.view===2&&R.CMP)c=cmpc[R.CMP.cls[i]];else if(st.view===1)c=F.occ[i]>0?mix(fg,bg,F.occ[i]):(F.miss&&F.miss[i]?warn:bg);else c=pid[i]<0?(F.miss&&F.miss[i]?warn:bg):uvColour(P[pid[i]].pc.kind,pu[i],pv[i],P[pid[i]].sel);d[4*i]=c[0];d[4*i+1]=c[1];d[4*i+2]=c[2];d[4*i+3]=255}o.putImageData(im,0,0);
+  ctx.imageSmoothingEnabled=false;ctx.clearRect(0,0,D,D);ctx.drawImage(off,0,0,D,D);if(st.view!==0)return;const s=D/W,pr=X=>{const p=project(R.cam,X);return p[2]>0?[p[0]*s,p[1]*s]:null};
   const g=R.G&&pr(R.G),l=R.land&&pr(R.land.X);if(g&&l){ctx.beginPath();ctx.moveTo(g[0],g[1]);ctx.lineTo(l[0],l[1]);ctx.lineWidth=2;ctx.strokeStyle=C.fg;ctx.stroke()}
-  if(g)dot2(ctx,g,Math.max(5,D/70),C.good,true);if(l)dot2(ctx,l,Math.max(5,D/70),C.warn,true)}
-function drawRight(){const D=sizeCanvas(ov),{Q}=R,oc=makeCam(D,Q.T,st.oy,st.op,Q.dist*1.05),cells=[],N=18;otx.clearRect(0,0,D,D);
-  R.P.forEach(e=>{const pc=e.pc,grid=[];for(let j=0;j<=N;j++)for(let i=0;i<=N;i++){const X=pc.eval(i/N,j/N);grid.push(X?project(oc,X):null)}
+  if(g&&R.land)dot2(ctx,g,Math.max(5,D/70),C.good,true);if(l)dot2(ctx,l,Math.max(5,D/70),C.warn,true)}
+function drawRight(){const D=sizeCanvas(ov),{Q}=R,oc=makeCam(D,Q.T,st.oy,st.op,Q.dist*1.05),cells=[];otx.clearRect(0,0,D,D);
+  R.P.forEach((e,pi)=>{const pc=e.pc,N=e.sel?18:8,grid=[];for(let j=0;j<=N;j++)for(let i=0;i<=N;i++){const X=pc.eval(i/N,j/N);grid.push(X?project(oc,X):null)}
     for(let j=0;j<N;j++)for(let i=0;i<N;i++){const a=grid[j*(N+1)+i],b=grid[j*(N+1)+i+1],c=grid[(j+1)*(N+1)+i+1],d=grid[(j+1)*(N+1)+i];if(!a||!b||!c||!d||a[2]<=0||b[2]<=0||c[2]<=0||d[2]<=0)continue;
-      let col=rgb(C.line);if(e.S&&faces(pc,(i+0.5)/N,(j+0.5)/N,R.cam)){const p=project(R.cam,pc.eval((i+0.5)/N,(j+0.5)/N));if(p[2]>0){const r=suv(e.S,p[0],p[1]);col=uvColour(pc.kind,r.u,r.v)}}   // grey: turned away from the left camera, so it has no pixel there
+      // the left camera's screen (u, v) where the left camera sees this point; grey where it doesn't (hidden by the depth test or off screen)
+      let col=mix(rgb(C.line),rgb(C.surface),e.sel?0:0.4);const X=pc.eval((i+0.5)/N,(j+0.5)/N);if(e.S&&X&&R.seen(pi,X)){const p=project(R.cam,X),r=suv(e.S,p[0],p[1]);col=uvColour(pc.kind,r.u,r.v,e.sel)}
       cells.push({z:(a[2]+b[2]+c[2]+d[2])/4,q:[a,b,c,d],col})}});
   cells.sort((x,y)=>y.z-x.z).forEach(c=>{otx.beginPath();c.q.forEach((p,k)=>k?otx.lineTo(p[0],p[1]):otx.moveTo(p[0],p[1]));otx.closePath();const f='rgb('+c.col.join(',')+')';otx.fillStyle=f;otx.fill();otx.lineWidth=0.8;otx.strokeStyle=f;otx.stroke()});
-  // the surface's own (u, v) lines, and each piece's border
+  // the chosen quad: the surface's own (u, v) lines and each piece's border (drawn over everything, so they also show through where the quad is hidden)
   const pr=X=>{if(!X)return null;const p=project(oc,X);return p[2]>0?p:null},line=(pts,w,col,dash)=>{otx.beginPath();let on=false;pts.forEach(p=>{if(!p){on=false;return}if(on)otx.lineTo(p[0],p[1]);else{otx.moveTo(p[0],p[1]);on=true}});otx.lineWidth=w;otx.strokeStyle=col;otx.setLineDash(dash||[]);otx.stroke();otx.setLineDash([])};
-  const lw=Math.max(1,D/500);otx.globalAlpha=0.75;R.P.forEach(e=>{const pc=e.pc;for(let k=1;k<CHK;k++){const A=[],B=[];for(let t=0;t<=40;t++){A.push(pr(pc.eval(k/CHK,t/40)));B.push(pr(pc.eval(t/40,k/CHK)))}line(A,lw,C.fg);line(B,lw,C.fg)}});otx.globalAlpha=1;
-  R.P.forEach(e=>{const pc=e.pc,pts=[];for(let t=0;t<=160;t++){const s=t/40,k=Math.floor(Math.min(3.999,s)),f=s-k;pts.push(pr(k===0?pc.eval(f,0):k===1?pc.eval(1,f):k===2?pc.eval(1-f,1):pc.eval(0,1-f)))}line(pts,lw*2,C.fg)});
+  const lw=Math.max(1,D/500);otx.globalAlpha=0.75;R.P.forEach(e=>{if(!e.sel)return;const pc=e.pc;for(let k=1;k<CHK;k++){const A=[],B=[];for(let t=0;t<=40;t++){A.push(pr(pc.eval(k/CHK,t/40)));B.push(pr(pc.eval(t/40,k/CHK)))}line(A,lw,C.fg);line(B,lw,C.fg)}});otx.globalAlpha=1;
+  R.P.forEach(e=>{if(!e.sel)return;const pc=e.pc,pts=[];for(let t=0;t<=160;t++){const s=t/40,k=Math.floor(Math.min(3.999,s)),f=s-k;pts.push(pr(k===0?pc.eval(f,0):k===1?pc.eval(1,f):k===2?pc.eval(1-f,1):pc.eval(0,1-f)))}line(pts,lw*2,C.fg)});
   // trail, marker, landing
   line(R.trail.map(pr),lw*2.2,C.warn,[lw*4,lw*4]);R.trail.forEach(X=>{const p=pr(X);if(p)dot2(otx,p,lw*2.4,C.warn)});
   const g=pr(R.G),l=R.land&&pr(R.land.X);if(g&&l)line([g,l],lw*2.5,C.fg);if(g)dot2(otx,g,Math.max(6,D/60),C.good,true);if(l)dot2(otx,l,Math.max(6,D/60),C.warn,true);
-  // where the left camera is: an arrow from the quad toward it
-  const a0=pr(R.Q.T),a1=pr(add(R.Q.T,mul(norm(sub(R.cam.pos,R.Q.T)),R.Q.dist*0.22)));if(a0&&a1){line([a0,a1],lw*2,C.accent);dot2(otx,a1,lw*4,C.accent);otx.fillStyle=C.accent;otx.font=(12*D/480).toFixed(0)+'px '+getComputedStyle(document.body).fontFamily;otx.fillText('left camera',a1[0]+lw*6,a1[1])}}
+  // where the left camera is: an arrow from the chosen quad toward it
+  const qc=Q.mk.ctr||Q.T,a0=pr(qc),a1=pr(add(qc,mul(norm(sub(R.cam.pos,qc)),Q.dist*0.18)));if(a0&&a1){line([a0,a1],lw*2,C.accent);dot2(otx,a1,lw*4,C.accent);otx.fillStyle=C.accent;otx.font=(12*D/480).toFixed(0)+'px '+getComputedStyle(document.body).fontFamily;otx.fillText('left camera',a1[0]+lw*6,a1[1])}}
 function drawAll(){if(!R)return;drawLeft();drawRight()}
 const pct=x=>(x*100).toFixed(x<0.001?3:x<0.1?2:1)+'%';
-function checks(){const r=R,rows=[];const mk=r.land?len(sub(r.land.X,r.G))/r.EL:null;
-  rows.push(['Slide at the marker (green → red)',mk==null?'— (marker faces away or no solution)':pct(mk)]);
-  rows.push(['Largest slide over the quad, this camera',pct(r.smax)]);rows.push(['Average slide over the quad, this camera',pct(r.smean)]);
+function checks(){const r=R,rows=[],f=x=>x.toLocaleString('en-US');const mk=r.land?len(sub(r.land.X,r.G))/r.EL:null;
+  rows.push(['Slide at the marker (green → red)',mk==null?'— (the left camera doesn’t see the marker)':pct(mk)]);
+  rows.push(['Largest slide over the chosen quad, this camera',pct(r.smax)]);rows.push(['Average slide over the chosen quad, this camera',pct(r.smean)]);
   rows.push(['Largest (u, v) error, this camera',r.uvmax.toFixed(4)]);
   rows.push(['Marker path over 25 camera angles (widest span)',pct(r.tspan/r.EL)]);
-  rows.push(['Part of the quad turned away from the left camera',pct(r.tot?r.back/r.tot:0)]);
-  if(st.mode===0)rows.push(['Pixels claimed by two pieces (fold)',r.twice.toLocaleString('en-US')+' of '+r.owned.toLocaleString('en-US')]);
-  if(r.noScreen)rows.push(['Pieces with no screen picture (behind the camera)',String(r.noScreen)]);
-  rows.push(['Pieces in this quad',String(r.P.length)]);
+  rows.push(['Part of the chosen quad the left camera doesn’t see',pct(r.tot?r.hid/r.tot:0)]);
+  rows.push(['Pixels covered',f(r.F.owned)+' of '+f(r.W*r.W)]);
+  if(st.mode===0){rows.push(['Pixels inside 2 or more pieces’ edges (decided by depth)',f(r.F.deep)]);rows.push(['Pixels inside a piece’s edges whose ray misses its quadric, and nothing else covers',f(r.F.lost)])}
+  if(r.CMP){const c=r.CMP,tot=c.same+c.other+c.onlyB+c.onlyA;rows.push(['Check against step 11: same piece',f(c.same)+' ('+pct(tot?c.same/tot:0)+')']);rows.push(['Check: a different piece wins (fold or crack)',f(c.other)]);rows.push(['Check: step 11 covers, option b doesn’t',f(c.onlyB)]);rows.push(['Check: option b covers, step 11 doesn’t',f(c.onlyA)])}
+  if(r.noScreen)rows.push(['Pieces of the chosen quad with no screen edges this frame',String(r.noScreen)]);
+  rows.push(['Pieces in the mesh / in the chosen quad',r.P.length+' / '+r.P.filter(e=>e.sel).length]);
   costTable();
   document.getElementById('checks').innerHTML=rows.map(([a,b])=>'<tr><td>'+a+'</td><td class="n">'+b+'</td></tr>').join('');
-  document.getElementById('lnote').textContent=st.mode===0?'Each pixel’s (u, v) is computed from the projected side arcs only. Drag to orbit.':'Each pixel’s (u, v) comes from the ray hitting the piece’s surface (step 11). Drag to orbit.'}
-
+  const LG={0:[['var(--pin)','Chosen quad (full colour); the rest of the mesh faded'],['var(--warn)','(u, v) outside 0…1, or inside the edges but the ray misses the quadric']],1:[['var(--fg)','Near (normalized distance → 0)'],['var(--surface)','Far, or nothing written (0)'],['var(--warn)','Inside the edges but the ray misses the quadric']],2:[['color-mix(in srgb, var(--fg) 22%, var(--surface))','Same piece as step 11'],['var(--warn)','A different piece wins'],['var(--accent)','Only step 11 covers it'],['var(--good)','Only option b covers it']]}[st.view];
+  document.getElementById('lleg').innerHTML=st.mode===0||st.view===1?LG.map(([c,t])=>'<span><span class="ln" style="background:'+c+'"></span>'+t+'</span>').join(''):'';
+  document.getElementById('lnote').textContent=st.mode===0?'Edges: which piece covers a pixel, and its (u, v). Depth: the pixel’s ray against that piece’s quadric; nearest wins. Drag to orbit.':'Each pixel’s (u, v) and depth come from the ray hitting the piece’s surface (step 11). Drag to orbit.'}
 function costTable(){const el=document.getElementById('cost'),r=R,f=x=>x.toLocaleString('en-US',{maximumFractionDigits:x<10?1:0}),row=(a,T,n)=>'<tr><td>'+a+'</td><td>'+opStr(T)+'</td><td class="n">'+f(flops(T)*(n||1))+'</td><td class="n">'+f(cyc(T)*(n||1))+'</td></tr>';
   if(st.mode!==0){el.innerHTML='<tr><td colspan="4">Surface (u, v) is the step 11 ray pass: its cost model is on the step 11 page (about 15 cycles per piece tested). Measured here: '+r.passMs.toFixed(2)+' ms for '+f(r.F.tests)+' piece tests.</td></tr>';return}
-  const T=costOf(r);if(!T){el.innerHTML='';return}const one=t=>{const o={};[0,1,2,3].forEach(()=>addOps(o,PIX[t]));return addOps(o,PIXQ)},oneRow=t=>{const o={};[0,1,2,3].forEach(()=>addOps(o,ROW[t]));return addOps(o,ROWQ)},oneFrame=t=>{const o={};[0,1,2,3].forEach(()=>addOps(o,FRAME[t]));addOps(o,PROJ,t?9:5);return addOps(o,CENTRE)};
-  const ct=st.form===1?2:1,tot={};addOps(tot,T.pix);addOps(tot,T.row);addOps(tot,T.frame);const cycles=cyc(T.pix)+cyc(T.row)+cyc(T.frame),us=cycles/3000;
-  el.innerHTML=row('One pixel vs one piece, 4 curved sides',one(ct))+row('One pixel vs one piece, 4 straight sides',one(0))+row('Row start, per piece (4 curved sides)',oneRow(ct))+row('Frame setup, per piece (4 curved sides)',oneFrame(ct))
-    +'<tr><td colspan="4" style="color:var(--muted)">This frame: '+f(r.W*r.W)+' pixels, '+f(r.F.tests)+' pixel–piece tests ('+(r.F.tests/(r.W*r.W)).toFixed(2)+' per pixel), '+f(r.F.rows)+' row starts, '+(n=>n+(n===1?' piece':' pieces'))(r.P.filter(e=>e.S).length)+'</td></tr>'
-    +row('All pixel tests',T.pix)+row('All row starts',T.row)+row('All frame setup',T.frame)
+  const T=costOf(r);if(!T){el.innerHTML='';return}const sides=(t,o0)=>{const o={};[0,1,2,3].forEach(()=>addOps(o,o0[t]));return o},one=t=>addOps(addOps(sides(t,PIX),PIXQ),{add:3}),oneRow=t=>addOps(sides(t,ROW),ROWQ),oneFrame=t=>{const o=sides(t,FRAME);addOps(o,PROJ,t?9:5);addOps(o,CENTRE);return addOps(o,ZFRAME)};
+  const ct=st.form===1?2:1,tot={};addOps(tot,T.pix);addOps(tot,T.row);addOps(tot,T.frame);const cycles=cyc(T.pix)+cyc(T.row)+cyc(T.frame),us=cycles/3000,np=r.P.filter(e=>e.S).length;
+  el.innerHTML=row('Edge test: one pixel vs one piece, 4 curved sides',one(ct))+row('Edge test: one pixel vs one piece, 4 straight sides',one(0))+row('Depth + (u, v): one pixel inside a piece',PIXZ)+row('Row start, per piece (4 curved sides)',oneRow(ct))+row('Frame setup, per piece (4 curved sides)',oneFrame(ct))
+    +'<tr><td colspan="4" style="color:var(--muted)">This frame: '+f(r.W*r.W)+' pixels, '+f(r.F.tests)+' edge tests ('+(r.F.tests/(r.W*r.W)).toFixed(2)+' per pixel), '+f(r.F.inside)+' depth tests ('+(r.F.inside/(r.W*r.W)).toFixed(2)+' per pixel), '+f(r.F.rows)+' row starts, '+np+(np===1?' piece':' pieces')+'</td></tr>'
+    +row('All pixel work',T.pix)+row('All row starts',T.row)+row('All frame setup',T.frame)
     +'<tr><td><b>Frame total</b></td><td>'+f(cycles/(r.W*r.W))+' cycles per pixel</td><td class="n">'+f(flops(tot))+'</td><td class="n">'+f(cycles)+'</td></tr>'
     +'<tr><td>Model at 3 GHz, one core</td><td>'+us.toFixed(1)+' µs per frame</td><td class="n"></td><td class="n">'+f(1e6/us)+' FPS</td></tr>'
     +'<tr><td>Measured here (JavaScript)</td><td>pixel pass '+r.passMs.toFixed(2)+' ms</td><td class="n"></td><td class="n">'+f(1000/Math.max(r.passMs,1e-3))+' /s</td></tr>'}
@@ -466,7 +495,7 @@ function costTable(){const el=document.getElementById('cost'),r=R,f=x=>x.toLocal
 // ---------------- controls ----------------
 function quadButtons(){const n=PIECES.source(st.mesh).length,g=document.getElementById('g-quad');if(st.quad>=n)st.quad=0;g.innerHTML=[...Array(n).keys()].map(i=>'<button data-v="'+i+'"'+(i===st.quad?' class="on"':'')+'>'+i+'</button>').join('');[...g.querySelectorAll('button')].forEach(b=>b.onclick=()=>{st.quad=+b.dataset.v;st.init=false;save();quadButtons();run()})}
 function seg(id,k,after){const g=document.getElementById(id),bs=[...g.querySelectorAll('button')],sync=()=>bs.forEach(b=>b.classList.toggle('on',String(st[k])===b.dataset.v));bs.forEach(b=>b.onclick=()=>{st[k]=+b.dataset.v;sync();if(after)after();save();run()});sync()}
-seg('g-mesh','mesh',()=>{st.quad=st.mesh===3?1:2;st.init=false;quadButtons()});seg('g-mode','mode');seg('g-form','form');seg('g-res','res');quadButtons();
+seg('g-mesh','mesh',()=>{st.quad=st.mesh===3?1:2;st.init=false;quadButtons()});seg('g-mode','mode');seg('g-form','form');seg('g-res','res');seg('g-view','view');quadButtons();
 [['mu','muo'],['mv','mvo']].forEach(([id,oid])=>{const i=document.getElementById(id),o=document.getElementById(oid);i.value=st[id];o.textContent=(+st[id]).toFixed(2);let t=0;i.addEventListener('input',()=>{st[id]=+i.value;o.textContent=st[id].toFixed(2);save();cancelAnimationFrame(t);t=requestAnimationFrame(run)})});
 document.getElementById('reset').onclick=()=>{st.init=false;save();run()};
 document.getElementById('face').onclick=()=>{const Q=quadInfo();st.cy=Q.yaw0;st.cp=Q.pitch0;save();run()};
