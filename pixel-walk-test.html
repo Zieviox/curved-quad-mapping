@@ -1,0 +1,357 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Pixel Walk Test</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: phone-first single column — controls, summary, pixel map, inspector, tables, report. Two columns from 860px. Same tokens as curved-quad-lab.html. */
+:root{
+  --bg:#eef1f4;--surface:#ffffff;--fg:#151a21;--muted:#59626f;--line:#d6dce3;--accent:#2d56d2;--warn:#c8321f;--good:#1b7a52;--flag:#c98a12;
+  --q0:#1D9E75;--q1:#7F77DD;--q2:#D85A30;--q3:#D4537E;--q4:#3A86C8;--q5:#A8841A;--q6:#5D8F2F;--q7:#8A5BB0;
+  --f-display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
+  --f-body:"IBM Plex Sans",ui-sans-serif,system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0e1115;--surface:#161a20;--fg:#e4e8ee;--muted:#98a1ae;--line:#2a313a;--accent:#7f9cff;--warn:#ff5f4a;--good:#5fd0a0;--flag:#f0b53c;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0e1115;--surface:#161a20;--fg:#e4e8ee;--muted:#98a1ae;--line:#2a313a;--accent:#7f9cff;--warn:#ff5f4a;--good:#5fd0a0;--flag:#f0b53c;color-scheme:dark}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:15px;line-height:1.55}
+.wrap{max-width:1100px;margin:0 auto;padding-inline:16px;padding-block:22px 56px;display:flex;flex-direction:column;gap:28px}
+h1{font-family:var(--f-display);font-weight:700;font-size:clamp(26px,5vw,36px);line-height:1.1;margin:0;letter-spacing:-.01em;text-wrap:balance}
+h2{font-family:var(--f-display);font-weight:600;font-size:20px;margin:0;text-wrap:balance}
+p{margin:0;max-width:68ch}
+.lede{color:var(--muted);margin-top:8px}
+.eyebrow{font-family:var(--f-mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+section{display:flex;flex-direction:column;gap:12px;min-width:0}
+.note{font-size:13px;color:var(--muted)}
+.ctrls{display:flex;flex-direction:column;gap:10px}
+.crow{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center}
+.clab{font-family:var(--f-mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);width:76px;flex:none}
+.seg{display:inline-flex;flex-wrap:wrap;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surface)}
+.seg button{font:500 13px var(--f-body);color:var(--muted);background:transparent;border:0;padding:8px 11px;min-height:36px;cursor:pointer;font-variant-numeric:tabular-nums}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button.on{color:var(--fg);background:var(--bg);box-shadow:inset 0 -2px 0 var(--accent)}
+button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.btn{font:500 13px var(--f-body);color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px 12px;min-height:36px;cursor:pointer}
+.btn:active{background:var(--bg)}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.tile .k{font-family:var(--f-mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.tile .v{font-family:var(--f-display);font-weight:600;font-size:24px;font-variant-numeric:tabular-nums;line-height:1.2}
+.tile .s{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.tile.bad{border-color:var(--warn)}.tile.bad .v{color:var(--warn)}
+.tile.ok .v{color:var(--good)}
+.main{display:grid;grid-template-columns:1fr;gap:20px}
+@media (min-width:860px){.main{grid-template-columns:minmax(0,1.15fr) minmax(0,1fr)}}
+.stage{position:relative;width:100%;max-width:100%;aspect-ratio:1;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--surface)}
+.stage canvas{position:absolute;inset:0;width:100%;height:100%;image-rendering:pixelated;touch-action:none;cursor:crosshair}
+.mark{position:absolute;outline:2px solid var(--fg);outline-offset:1px;pointer-events:none;min-width:3px;min-height:3px}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.sw{width:11px;height:11px;border-radius:2px;flex:none;display:inline-block}
+.loupe{width:100%;max-width:100%;aspect-ratio:1;display:block;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font:500 12px var(--f-mono);padding:3px 8px;border-radius:999px;border:1px solid var(--line);background:var(--surface);max-width:100%;overflow-wrap:anywhere}
+.chip.gap{border-color:var(--warn);color:var(--warn)}
+.chip.ok{border-color:var(--good);color:var(--good)}
+.nav{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.tw{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:12.5px;font-variant-numeric:tabular-nums}
+th,td{padding:6px 10px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap;font-family:var(--f-mono)}
+th{font-family:var(--f-body);font-weight:500;color:var(--muted);font-size:12px}
+th:first-child,td:first-child{text-align:left}
+tr:last-child td{border-bottom:0}
+tr.tot td{font-weight:500;background:var(--bg)}
+td.w{color:var(--warn)}
+pre{margin:0;font:12px/1.5 var(--f-mono);background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px;overflow:auto;max-height:340px;white-space:pre}
+.log div{font:12px/1.5 var(--f-mono)}
+.log .e{color:var(--warn)}
+.busy{font:12px var(--f-mono);color:var(--muted)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+<header>
+  <div class="eyebrow">CPU pixel-step mapping · walker test</div>
+  <h1>Pixel Walk Test</h1>
+  <p class="lede">Walks every curved quad in (u, v) steps sized to one projected pixel and emits (quad, u, v, x, y). A dense resample of the same surface is the reference footprint. A gap is a pixel inside a quad's footprint where that quad emitted no pair. Tap any pixel to inspect it; drag to orbit the camera.</p>
+</header>
+
+<section class="ctrls" aria-label="Test settings">
+  <div class="crow"><span class="clab">Mesh</span><div class="seg" id="g-mesh"><button data-v="0">Cube</button><button data-v="1">Wave</button></div></div>
+  <div class="crow"><span class="clab">Surface</span><div class="seg" id="g-surf"><button data-v="0">Nagata</button><button data-v="1">Phong</button><button data-v="2">PN-quad</button></div></div>
+  <div class="crow"><span class="clab">Resolution</span><div class="seg" id="g-res"><button data-v="64">64²</button><button data-v="128">128²</button><button data-v="256">256²</button></div></div>
+  <div class="crow"><span class="clab">Safety ×</span><div class="seg" id="g-safe"><button data-v="0.5">0.5</button><button data-v="0.6">0.6</button><button data-v="0.7">0.7</button><button data-v="0.8">0.8</button><button data-v="0.9">0.9</button><button data-v="1">1.0</button></div></div>
+  <div class="crow"><span class="clab">Max step</span><div class="seg" id="g-max"><button data-v="0.05">0.05</button><button data-v="0.1">0.1</button><button data-v="0.25">0.25</button><button data-v="1">1 (off)</button></div></div>
+  <div class="crow"><span class="clab">Options</span><div class="seg" id="g-opt"><button data-k="bf">Back-face reject</button><button data-k="snap">Edge snap</button></div><button class="btn" id="b-reset">Reset camera</button></div>
+  <div class="crow"><span class="clab">Show</span><div class="seg" id="g-view"><button data-v="0">Coverage</button><button data-v="1">Overdraw</button><button data-v="2">Rows</button><button data-v="3">Quads</button></div></div>
+  <p class="note">Safety scales du and dv (1.0 = exactly one pixel per step, as in the handoff). Max step caps du and dv in parameter units; it matters near silhouettes, where the screen speed drops and the step grows. Edge snap forces a last sample at u = 1 and a last row at v = 1.</p>
+</section>
+
+<section aria-label="Summary">
+  <div class="tiles" id="tiles"></div>
+</section>
+
+<div class="main">
+<section aria-label="Pixel map">
+  <h2>Pixel map</h2>
+  <div class="stage" id="stage"><canvas id="cv" aria-label="Pixel coverage map. Tap a pixel to inspect it, drag to orbit."></canvas><div class="mark" id="mark" hidden></div></div>
+  <div class="legend" id="legend"></div>
+  <div class="busy" id="busy"></div>
+</section>
+
+<section aria-label="Inspector">
+  <h2>Inspector</h2>
+  <div class="nav"><button class="btn" id="b-prev">◀ Prev gap</button><button class="btn" id="b-next">Next gap ▶</button><span class="note" id="gapnav"></span></div>
+  <canvas class="loupe" id="loupe" aria-label="Zoomed view of 11 by 11 pixels around the selected pixel, with walk samples and row traces"></canvas>
+  <p class="note">Zoom: 11 × 11 pixels around the selection. Dots are emitted samples at their exact sub-pixel position; lines join consecutive samples of the same row.</p>
+  <div id="pinfo" class="chips"></div>
+  <div class="tw"><table><thead><tr><th>Quad</th><th>Row</th><th>u</th><th>v</th><th>x</th><th>y</th><th>du</th><th>dv</th></tr></thead><tbody id="ptab"></tbody></table></div>
+</section>
+</div>
+
+<section aria-label="Gap causes">
+  <h2>Gap causes</h2>
+  <p class="note">Area is measured on a 4 × 4 sub-pixel grid from the reference samples. <b>Sliver</b>: the quad covers 2/16 of the pixel or less. The other classes use the reference sample nearest the pixel center. <b>Border</b>: within 1.5 px of a patch edge. <b>Silhouette</b>: surface within ~11.5° of edge-on (|cos| &lt; 0.2). <b>Interior</b>: everything else, meaning a step or row spacing skipped the pixel.</p>
+  <div class="tw"><table><thead><tr><th>Cause</th><th>Gaps</th><th>Share</th></tr></thead><tbody id="ctab"></tbody></table></div>
+</section>
+
+<section aria-label="Per quad">
+  <h2>Per quad</h2>
+  <div class="tw"><table><thead><tr><th>Quad</th><th>Rows</th><th>Steps</th><th>Pairs</th><th>Back-face</th><th>Clamp u</th><th>Clamp v</th><th>Footprint px</th><th>Gaps</th><th>Overdraw</th><th>Ref grid</th><th>Singular edges</th></tr></thead><tbody id="qtab"></tbody></table></div>
+</section>
+
+<section aria-label="Timing">
+  <h2>Timing</h2>
+  <div class="tw"><table><thead><tr><th>Stage</th><th>ms</th><th>Note</th></tr></thead><tbody id="ttab"></tbody></table></div>
+  <p class="note">The walk is warmed up for 80 ms, then timed by re-running it for at least 60 ms. This is JavaScript (float64) on this device, so ns per step is not comparable with the Skylake cycle table (Phong/Nagata 26 or 36, PN-quad 32 or 40 cycles). It is useful for comparing settings on the same phone.</p>
+</section>
+
+<section aria-label="Report">
+  <h2>Report</h2>
+  <div class="nav"><button class="btn" id="b-copy">Copy report</button><span class="note" id="copymsg"></span></div>
+  <pre id="report" tabindex="0"></pre>
+</section>
+
+<section aria-label="Debug log">
+  <h2>Debug log</h2>
+  <div class="log" id="log"></div>
+</section>
+</div>
+
+<script>
+// ---------- log first, so script errors on the phone are visible ----------
+const LOG=[];function log(m,e){LOG.push({t:new Date().toISOString().slice(11,23),m:String(m),e:!!e});if(LOG.length>60)LOG.shift();const el=document.getElementById('log');if(el)el.innerHTML=LOG.map(x=>'<div'+(x.e?' class="e"':'')+'>'+x.t+'  '+x.m.replace(/&/g,'&amp;').replace(/</g,'&lt;')+'</div>').join('')}
+window.addEventListener('error',e=>log('ERROR '+e.message+' @'+(e.lineno||'?')+':'+(e.colno||'?'),true));
+window.addEventListener('unhandledrejection',e=>log('REJECTION '+(e.reason&&e.reason.message||e.reason),true));
+
+// ---------- vectors and meshes (as in curved-quad-lab.html) ----------
+const add=(a,b)=>[a[0]+b[0],a[1]+b[1],a[2]+b[2]],sub=(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]],mul=(a,s)=>[a[0]*s,a[1]*s,a[2]*s],dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2],cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]],len=a=>Math.hypot(a[0],a[1],a[2]),norm=a=>mul(a,1/(len(a)||1));
+function cube(){return{v:[[-1,-1,-1],[1,-1,-1],[1,1,-1],[-1,1,-1],[-1,-1,1],[1,-1,1],[1,1,1],[-1,1,1]],f:[[0,3,2,1],[4,5,6,7],[0,1,5,4],[2,3,7,6],[0,4,7,3],[1,2,6,5]]}}
+function wave(){const v=[],f=[];for(let j=0;j<3;j++)for(let i=0;i<5;i++)v.push([(i-2)*0.9,(j-1)*0.9,i%2?-0.55:0.55]);for(let j=0;j<2;j++)for(let i=0;i<4;i++){const a=j*5+i;f.push([a,a+1,a+6,a+5])}return{v,f}}
+function vnorm(m){const n=m.v.map(()=>[0,0,0]);m.f.forEach(q=>{const fn=cross(sub(m.v[q[2]],m.v[q[0]]),sub(m.v[q[3]],m.v[q[1]]));q.forEach(i=>n[i]=add(n[i],fn))});return n.map(norm)}
+
+// ---------- surfaces (as in curved-quad-lab.html; Nagata counts singular edges) ----------
+let SING=0;
+function phong(X,N){return(u,v)=>{const w=[(1-u)*(1-v),u*(1-v),u*v,(1-u)*v];let p=[0,0,0];for(let i=0;i<4;i++)p=add(p,mul(X[i],w[i]));let s=[0,0,0];for(let i=0;i<4;i++){const q=sub(p,mul(N[i],dot(sub(p,X[i]),N[i])));s=add(s,mul(q,w[i]))}return add(mul(p,0.25),mul(s,0.75))}}
+function nc(x0,x1,n0,n1){const d=sub(x1,x0),a0=dot(n0,d),a1=dot(n1,d),k=dot(n0,n1),den=1-k*k;if(den<1e-3){SING++;return[0,0,0]}return add(mul(n0,(a0+k*a1)/den),mul(n1,(-a1-k*a0)/den))}
+function nagata(X,N){const[x00,x10,x11,x01]=X,[n00,n10,n11,n01]=N;const c1=nc(x00,x10,n00,n10),c2=nc(x10,x11,n10,n11),c3=nc(x01,x11,n01,n11),c4=nc(x00,x01,n00,n01);const a10=sub(sub(x10,x00),c1),a01=sub(sub(x01,x00),c4),a11=add(sub(sub(add(x11,x00),x10),x01),sub(add(c1,c4),add(c2,c3))),a21=sub(c3,c1),a12=sub(c2,c4);return(u,v)=>add(add(add(x00,mul(a10,u)),add(mul(a01,v),mul(a11,u*v))),add(add(mul(c1,u*u),mul(c4,v*v)),add(mul(a21,u*u*v),mul(a12,u*v*v))))}
+function pn(X,N){const e=(i,j)=>{const d=sub(X[j],X[i]);return add(X[i],mul(sub(d,mul(N[i],dot(d,N[i]))),1/3))};const B=[[],[],[],[]];B[0][0]=X[0];B[3][0]=X[1];B[3][3]=X[2];B[0][3]=X[3];B[1][0]=e(0,1);B[2][0]=e(1,0);B[1][3]=e(3,2);B[2][3]=e(2,3);B[0][1]=e(0,3);B[0][2]=e(3,0);B[3][1]=e(1,2);B[3][2]=e(2,1);B[1][1]=sub(add(B[1][0],B[0][1]),B[0][0]);B[2][1]=sub(add(B[2][0],B[3][1]),B[3][0]);B[1][2]=sub(add(B[1][3],B[0][2]),B[0][3]);B[2][2]=sub(add(B[2][3],B[3][2]),B[3][3]);const bn=t=>[(1-t)**3,3*t*(1-t)**2,3*t*t*(1-t),t**3];return(u,v)=>{const bu=bn(u),bv=bn(v);let p=[0,0,0];for(let i=0;i<4;i++)for(let j=0;j<4;j++)p=add(p,mul(B[i][j],bu[i]*bv[j]));return p}}
+
+// ---------- power basis: c[i][j] multiplies u^i v^j, layout (i*4+j)*3+k ----------
+// Sampling each surface on a 4x4 grid and inverting the Vandermonde matrix is exact for degree <= 3 in u and v (all three surfaces).
+const T4=[0,1/3,2/3,1];
+const MINV=(()=>{const A=T4.map(t=>[1,t,t*t,t*t*t,...[0,1,2,3].map(c=>0)]);for(let r=0;r<4;r++)A[r][4+r]=1;for(let c=0;c<4;c++){let p=c;for(let r=c+1;r<4;r++)if(Math.abs(A[r][c])>Math.abs(A[p][c]))p=r;[A[c],A[p]]=[A[p],A[c]];const d=A[c][c];for(let k=0;k<8;k++)A[c][k]/=d;for(let r=0;r<4;r++)if(r!==c){const m=A[r][c];for(let k=0;k<8;k++)A[r][k]-=m*A[c][k]}}return A.map(r=>r.slice(4))})();
+function toPower(ev){const S=[];for(let k=0;k<4;k++){S[k]=[];for(let l=0;l<4;l++)S[k][l]=ev(T4[k],T4[l])}const c=new Float64Array(48);for(let i=0;i<4;i++)for(let j=0;j<4;j++)for(let k=0;k<4;k++)for(let l=0;l<4;l++){const w=MINV[i][k]*MINV[j][l];if(w)for(let d=0;d<3;d++)c[(i*4+j)*3+d]+=w*S[k][l][d]}return c}
+
+// ---------- settings ----------
+const DEF={mesh:0,surf:1,res:128,safe:1,max:0.25,bf:true,snap:false,view:0,yaw:0.6,pitch:0.45};
+let st=Object.assign({},DEF);try{const s=JSON.parse(localStorage.getItem('pwt')||'null');if(s)Object.assign(st,s)}catch(e){}
+function save(){try{localStorage.setItem('pwt',JSON.stringify(st))}catch(e){}}
+const FOV=40*Math.PI/180,NEAR=0.05,MINSTEP=1e-5,STEPLIMIT=4e6,SNAMES=['Nagata','Phong','PN-quad'],MNAMES=['Cube','Wave'];
+
+// ---------- camera: view space X right, Y down, Z forward (right-handed, so cross products keep their sign) ----------
+function camera(){const W=st.res,dist=st.mesh?6.6:6.2,cp=Math.cos(st.pitch),pos=[dist*cp*Math.sin(st.yaw),-dist*cp*Math.cos(st.yaw),dist*Math.sin(st.pitch)];const fwd=norm(sub([0,0,0],pos)),right=norm(cross(fwd,[0,0,1])),down=cross(fwd,right);return{pos,R:[right,down,fwd],f:(W/2)/Math.tan(FOV/2),cx:W/2,cy:W/2,W}}
+
+// ---------- 1. build (mesh change) ----------
+function buildPatches(){const m=st.mesh?wave():cube(),N=vnorm(m);SING=0;return m.f.map(q=>{const X=q.map(i=>m.v[i]),Nn=q.map(i=>N[i]),s0=SING;const ev=st.surf===0?nagata(X,Nn):st.surf===1?phong(X,Nn):pn(X,Nn);return{c:toPower(ev),sing:SING-s0}})}
+
+// ---------- 2. view transform (patch x frame), derivative coefficients pre-scaled ----------
+function transform(Ps,cam){const[R0,R1,R2]=cam.R,p=cam.pos;Ps.forEach(P=>{const c=P.c,vc=new Float64Array(48),vu=new Float64Array(36),vv=new Float64Array(36);for(let ij=0;ij<16;ij++){let x=c[ij*3],y=c[ij*3+1],z=c[ij*3+2];if(ij===0){x-=p[0];y-=p[1];z-=p[2]}vc[ij*3]=R0[0]*x+R0[1]*y+R0[2]*z;vc[ij*3+1]=R1[0]*x+R1[1]*y+R1[2]*z;vc[ij*3+2]=R2[0]*x+R2[1]*y+R2[2]*z}
+for(let i=0;i<3;i++)for(let j=0;j<4;j++)for(let k=0;k<3;k++)vu[(i*4+j)*3+k]=(i+1)*vc[((i+1)*4+j)*3+k];
+for(let i=0;i<4;i++)for(let j=0;j<3;j++)for(let k=0;k<3;k++)vv[(i*3+j)*3+k]=(j+1)*vc[(i*4+j+1)*3+k];P.vc=vc;P.vu=vu;P.vv=vv})}
+
+// ---------- 3. row: collapse to u-polynomials at fixed v ----------
+function rowEval(P,v,r,ru,rv){const vc=P.vc,vu=P.vu,vv=P.vv;for(let i=0;i<4;i++)for(let k=0;k<3;k++){const o=i*12+k;r[i*3+k]=((vc[o+9]*v+vc[o+6])*v+vc[o+3])*v+vc[o];const w=i*9+k;rv[i*3+k]=(vv[w+6]*v+vv[w+3])*v+vv[w]}for(let i=0;i<3;i++)for(let k=0;k<3;k++){const o=i*12+k;ru[i*3+k]=((vu[o+9]*v+vu[o+6])*v+vu[o+3])*v+vu[o]}}
+const RB=new Float64Array(12),RUB=new Float64Array(9),RVB=new Float64Array(12);
+function evalAt(P,u,v){rowEval(P,v,RB,RUB,RVB);const o=[];for(let k=0;k<3;k++)o.push(((RB[9+k]*u+RB[6+k])*u+RB[3+k])*u+RB[k]);for(let k=0;k<3;k++)o.push((RUB[6+k]*u+RUB[3+k])*u+RUB[k]);for(let k=0;k<3;k++)o.push(((RVB[9+k]*u+RVB[6+k])*u+RVB[3+k])*u+RVB[k]);return o}
+
+// ---------- emitted pairs ----------
+let CAP=1<<16,OQ=new Uint16Array(CAP),OR=new Uint32Array(CAP),OU=new Float32Array(CAP),OV=new Float32Array(CAP),OX=new Float32Array(CAP),OY=new Float32Array(CAP),ODU=new Float32Array(CAP),ODV=new Float32Array(CAP),NOUT=0;
+function grow(){CAP*=2;const g=(A,T)=>{const B=new T(CAP);B.set(A);return B};OQ=g(OQ,Uint16Array);OR=g(OR,Uint32Array);OU=g(OU,Float32Array);OV=g(OV,Float32Array);OX=g(OX,Float32Array);OY=g(OY,Float32Array);ODU=g(ODU,Float32Array);ODV=g(ODV,Float32Array)}
+
+// ---------- 4. the walk (hot loop) ----------
+function walk(Ps,cam){const f=cam.f,kf=1/f,cx=cam.cx,cy=cam.cy,S=st.safe,MX=st.max,bf=st.bf,snap=st.snap;let n=0,rowId=0;const stats=[];const r=new Float64Array(12),ru=new Float64Array(9),rv=new Float64Array(12);
+for(let q=0;q<Ps.length;q++){const P=Ps[q];let rows=0,steps=0,back=0,clu=0,clv=0,clip=0,limit=false,v=0;
+  for(;;){rowEval(P,v,r,ru,rv);rows++;rowId++;
+    const r0x=r[0],r0y=r[1],r0z=r[2],r1x=r[3],r1y=r[4],r1z=r[5],r2x=r[6],r2y=r[7],r2z=r[8],r3x=r[9],r3y=r[10],r3z=r[11];
+    const u0x=ru[0],u0y=ru[1],u0z=ru[2],u1x=ru[3],u1y=ru[4],u1z=ru[5],u2x=ru[6],u2y=ru[7],u2z=ru[8];
+    const v0x=rv[0],v0y=rv[1],v0z=rv[2],v1x=rv[3],v1y=rv[4],v1z=rv[5],v2x=rv[6],v2y=rv[7],v2z=rv[8],v3x=rv[9],v3y=rv[10],v3z=rv[11];
+    let u=0,dmin=Infinity;
+    for(;;){steps++;
+      // 4a. P, P_u, P_v (Horner in u)
+      const X=((r3x*u+r2x)*u+r1x)*u+r0x,Y=((r3y*u+r2y)*u+r1y)*u+r0y,Z=((r3z*u+r2z)*u+r1z)*u+r0z;
+      const Xu=(u2x*u+u1x)*u+u0x,Yu=(u2y*u+u1y)*u+u0y,Zu=(u2z*u+u1z)*u+u0z;
+      const Xv=((v3x*u+v2x)*u+v1x)*u+v0x,Yv=((v3y*u+v2y)*u+v1y)*u+v0y,Zv=((v3z*u+v2z)*u+v1z)*u+v0z;
+      let du;
+      if(Z<NEAR){clip++;du=MX}else{
+        // 4b. du: one pixel along u, with perspective
+        const a=Xu*Z-X*Zu,b=Yu*Z-Y*Zu,zz=Z*Z*kf;du=zz/Math.sqrt(a*a+b*b)*S;
+        // 4c. dv: one pixel along v, keep the row minimum
+        const a2=Xv*Z-X*Zv,b2=Yv*Z-Y*Zv,dv=zz/Math.sqrt(a2*a2+b2*b2)*S;if(dv<dmin)dmin=dv;
+        if(!(du<=MX)){du=MX;clu++}else if(du<MINSTEP){du=MINSTEP;clu++}
+        // 4e. pixel mapping (+ optional back-face test: sign of the screen Jacobian)
+        if(bf&&a*b2-b*a2>=0)back++;else{const iz=1/Z;if(n>=CAP)grow();OQ[n]=q;OR[n]=rowId;OU[n]=u;OV[n]=v;OX[n]=cx+f*X*iz;OY[n]=cy+f*Y*iz;ODU[n]=du;ODV[n]=dv;n++}
+      }
+      // 4d. u += du, end-of-row check
+      if(u>=1)break;u+=du;if(u>1){if(snap)u=1;else break}
+      if(steps>STEPLIMIT){limit=true;break}}
+    if(limit||v>=1)break;
+    let dv=dmin;if(!(dv<=MX)){dv=MX;clv++}else if(dv<MINSTEP){dv=MINSTEP;clv++}
+    v+=dv;if(v>1){if(snap)v=1;else break}}
+  if(limit)log('Quad '+q+': step limit '+STEPLIMIT+' hit, walk stopped',true);
+  stats.push({rows,steps,back,clu,clv,clip})}
+NOUT=n;return stats}
+
+// ---------- reference: dense uniform resample of the same patch ----------
+function reference(Ps,cam){const W=cam.W,WH=W*W,f=cam.f,cx=cam.cx,cy=cam.cy,nq=Ps.length,fp=new Uint8Array(nq*WH),rep=new Float32Array(nq*WH*2),best=new Float32Array(nq*WH).fill(9),mask=new Uint16Array(nq*WH),grid=[];
+const r=new Float64Array(12),ru=new Float64Array(9),rv=new Float64Array(12);
+for(let q=0;q<nq;q++){const P=Ps[q];
+  // grid density: max screen distance between neighbours on a 17x17 probe, target 0.25 px spacing
+  let dmax=0;const pr=[];for(let j=0;j<=16;j++){pr[j]=[];for(let i=0;i<=16;i++){const e=evalAt(P,i/16,j/16);pr[j][i]=e[2]>NEAR?[cx+f*e[0]/e[2],cy+f*e[1]/e[2]]:null}}
+  for(let j=0;j<=16;j++)for(let i=0;i<=16;i++){const a=pr[j][i];if(!a)continue;const b=i<16&&pr[j][i+1],c=j<16&&pr[j+1][i];if(b)dmax=Math.max(dmax,Math.hypot(b[0]-a[0],b[1]-a[1]));if(c)dmax=Math.max(dmax,Math.hypot(c[0]-a[0],c[1]-a[1]))}
+  const n=Math.max(16,Math.min(1024,Math.ceil(dmax*16/0.25)));grid.push(n);
+  for(let j=0;j<=n;j++){const v=j/n;rowEval(P,v,r,ru,rv);for(let i=0;i<=n;i++){const u=i/n;
+    const X=((r[9]*u+r[6])*u+r[3])*u+r[0],Y=((r[10]*u+r[7])*u+r[4])*u+r[1],Z=((r[11]*u+r[8])*u+r[5])*u+r[2];if(Z<NEAR)continue;
+    const x=cx+f*X/Z,y=cy+f*Y/Z,px=Math.floor(x),py=Math.floor(y);if(px<0||py<0||px>=W||py>=W)continue;
+    if(st.bf){const Xu=(ru[6]*u+ru[3])*u+ru[0],Yu=(ru[7]*u+ru[4])*u+ru[1],Zu=(ru[8]*u+ru[5])*u+ru[2],Xv=((rv[9]*u+rv[6])*u+rv[3])*u+rv[0],Yv=((rv[10]*u+rv[7])*u+rv[4])*u+rv[1],Zv=((rv[11]*u+rv[8])*u+rv[5])*u+rv[2];const a=Xu*Z-X*Zu,b=Yu*Z-Y*Zu,a2=Xv*Z-X*Zv,b2=Yv*Z-Y*Zv;if(a*b2-b*a2>=0)continue}
+    const id=q*WH+py*W+px,dd=(x-px-0.5)**2+(y-py-0.5)**2;fp[id]=1;mask[id]|=1<<(Math.min(3,Math.floor((y-py)*4))*4+Math.min(3,Math.floor((x-px)*4)));if(dd<best[id]){best[id]=dd;rep[id*2]=u;rep[id*2+1]=v}}}}
+return{fp,rep,mask,grid}}
+
+// ---------- compare walk against reference ----------
+function compare(Ps,cam,ref,ws){const W=cam.W,WH=W*W,nq=Ps.length,cov=new Uint8Array(nq*WH),cnt=new Uint16Array(WH),rowAt=new Uint32Array(WH),quadAt=new Int16Array(WH).fill(-1);let off=0;
+for(let i=0;i<NOUT;i++){const px=Math.floor(OX[i]),py=Math.floor(OY[i]);if(px<0||py<0||px>=W||py>=W){off++;continue}const p=py*W+px,id=OQ[i]*WH+p;if(cov[id]<255)cov[id]++;if(cnt[p]<65535)cnt[p]++;rowAt[p]=OR[i];quadAt[p]=OQ[i]}
+const gaps=[],gapPx=new Uint8Array(WH),fpU=new Uint8Array(WH),pq=Ps.map(()=>({fp:0,cov:0,gaps:0,pairs:0}));let outside=0;
+for(let i=0;i<NOUT;i++)pq[OQ[i]].pairs++;
+for(let q=0;q<nq;q++)for(let p=0;p<WH;p++){const id=q*WH+p;if(ref.fp[id]){fpU[p]=1;pq[q].fp++;if(cov[id])pq[q].cov++;else{pq[q].gaps++;gapPx[p]=1;const a=pop16(ref.mask[id]);gaps.push({q,p,area:a,cause:a<=2?0:cause(Ps[q],cam,ref.rep[id*2],ref.rep[id*2+1])})}}else if(cov[id])outside++}
+let fpN=0,covN=0,hard=0;for(let p=0;p<WH;p++){if(fpU[p])fpN++;if(cnt[p])covN++;if(gapPx[p]&&!cnt[p])hard++}
+gaps.sort((a,b)=>a.p-b.p||a.q-b.q);return{cov,cnt,rowAt,quadAt,gaps,gapPx,fpU,pq,fpN,covN,hard,outside,off}}
+function cause(P,cam,u,v){const e=evalAt(P,u,v),[X,Y,Z,Xu,Yu,Zu,Xv,Yv,Zv]=e,zz=Z*Z/cam.f,su=Math.hypot(Xu*Z-X*Zu,Yu*Z-Y*Zu)/zz,sv=Math.hypot(Xv*Z-X*Zv,Yv*Z-Y*Zv)/zz;
+const de=Math.min(u*su,(1-u)*su,v*sv,(1-v)*sv);if(de<1.5)return 1;const nn=cross([Xu,Yu,Zu],[Xv,Yv,Zv]),c=Math.abs(dot(nn,[X,Y,Z]))/((len(nn)*len([X,Y,Z]))||1);return c<0.2?2:3}
+const pop16=m=>{let c=0;while(m){m&=m-1;c++}return c};
+const CNAMES=['Sliver','Border','Silhouette','Interior'];
+
+// ---------- colours from tokens ----------
+let COL={};function hex(s){s=s.trim();if(s[0]==='#'){if(s.length===4)s='#'+s[1]+s[1]+s[2]+s[2]+s[3]+s[3];return[parseInt(s.slice(1,3),16),parseInt(s.slice(3,5),16),parseInt(s.slice(5,7),16)]}const m=s.match(/\d+/g);return m?m.slice(0,3).map(Number):[128,128,128]}
+function readColors(){const cs=getComputedStyle(document.documentElement),g=k=>hex(cs.getPropertyValue(k));COL={bg:g('--surface'),fg:g('--fg'),line:g('--line'),warn:g('--warn'),good:g('--good'),flag:g('--flag'),accent:g('--accent'),muted:g('--muted'),q:[0,1,2,3,4,5,6,7].map(i=>g('--q'+i))}}
+const mix=(a,b,t)=>[a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t,a[2]+(b[2]-a[2])*t];
+const css=c=>'rgb('+c.map(Math.round).join(',')+')';
+function pixColor(p,R){const C=R.cmp,c=C.cnt[p];if(C.gapPx[p])return c?COL.flag:COL.warn;if(!c)return COL.bg;const q=C.quadAt[p],qc=COL.q[q%8];
+  if(st.view===0)return mix(COL.bg,qc,0.45);
+  if(st.view===1)return c===1?mix(COL.bg,COL.good,0.35):c===2?mix(COL.bg,COL.good,0.8):c===3?mix(COL.bg,COL.accent,0.6):COL.accent;
+  if(st.view===2)return mix(COL.bg,qc,C.rowAt[p]%2?0.85:0.3);
+  return qc}
+
+// ---------- pipeline ----------
+let PAT=null,patKey='',RES=null,SEL=null,GI=-1;
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),lp=document.getElementById('loupe'),lctx=lp.getContext('2d');
+function run(full){try{
+  const T={},t0=performance.now();const key=st.mesh+'/'+st.surf;if(key!==patKey||!PAT){PAT=buildPatches();patKey=key;T.build=performance.now()-t0}else T.build=0;
+  const t1=performance.now(),cam=camera();transform(PAT,cam);const t2=performance.now();T.transform=t2-t1;
+  const ws=walk(PAT,cam);const t3=performance.now();T.walk=t3-t2;const steps=ws.reduce((s,w)=>s+w.steps,0);
+  let ns=null,runs=0;if(full){for(let w=0,s0=performance.now();(performance.now()-s0<80||w<5)&&w<400;w++)walk(PAT,cam);const s=performance.now();let e=s;do{walk(PAT,cam);runs++;e=performance.now()}while((e-s<60||runs<3)&&runs<400);ns=(e-s)*1e6/(runs*steps);T.timing=e-s}
+  const t4=performance.now(),ref=reference(PAT,cam);const t5=performance.now();T.reference=t5-t4;
+  const cmp=compare(PAT,cam,ref,ws);const t6=performance.now();T.compare=t6-t5;
+  RES={cam,ws,ref,cmp,steps,ns,runs,T};if(full&&!SEL&&cmp.gaps.length)GI=-1;
+  draw();T.draw=performance.now()-t6;ui(full);
+  if(full)log(MNAMES[st.mesh]+' · '+SNAMES[st.surf]+' · '+st.res+'² · safety '+st.safe+' → '+NOUT+' pairs, '+cmp.gaps.length+' gaps, '+(t6-t0).toFixed(0)+' ms');
+}catch(e){log('ERROR in run: '+(e&&e.stack||e),true)}}
+function draw(){const W=RES.cam.W;if(cv.width!==W){cv.width=W;cv.height=W}const im=ctx.createImageData(W,W),d=im.data;for(let p=0;p<W*W;p++){const c=pixColor(p,RES);d[p*4]=c[0];d[p*4+1]=c[1];d[p*4+2]=c[2];d[p*4+3]=255}ctx.putImageData(im,0,0);mark();loupe()}
+function mark(){const m=document.getElementById('mark');if(!SEL||!RES){m.hidden=true;return}const W=RES.cam.W;if(SEL.x>=W||SEL.y>=W){m.hidden=true;return}m.hidden=false;m.style.left=(SEL.x/W*100)+'%';m.style.top=(SEL.y/W*100)+'%';m.style.width=(100/W)+'%';m.style.height=(100/W)+'%'}
+
+// ---------- inspector ----------
+const LW=11;
+function loupe(){const dp=window.devicePixelRatio||1,w=Math.round(lp.clientWidth*dp);if(!w)return;if(lp.width!==w){lp.width=w;lp.height=w}lctx.clearRect(0,0,w,w);if(!RES)return;const W=RES.cam.W,C=RES.cmp;
+  const sx=SEL?SEL.x:W>>1,sy=SEL?SEL.y:W>>1,x0=sx-(LW>>1),y0=sy-(LW>>1),cs=w/LW;
+  for(let j=0;j<LW;j++)for(let i=0;i<LW;i++){const px=x0+i,py=y0+j;let c=COL.bg;if(px>=0&&py>=0&&px<W&&py<W)c=pixColor(py*W+px,RES);lctx.fillStyle=css(c);lctx.fillRect(i*cs,j*cs,cs,cs)}
+  lctx.strokeStyle=css(COL.line);lctx.lineWidth=1;lctx.beginPath();for(let k=0;k<=LW;k++){lctx.moveTo(k*cs,0);lctx.lineTo(k*cs,w);lctx.moveTo(0,k*cs);lctx.lineTo(w,k*cs)}lctx.stroke();
+  if(SEL){lctx.strokeStyle=css(COL.fg);lctx.lineWidth=Math.max(2,dp*1.5);lctx.strokeRect((sx-x0)*cs+1,(sy-y0)*cs+1,cs-2,cs-2)}
+  const inW=(x,y)=>x>=x0-2&&y>=y0-2&&x<x0+LW+2&&y<y0+LW+2,tx=x=>(x-x0)*cs,ty=y=>(y-y0)*cs;
+  lctx.lineWidth=Math.max(1,dp);for(let i=1;i<NOUT;i++){if(OR[i]!==OR[i-1])continue;if(!inW(OX[i],OY[i])&&!inW(OX[i-1],OY[i-1]))continue;lctx.strokeStyle=css(mix(COL.fg,COL.q[OQ[i]%8],0.5));lctx.beginPath();lctx.moveTo(tx(OX[i-1]),ty(OY[i-1]));lctx.lineTo(tx(OX[i]),ty(OY[i]));lctx.stroke()}
+  const rd=Math.max(2.5,cs*0.09);for(let i=0;i<NOUT;i++){if(!inW(OX[i],OY[i]))continue;lctx.fillStyle=css(COL.q[OQ[i]%8]);lctx.beginPath();lctx.arc(tx(OX[i]),ty(OY[i]),rd,0,7);lctx.fill();lctx.strokeStyle=css(COL.fg);lctx.lineWidth=Math.max(1,dp*0.6);lctx.stroke()}}
+function inspect(){const pi=document.getElementById('pinfo'),pt=document.getElementById('ptab'),gn=document.getElementById('gapnav');if(!RES)return;const C=RES.cmp,W=RES.cam.W,WH=W*W;
+  gn.textContent=C.gaps.length?(GI>=0?'Gap '+(GI+1)+' of '+C.gaps.length:C.gaps.length+' gaps'):'No gaps';
+  if(!SEL||SEL.x>=W||SEL.y>=W){pi.innerHTML='<span class="chip">Tap a pixel or use Next gap</span>';pt.innerHTML='';return}
+  const p=SEL.y*W+SEL.x,chips=['<span class="chip">Pixel ('+SEL.x+', '+SEL.y+')</span>','<span class="chip">'+C.cnt[p]+' pair'+(C.cnt[p]===1?'':'s')+'</span>'];
+  for(let q=0;q<PAT.length;q++){const id=q*WH+p;if(RES.ref.fp[id]){if(C.cov[id])chips.push('<span class="chip ok">Q'+q+' covered</span>');else{const g=C.gaps.find(g=>g.q===q&&g.p===p);chips.push('<span class="chip gap">Q'+q+' gap · '+CNAMES[g?g.cause:3]+' · area '+pop16(RES.ref.mask[id])+'/16 · ref u '+RES.ref.rep[id*2].toFixed(4)+' v '+RES.ref.rep[id*2+1].toFixed(4)+'</span>')}}else if(C.cov[id])chips.push('<span class="chip">Q'+q+' outside reference</span>')}
+  if(!C.fpU[p]&&!C.cnt[p])chips.push('<span class="chip">Background</span>');pi.innerHTML=chips.join('');
+  const rows=[];for(let i=0;i<NOUT&&rows.length<40;i++){if(Math.floor(OX[i])===SEL.x&&Math.floor(OY[i])===SEL.y)rows.push('<tr><td>Q'+OQ[i]+'</td><td>'+OR[i]+'</td><td>'+OU[i].toFixed(5)+'</td><td>'+OV[i].toFixed(5)+'</td><td>'+OX[i].toFixed(3)+'</td><td>'+OY[i].toFixed(3)+'</td><td>'+ODU[i].toExponential(2)+'</td><td>'+ODV[i].toExponential(2)+'</td></tr>')}
+  pt.innerHTML=rows.join('')||'<tr><td colspan="8" style="text-align:left">No pairs emitted in this pixel</td></tr>'}
+function selGap(k){if(!RES)return;const g=RES.cmp.gaps;if(!g.length){inspect();return}GI=(k+g.length)%g.length;const W=RES.cam.W;SEL={x:g[GI].p%W,y:Math.floor(g[GI].p/W)};mark();loupe();inspect()}
+
+// ---------- summary, tables, report ----------
+const fmt=(x,d=0)=>x==null||!isFinite(x)?'—':x.toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});
+function ui(full){const R=RES,C=R.cmp,ws=R.ws,nq=ws.length,gp=C.gaps.length,pct=C.fpN?100*gp/C.fpN:0,rows=ws.reduce((s,w)=>s+w.rows,0),clu=ws.reduce((s,w)=>s+w.clu,0),clv=ws.reduce((s,w)=>s+w.clv,0),back=ws.reduce((s,w)=>s+w.back,0),sing=PAT.reduce((s,P)=>s+P.sing,0);
+  const tile=(k,v,s,cl)=>'<div class="tile'+(cl?' '+cl:'')+'"><span class="k">'+k+'</span><span class="v">'+v+'</span><span class="s">'+s+'</span></div>';
+  document.getElementById('tiles').innerHTML=
+    tile('Gaps',fmt(gp),fmt(pct,2)+'% of '+fmt(C.fpN)+' footprint px · '+fmt(C.hard)+' with no pair at all',gp?'bad':'ok')+
+    tile('Overdraw',fmt(C.covN?NOUT/C.covN:0,2),'pairs per covered px')+
+    tile('Pairs',fmt(NOUT),fmt(C.covN)+' px covered · '+fmt(C.outside)+' outside ref')+
+    tile('Steps / patch',fmt(R.steps/nq),fmt(rows/nq,1)+' rows / patch')+
+    tile('Clamps',fmt(clu+clv),'u '+fmt(clu)+' · v '+fmt(clv)+(sing?' · '+sing+' singular edges':''),(clu+clv)?'':'')+
+    tile('Walk time',R.ns==null?'…':fmt(R.ns,1)+' ns','per step, JS, '+fmt(R.runs)+' runs');
+  const cc=[0,0,0,0];C.gaps.forEach(g=>cc[g.cause]++);document.getElementById('ctab').innerHTML=CNAMES.map((n,i)=>'<tr><td>'+n+'</td><td'+(cc[i]?' class="w"':'')+'>'+fmt(cc[i])+'</td><td>'+(gp?fmt(100*cc[i]/gp,1)+'%':'—')+'</td></tr>').join('')+'<tr class="tot"><td>Total</td><td>'+fmt(gp)+'</td><td>'+(gp?'100%':'—')+'</td></tr>';
+  document.getElementById('qtab').innerHTML=ws.map((w,q)=>{const p=C.pq[q];return'<tr><td><span class="sw" style="background:var(--q'+(q%8)+');margin-right:6px"></span>Q'+q+'</td><td>'+fmt(w.rows)+'</td><td>'+fmt(w.steps)+'</td><td>'+fmt(p.pairs)+'</td><td>'+fmt(w.back)+'</td><td>'+fmt(w.clu)+'</td><td>'+fmt(w.clv)+'</td><td>'+fmt(p.fp)+'</td><td'+(p.gaps?' class="w"':'')+'>'+fmt(p.gaps)+'</td><td>'+fmt(p.cov?p.pairs/p.cov:0,2)+'</td><td>'+R.ref.grid[q]+'²</td><td>'+PAT[q].sing+'</td></tr>'}).join('')+
+    '<tr class="tot"><td>All</td><td>'+fmt(rows)+'</td><td>'+fmt(R.steps)+'</td><td>'+fmt(NOUT)+'</td><td>'+fmt(back)+'</td><td>'+fmt(clu)+'</td><td>'+fmt(clv)+'</td><td>'+fmt(C.pq.reduce((s,p)=>s+p.fp,0))+'</td><td>'+fmt(gp)+'</td><td>'+fmt(C.covN?NOUT/C.covN:0,2)+'</td><td></td><td>'+sing+'</td></tr>';
+  const T=R.T,tr=(k,v,n)=>'<tr><td>'+k+'</td><td>'+(v==null?'—':v.toFixed(2))+'</td><td style="text-align:left">'+n+'</td></tr>';
+  document.getElementById('ttab').innerHTML=tr('1. Build',T.build,T.build?'rebuilt (mesh or surface changed)':'cached')+tr('2. View transform',T.transform,nq+' patches')+tr('3–4. Walk (instrumented)',T.walk,fmt(R.steps)+' steps, '+fmt(rows)+' rows')+tr('Walk timing loop',T.timing,R.ns==null?'skipped while dragging':fmt(R.runs)+' runs → '+fmt(R.ns,1)+' ns/step, '+fmt(1e3/R.ns,1)+' M steps/s')+tr('Reference resample',T.reference,R.ref.grid.map(n=>n+'²').join(' '))+tr('Compare',T.compare,'')+tr('Draw',T.draw,'');
+  const L=[];L.push('PIXEL WALK TEST REPORT  '+new Date().toISOString());
+  L.push('settings: mesh='+MNAMES[st.mesh]+' surface='+SNAMES[st.surf]+' res='+st.res+' fovY=40 safety='+st.safe+' maxStep='+st.max+' backface='+(st.bf?'on':'off')+' edgeSnap='+(st.snap?'on':'off')+' yaw='+st.yaw.toFixed(3)+' pitch='+st.pitch.toFixed(3));
+  L.push('device: dpr='+(window.devicePixelRatio||1)+' cores='+(navigator.hardwareConcurrency||'?')+' ua='+navigator.userAgent);
+  L.push('totals: pairs='+NOUT+' coveredPx='+C.covN+' footprintPx='+C.fpN+' gaps='+gp+' ('+pct.toFixed(3)+'%) gapPxNoPairAtAll='+C.hard+' overdraw='+(C.covN?NOUT/C.covN:0).toFixed(3)+' outsideRef='+C.outside+' offscreen='+C.off);
+  L.push('walk: steps='+R.steps+' rows='+rows+' steps/patch='+(R.steps/nq).toFixed(1)+' rows/patch='+(rows/nq).toFixed(1)+' clampU='+clu+' clampV='+clv+' backRejected='+back+' nagataSingularEdges='+sing);
+  L.push('timing: '+(R.ns==null?'n/a':R.ns.toFixed(2)+' ns/step (JS f64, '+R.runs+' runs)')+'  build='+T.build.toFixed(2)+'ms transform='+T.transform.toFixed(2)+'ms walk='+T.walk.toFixed(2)+'ms reference='+T.reference.toFixed(1)+'ms');
+  L.push('gap causes: sliver='+cc[0]+' border='+cc[1]+' silhouette='+cc[2]+' interior='+cc[3]);
+  L.push('per quad: q rows steps pairs fpPx gaps overdraw clampU clampV refGrid singular');
+  ws.forEach((w,q)=>{const p=C.pq[q];L.push('  Q'+q+' '+[w.rows,w.steps,p.pairs,p.fp,p.gaps,(p.cov?p.pairs/p.cov:0).toFixed(2),w.clu,w.clv,R.ref.grid[q],PAT[q].sing].join(' '))});
+  if(gp){L.push('first gaps (quad px py cause area/16 refU refV):');const W=R.cam.W,WH=W*W;C.gaps.slice(0,30).forEach(g=>{const id=g.q*WH+g.p;L.push('  Q'+g.q+' '+(g.p%W)+' '+Math.floor(g.p/W)+' '+CNAMES[g.cause]+' '+g.area+' '+R.ref.rep[id*2].toFixed(5)+' '+R.ref.rep[id*2+1].toFixed(5))})}
+  const errs=LOG.filter(x=>x.e);if(errs.length){L.push('errors:');errs.forEach(x=>L.push('  '+x.m))}
+  document.getElementById('report').textContent=L.join('\n');
+  document.getElementById('busy').textContent=full?'':'Dragging: timing paused';
+  inspect()}
+
+// ---------- legend ----------
+function legend(){const items=st.view===0?[['var(--q0)','Covered (tinted by quad)',0.45],['var(--warn)','Gap, no pair at all'],['var(--flag)','Gap for one quad, pixel filled by a neighbour quad']]:st.view===1?[['var(--good)','1 pair',0.35],['var(--good)','2 pairs',0.8],['var(--accent)','3 pairs',0.6],['var(--accent)','4+ pairs'],['var(--warn)','Gap']]:st.view===2?[['var(--q0)','Even row',0.3],['var(--q0)','Odd row',0.85],['var(--warn)','Gap']]:[...Array(st.mesh?8:6).keys()].map(i=>['var(--q'+i+')','Q'+i]).concat([['var(--warn)','Gap']]);
+  document.getElementById('legend').innerHTML=items.map(([c,t,a])=>'<span><span class="sw" style="background:'+(a?'color-mix(in srgb, '+c+' '+Math.round(a*100)+'%, var(--surface))':c)+'"></span>'+t+'</span>').join('')}
+
+// ---------- controls ----------
+function seg(id,key,num){const g=document.getElementById(id),bs=[...g.querySelectorAll('button')];const sync=()=>bs.forEach(b=>b.classList.toggle('on',String(st[key])===String(num?+b.dataset.v:b.dataset.v)));bs.forEach(b=>b.onclick=()=>{st[key]=num?+b.dataset.v:b.dataset.v;sync();save();if(key==='view'){legend();draw();inspect()}else{if(key==='res'||key==='mesh')SEL=null,GI=-1;if(key==='mesh')legend();run(true)}});sync()}
+seg('g-mesh','mesh',1);seg('g-surf','surf',1);seg('g-res','res',1);seg('g-safe','safe',1);seg('g-max','max',1);seg('g-view','view',1);
+(()=>{const bs=[...document.querySelectorAll('#g-opt button')];const sync=()=>bs.forEach(b=>b.classList.toggle('on',!!st[b.dataset.k]));bs.forEach(b=>b.onclick=()=>{st[b.dataset.k]=!st[b.dataset.k];sync();save();run(true)});sync()})();
+document.getElementById('b-reset').onclick=()=>{st.yaw=DEF.yaw;st.pitch=DEF.pitch;save();run(true)};
+document.getElementById('b-next').onclick=()=>selGap(GI+1);
+document.getElementById('b-prev').onclick=()=>selGap(GI<0?-1:GI-1);
+document.getElementById('b-copy').onclick=()=>{const t=document.getElementById('report').textContent,m=document.getElementById('copymsg');const sel=()=>{const r=document.createRange();r.selectNodeContents(document.getElementById('report'));const s=getSelection();s.removeAllRanges();s.addRange(r);m.textContent='Copy blocked here. The report is selected: use your phone’s Copy.'};try{navigator.clipboard.writeText(t).then(()=>m.textContent='Copied '+t.split('\n').length+' lines.',sel)}catch(e){sel()}};
+
+// ---------- canvas: tap inspects, drag orbits ----------
+let ptr=null,raf=0;
+cv.addEventListener('pointerdown',e=>{ptr={x:e.clientX,y:e.clientY,sx:e.clientX,sy:e.clientY,drag:false};cv.setPointerCapture(e.pointerId)});
+cv.addEventListener('pointermove',e=>{if(!ptr)return;if(!ptr.drag&&Math.hypot(e.clientX-ptr.sx,e.clientY-ptr.sy)>8)ptr.drag=true;if(!ptr.drag)return;st.yaw+=(e.clientX-ptr.x)*0.01;st.pitch=Math.max(-1.4,Math.min(1.4,st.pitch+(e.clientY-ptr.y)*0.01));ptr.x=e.clientX;ptr.y=e.clientY;if(!raf)raf=requestAnimationFrame(()=>{raf=0;run(false)})});
+cv.addEventListener('pointerup',e=>{if(!ptr)return;const was=ptr;ptr=null;if(was.drag){save();if(raf){cancelAnimationFrame(raf);raf=0}run(true);return}const b=cv.getBoundingClientRect(),W=RES?RES.cam.W:st.res;SEL={x:Math.max(0,Math.min(W-1,Math.floor((e.clientX-b.left)/b.width*W))),y:Math.max(0,Math.min(W-1,Math.floor((e.clientY-b.top)/b.height*W)))};GI=RES?RES.cmp.gaps.findIndex(g=>g.p===SEL.y*W+SEL.x):-1;mark();loupe();inspect()});
+cv.addEventListener('pointercancel',()=>{ptr=null});
+
+if(window.matchMedia)matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change',()=>{readColors();if(RES)draw()});
+new MutationObserver(()=>{readColors();if(RES)draw()}).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+window.addEventListener('resize',()=>loupe());
+readColors();legend();log('Ready. '+navigator.userAgent);run(true);
+</script>
