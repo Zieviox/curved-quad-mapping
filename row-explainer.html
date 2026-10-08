@@ -1,0 +1,168 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Rows and Pixels</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: phone-first. Steps on top, then the two views (screen, uv square) stacked; side by side from 760px. Same tokens as the other pages. */
+:root{
+  --bg:#eef1f4;--surface:#ffffff;--fg:#151a21;--muted:#59626f;--line:#d6dce3;--accent:#2d56d2;--warn:#c8321f;--good:#1b7a52;
+  --chkA:#f3f5f8;--chkB:#dfe4ea;--hitA:#c9d6fb;--hitB:#a9bdf6;--missA:#f8d3cc;--missB:#f0b5aa;
+  --f-display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
+  --f-body:"IBM Plex Sans",ui-sans-serif,system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0e1115;--surface:#161a20;--fg:#e4e8ee;--muted:#98a1ae;--line:#2a313a;--accent:#7f9cff;--warn:#ff5f4a;--good:#5fd0a0;--chkA:#1d222a;--chkB:#272e38;--hitA:#25345e;--hitB:#304582;--missA:#4a2420;--missB:#62302a;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0e1115;--surface:#161a20;--fg:#e4e8ee;--muted:#98a1ae;--line:#2a313a;--accent:#7f9cff;--warn:#ff5f4a;--good:#5fd0a0;--chkA:#1d222a;--chkB:#272e38;--hitA:#25345e;--hitB:#304582;--missA:#4a2420;--missB:#62302a;color-scheme:dark}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:15px;line-height:1.55}
+.wrap{max-width:1000px;margin:0 auto;padding-inline:16px;padding-block:22px 56px;display:flex;flex-direction:column;gap:22px}
+h1{font-family:var(--f-display);font-weight:700;font-size:clamp(26px,5vw,34px);line-height:1.1;margin:0;text-wrap:balance}
+h2{font-family:var(--f-display);font-weight:600;font-size:18px;margin:0}
+p{margin:0;max-width:68ch}
+.eyebrow{font-family:var(--f-mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+ol.steps{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:6px;max-width:68ch}
+.ctrls{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surface)}
+.seg button{font:500 14px var(--f-body);color:var(--muted);background:transparent;border:0;padding:8px 14px;min-height:38px;cursor:pointer}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button.on{color:var(--fg);background:var(--bg);box-shadow:inset 0 -2px 0 var(--accent)}
+.btn{font:500 14px var(--f-body);color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px 14px;min-height:38px;cursor:pointer}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--surface)}
+button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.slider{display:flex;align-items:center;gap:12px;width:100%}
+.slider input{flex:1;min-width:0;accent-color:var(--accent);height:32px}
+.slider output{font:500 14px var(--f-mono);font-variant-numeric:tabular-nums;width:86px}
+.views{display:grid;grid-template-columns:1fr;gap:18px}
+@media (min-width:760px){.views{grid-template-columns:1fr 1fr}}
+.view{display:flex;flex-direction:column;gap:8px;min-width:0}
+canvas{width:100%;max-width:100%;aspect-ratio:1;display:block;border:1px solid var(--line);border-radius:10px;background:var(--surface);touch-action:none}
+.cap{font-size:13px;color:var(--muted)}
+.count{display:flex;flex-wrap:wrap;gap:8px}
+.pill{font:500 13px var(--f-mono);padding:5px 10px;border-radius:999px;border:1px solid var(--line);background:var(--surface);font-variant-numeric:tabular-nums}
+.pill.hit{border-color:var(--accent);color:var(--accent)}
+.pill.miss{border-color:var(--warn);color:var(--warn)}
+.pill.ok{border-color:var(--good);color:var(--good)}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12.5px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.sw{width:12px;height:12px;border-radius:2px;display:inline-block;border:1px solid var(--line)}
+.tw{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font:12.5px var(--f-mono);font-variant-numeric:tabular-nums}
+th,td{padding:6px 10px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+th{font-family:var(--f-body);font-weight:500;color:var(--muted);font-size:12px}
+tr:last-child td{border-bottom:0}
+</style>
+
+<div class="wrap">
+<header>
+  <div class="eyebrow">Curved quads · one patch, big pixels</div>
+  <h1>Rows and Pixels</h1>
+</header>
+
+<ol class="steps">
+  <li><b>Top view</b> is the screen: a 14 × 14 grid of big pixels with one curved patch on it.</li>
+  <li><b>Bottom view</b> is the same patch unrolled to its flat (u, v) square. Each point is painted with the checker color of the pixel it lands in, so you see the pixel cells as the patch sees them.</li>
+  <li>Switch <b>Flat</b> and <b>Curved</b>. Flat: the cells are a straight grid. Curved: the cells bend and tilt.</li>
+  <li>The <b>blue line</b> is one row: one value of v. The dots are where it crosses a pixel edge, solved exactly. It only touches the pixels it passes through.</li>
+  <li>Press <b>Add row</b> at different v values until no red pixel is left. Choosing those v values exactly is the open problem.</li>
+</ol>
+
+<div class="ctrls">
+  <div class="seg" role="group" aria-label="Patch"><button id="m0">Flat</button><button id="m1" class="on">Curved</button></div>
+  <button class="btn primary" id="add">Add row</button>
+  <button class="btn" id="clr">Clear rows</button>
+</div>
+<div class="slider"><label for="v">v</label><input id="v" type="range" min="0" max="1" step="0.001" value="0.42"><output id="vo">0.420</output></div>
+<div class="count" id="count"></div>
+
+<div class="views">
+  <div class="view"><h2>Screen</h2><canvas id="cs" aria-label="Screen pixel grid with the patch, the rows and the crossing points"></canvas>
+    <div class="legend"><span><span class="sw" style="background:var(--hitB)"></span>Touched by a row</span><span><span class="sw" style="background:var(--missB)"></span>Covered by the patch, not touched yet</span><span><span class="sw" style="background:var(--accent)"></span>Current row and its crossings</span></div></div>
+  <div class="view"><h2>Patch (u, v) square</h2><canvas id="cu" aria-label="The patch's uv square painted by pixel. Tap to move the row."></canvas>
+    <p class="cap">u goes right, v goes up. Tap or drag here to move the row.</p></div>
+</div>
+
+<section class="view" aria-label="Current row crossings">
+  <h2>Current row, pixel by pixel</h2>
+  <p class="cap">Every u interval between two crossings lies inside exactly one pixel.</p>
+  <div class="tw"><table><thead><tr><th>u from</th><th>u to</th><th>Pixel (x, y)</th><th>Crossed edge</th></tr></thead><tbody id="tab"></tbody></table></div>
+</section>
+</div>
+
+<script>
+const add=(a,b)=>[a[0]+b[0],a[1]+b[1],a[2]+b[2]],sub=(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]],mul=(a,s)=>[a[0]*s,a[1]*s,a[2]*s],dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2],cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]],len=a=>Math.hypot(a[0],a[1],a[2]),norm=a=>mul(a,1/(len(a)||1));
+function phong(X,N){return(u,v)=>{const w=[(1-u)*(1-v),u*(1-v),u*v,(1-u)*v];let p=[0,0,0];for(let i=0;i<4;i++)p=add(p,mul(X[i],w[i]));let s=[0,0,0];for(let i=0;i<4;i++){const q=sub(p,mul(N[i],dot(sub(p,X[i]),N[i])));s=add(s,mul(q,w[i]))}return add(mul(p,0.25),mul(s,0.75))}}
+
+const NPX=14,X4=[[-1,-1,0],[1,-1,0],[1,1,0],[-1,1,0]];
+let mode=1,V=0.42,rows=[];
+let S=null; // scene: view-space surface, screen fit, row solver
+
+// view-space surface: camera basis (right, down, forward), then fit the patch into the pixel grid
+function scene(){const N=mode?X4.map(x=>norm([x[0]*0.7,x[1]*0.7,1])):X4.map(()=>[0,0,1]);const ev=phong(X4,N);
+  const pos=mode?[2.4,-2.9,3.1]:[0,0,4],up=mode?[0,0,1]:[0,1,0],roll=mode?0.38:0;
+  const fwd=norm(sub([0,0,mode?0.25:0],pos));let right=norm(cross(fwd,up)),down=cross(fwd,right);const cr=Math.cos(roll),sr=Math.sin(roll),r2=add(mul(right,cr),mul(down,sr)),d2=sub(mul(down,cr),mul(right,sr));right=r2;down=d2;
+  const view=p=>{const q=sub(p,pos);return[dot(q,right),dot(q,down),dot(q,fwd)]};
+  // power basis in u per row: X(u) = a + b u + c u^2 (Phong is quadratic in u at fixed v), sampled exactly at u = 0, 1/2, 1
+  const rowCoef=v=>{const p0=view(ev(0,v)),p1=view(ev(0.5,v)),p2=view(ev(1,v));return[0,1,2].map(k=>[p0[k],-3*p0[k]+4*p1[k]-p2[k],2*p0[k]-4*p1[k]+2*p2[k]])};
+  // fit: projected bounds with f = 1, then scale to 11 px and center (offset so edges don't line up with pixel edges)
+  let mnx=1e9,mxx=-1e9,mny=1e9,mxy=-1e9;for(let j=0;j<=40;j++)for(let i=0;i<=40;i++){const p=view(ev(i/40,j/40)),x=p[0]/p[2],y=p[1]/p[2];mnx=Math.min(mnx,x);mxx=Math.max(mxx,x);mny=Math.min(mny,y);mxy=Math.max(mxy,y)}
+  const f=11/Math.max(mxx-mnx,mxy-mny),cx=NPX/2-f*(mnx+mxx)/2+0.37,cy=NPX/2-f*(mny+mxy)/2+0.21;
+  const scr=p=>[cx+f*p[0]/p[2],cy+f*p[1]/p[2]];
+  return{ev,view,rowCoef,f,cx,cy,scr}}
+
+// exact crossings of one row with every pixel edge: f*X(u) + (c - k)*Z(u) = 0 is a quadratic in u
+function quadRoots(A,B,C){const out=[];if(Math.abs(A)<1e-12){if(Math.abs(B)>1e-12)out.push(-C/B);return out}const h=B/2,d=h*h-A*C;if(d<0)return out;const q=-(h+(h<0?-1:1)*Math.sqrt(d));out.push(q/A);if(q!==0)out.push(C/q);return out}
+function rowCrossings(v){const[cX,cY,cZ]=S.rowCoef(v),list=[];
+  for(let k=0;k<=NPX;k++){const sx=S.cx-k,sy=S.cy-k;
+    quadRoots(S.f*cX[2]+sx*cZ[2],S.f*cX[1]+sx*cZ[1],S.f*cX[0]+sx*cZ[0]).forEach(u=>{if(u>0&&u<1)list.push({u,e:'x = '+k})});
+    quadRoots(S.f*cY[2]+sy*cZ[2],S.f*cY[1]+sy*cZ[1],S.f*cY[0]+sy*cZ[0]).forEach(u=>{if(u>0&&u<1)list.push({u,e:'y = '+k})})}
+  list.sort((a,b)=>a.u-b.u);
+  const segs=[];let u0=0,e0='patch edge';for(const c of [...list,{u:1,e:'patch edge'}]){const um=(u0+c.u)/2,p=S.scr(S.view(S.ev(um,v)));segs.push({u0,u1:c.u,px:Math.floor(p[0]),py:Math.floor(p[1]),e:e0+' → '+c.e});u0=c.u;e0=c.e}
+  return{list,segs}}
+
+// which pixels the patch covers (dense sample), and which pixels the rows touch (exact segments)
+let COVER=null;
+function cover(){COVER=new Uint8Array(NPX*NPX);for(let j=0;j<=300;j++)for(let i=0;i<=300;i++){const p=S.scr(S.view(S.ev(i/300,j/300))),x=Math.floor(p[0]),y=Math.floor(p[1]);if(x>=0&&y>=0&&x<NPX&&y<NPX)COVER[y*NPX+x]=1}}
+function touched(){const T=new Uint8Array(NPX*NPX);rows.forEach(v=>rowCrossings(v).segs.forEach(s=>{if(s.px>=0&&s.py>=0&&s.px<NPX&&s.py<NPX)T[s.py*NPX+s.px]=1}));return T}
+
+// drawing
+const cs=document.getElementById('cs'),cu=document.getElementById('cu'),xs=cs.getContext('2d'),xu=cu.getContext('2d');
+let C={};function readC(){const g=getComputedStyle(document.documentElement),h=k=>g.getPropertyValue(k).trim();['surface','fg','muted','line','accent','warn','chkA','chkB','hitA','hitB','missA','missB'].forEach(k=>C[k]=h('--'+k))}
+function rgb(s){s=s.replace('#','');if(s.length===3)s=s.split('').map(c=>c+c).join('');return[0,2,4].map(i=>parseInt(s.slice(i,i+2),16))}
+function cellColor(x,y,T){const chk=(x+y)%2;if(!COVER[y*NPX+x])return chk?C.chkB:C.chkA;if(T[y*NPX+x])return chk?C.hitB:C.hitA;return chk?C.missB:C.missA}
+function size(c){const dp=window.devicePixelRatio||1,w=Math.round(c.clientWidth*dp);if(w&&c.width!==w){c.width=w;c.height=w}return c.width}
+function draw(){const T=touched(),cur=rowCrossings(V);
+  // screen
+  let W=size(cs);if(W){const k=W/NPX;xs.clearRect(0,0,W,W);for(let y=0;y<NPX;y++)for(let x=0;x<NPX;x++){xs.fillStyle=cellColor(x,y,T);xs.fillRect(x*k,y*k,k,k)}
+    xs.strokeStyle=C.line;xs.lineWidth=1;xs.beginPath();for(let i=0;i<=NPX;i++){xs.moveTo(i*k,0);xs.lineTo(i*k,W);xs.moveTo(0,i*k);xs.lineTo(W,i*k)}xs.stroke();
+    const P=(u,v)=>{const p=S.scr(S.view(S.ev(u,v)));return[p[0]*k,p[1]*k]};
+    xs.strokeStyle=C.fg;xs.lineWidth=Math.max(1.5,W/320);xs.beginPath();for(let t=0;t<=200;t++){const s=t/50,e=s<1?[s,0]:s<2?[1,s-1]:s<3?[3-s,1]:[0,4-s],p=P(e[0],e[1]);t?xs.lineTo(p[0],p[1]):xs.moveTo(p[0],p[1])}xs.stroke();
+    xs.globalAlpha=0.55;xs.strokeStyle=C.accent;xs.lineWidth=Math.max(1,W/500);rows.forEach(v=>{xs.beginPath();for(let t=0;t<=100;t++){const p=P(t/100,v);t?xs.lineTo(p[0],p[1]):xs.moveTo(p[0],p[1])}xs.stroke()});xs.globalAlpha=1;
+    xs.strokeStyle=C.accent;xs.lineWidth=Math.max(2.5,W/180);xs.beginPath();for(let t=0;t<=100;t++){const p=P(t/100,V);t?xs.lineTo(p[0],p[1]):xs.moveTo(p[0],p[1])}xs.stroke();
+    const r=Math.max(4,W/90);cur.list.forEach(c=>{const p=P(c.u,V);xs.fillStyle=C.surface;xs.beginPath();xs.arc(p[0],p[1],r,0,7);xs.fill();xs.strokeStyle=C.accent;xs.lineWidth=Math.max(2,W/260);xs.stroke()})}
+  // uv square: every texel painted by the pixel it lands in
+  W=size(cu);if(W){const n=Math.min(W,360),im=xu.createImageData(n,n),d=im.data,cache={};for(let j=0;j<n;j++){const v=1-(j+0.5)/n;for(let i=0;i<n;i++){const p=S.scr(S.view(S.ev((i+0.5)/n,v))),x=Math.floor(p[0]),y=Math.floor(p[1]);const col=x>=0&&y>=0&&x<NPX&&y<NPX?cellColor(x,y,T):C.surface;const c=cache[col]||(cache[col]=rgb(col)),o=(j*n+i)*4;d[o]=c[0];d[o+1]=c[1];d[o+2]=c[2];d[o+3]=255}}
+    const tmp=document.createElement('canvas');tmp.width=n;tmp.height=n;tmp.getContext('2d').putImageData(im,0,0);xu.imageSmoothingEnabled=false;xu.clearRect(0,0,W,W);xu.drawImage(tmp,0,0,W,W);
+    xu.globalAlpha=0.55;xu.strokeStyle=C.accent;xu.lineWidth=Math.max(1,W/500);rows.forEach(v=>{const y=(1-v)*W;xu.beginPath();xu.moveTo(0,y);xu.lineTo(W,y);xu.stroke()});xu.globalAlpha=1;
+    const y=(1-V)*W;xu.strokeStyle=C.accent;xu.lineWidth=Math.max(2.5,W/180);xu.beginPath();xu.moveTo(0,y);xu.lineTo(W,y);xu.stroke();
+    const r=Math.max(4,W/90);cur.list.forEach(c=>{xu.fillStyle=C.surface;xu.beginPath();xu.arc(c.u*W,y,r,0,7);xu.fill();xu.strokeStyle=C.accent;xu.lineWidth=Math.max(2,W/260);xu.stroke()})}
+  // counts and table
+  let cov=0,hit=0;for(let i=0;i<NPX*NPX;i++)if(COVER[i]){cov++;if(T[i])hit++}
+  const curPx=new Set(cur.segs.map(s=>s.px+','+s.py)).size;
+  document.getElementById('count').innerHTML='<span class="pill">Patch covers '+cov+' pixels</span><span class="pill hit">This row touches '+curPx+'</span><span class="pill">'+rows.length+' row'+(rows.length===1?'':'s')+' added</span><span class="pill '+(cov-hit?'miss':'ok')+'">'+(cov-hit?(cov-hit)+' not touched yet':'All touched')+'</span>';
+  document.getElementById('tab').innerHTML=cur.segs.map(s=>'<tr><td>'+s.u0.toFixed(4)+'</td><td>'+s.u1.toFixed(4)+'</td><td>('+s.px+', '+s.py+')</td><td>'+s.e+'</td></tr>').join('')}
+
+// controls
+const vin=document.getElementById('v'),vo=document.getElementById('vo');
+function setV(v){V=Math.max(0,Math.min(1,v));vin.value=V;vo.textContent=V.toFixed(3);draw()}
+vin.addEventListener('input',()=>setV(+vin.value));
+document.getElementById('add').onclick=()=>{if(!rows.includes(V))rows.push(V);draw()};
+document.getElementById('clr').onclick=()=>{rows=[];draw()};
+const mb=[0,1].map(i=>document.getElementById('m'+i));mb.forEach((b,i)=>b.onclick=()=>{mode=i;mb.forEach((x,j)=>x.classList.toggle('on',i===j));rows=[];S=scene();cover();draw()});
+let drag=false;const fromPtr=e=>{const b=cu.getBoundingClientRect();setV(1-(e.clientY-b.top)/b.height)};
+cu.addEventListener('pointerdown',e=>{drag=true;cu.setPointerCapture(e.pointerId);fromPtr(e)});cu.addEventListener('pointermove',e=>{if(drag)fromPtr(e)});cu.addEventListener('pointerup',()=>drag=false);cu.addEventListener('pointercancel',()=>drag=false);
+if(window.matchMedia)matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change',()=>{readC();draw()});
+new MutationObserver(()=>{readC();draw()}).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+window.addEventListener('resize',draw);
+readC();S=scene();cover();setV(V);
+</script>
