@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Curved Quad Mapping</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one reading column. Intro, then the R&D steps in order as a numbered timeline (order is real: each step follows from the last). Same tokens as the examples. */
+:root{
+  --bg:#eef1f4;--surface:#ffffff;--fg:#151a21;--muted:#59626f;--line:#d6dce3;--accent:#2d56d2;--warn:#c8321f;--good:#1b7a52;
+  --f-display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
+  --f-body:"IBM Plex Sans",ui-sans-serif,system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0e1115;--surface:#161a20;--fg:#e4e8ee;--muted:#98a1ae;--line:#2a313a;--accent:#7f9cff;--warn:#ff5f4a;--good:#5fd0a0;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0e1115;--surface:#161a20;--fg:#e4e8ee;--muted:#98a1ae;--line:#2a313a;--accent:#7f9cff;--warn:#ff5f4a;--good:#5fd0a0;color-scheme:dark}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:15px;line-height:1.6}
+.wrap{max-width:820px;margin:0 auto;padding-inline:16px;padding-block:32px 64px;display:flex;flex-direction:column;gap:30px}
+h1{font-family:var(--f-display);font-weight:700;font-size:clamp(30px,6vw,44px);line-height:1.05;margin:0;letter-spacing:-.01em;text-wrap:balance}
+h2{font-family:var(--f-display);font-weight:600;font-size:20px;margin:0;text-wrap:balance}
+p{margin:0;max-width:68ch}
+.eyebrow{font-family:var(--f-mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+.lede{color:var(--muted);margin-top:10px}
+.links{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+a{color:var(--accent)}
+.btn{display:inline-flex;align-items:center;min-height:36px;padding:7px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--fg);text-decoration:none;font:500 13px var(--f-body)}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--surface)}
+ol.steps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+ol.steps>li{display:grid;grid-template-columns:40px 1fr;gap:0 14px;position:relative;padding-bottom:26px}
+ol.steps>li::before{content:"";position:absolute;left:19px;top:40px;bottom:0;width:2px;background:var(--line)}
+ol.steps>li:last-child::before{display:none}
+.num{width:40px;height:40px;border-radius:50%;border:2px solid var(--accent);display:grid;place-items:center;font:600 15px var(--f-mono);color:var(--accent);background:var(--bg)}
+.body{min-width:0;display:flex;flex-direction:column;gap:8px;padding-top:6px}
+.q{font-size:14px;color:var(--muted)}
+.find{margin:0;padding-left:18px;font-size:14px;display:flex;flex-direction:column;gap:3px}
+.tag{display:inline-block;font:500 11px var(--f-mono);letter-spacing:.04em;padding:2px 7px;border-radius:999px;border:1px solid var(--line);color:var(--muted);margin-left:6px;vertical-align:middle}
+.tag.dropped{color:var(--warn);border-color:var(--warn)}
+.tag.current{color:var(--good);border-color:var(--good)}
+.note{font-size:13px;color:var(--muted)}
+code{font-family:var(--f-mono);font-size:.92em}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div class="eyebrow">R&amp;D · CPU-only, closed form</div>
+  <h1>Curved Quad Mapping</h1>
+  <p class="lede">Mapping curved quad patches to screen pixels, <code>(quad, u, v) ↔ (pixel x, y)</code>, on the CPU with no frame buffer, for a spatial occlusion system. The final prototype will be in Odin. These pages are the experiments, in the order they were done. Every page runs in a browser, including on a phone.</p>
+  <div class="links"><a class="btn primary" href="https://github.com/Zieviox/curved-quad-mapping/blob/main/docs/rnd-log.md">Full R&amp;D log</a><a class="btn" href="https://github.com/Zieviox/curved-quad-mapping">Source on GitHub</a></div>
+</header>
+
+<ol class="steps">
+  <li><span class="num">0</span><div class="body">
+    <h2>Surface lab</h2>
+    <p class="q">Which curved surface do we build from 4 corners + 4 normals?</p>
+    <ul class="find"><li>Nagata, Phong, PN-quad and Catmull-Clark compared on a cube and a wave, with a displacement-map test.</li><li>A displacement map converted to a vector map relative to the flat quad is exact.</li></ul>
+    <div class="links"><a class="btn" href="examples/00-curved-quad-lab.html">Open the lab</a></div></div></li>
+
+  <li><span class="num">1</span><div class="body">
+    <h2>Derivative-step walker <span class="tag dropped">dropped</span></h2>
+    <p class="q">Can we walk each patch in steps of one projected pixel?</p>
+    <ul class="find"><li>One-pixel steps leave gaps: 2.54% on the cube at 256².</li><li>Safety 0.7 removes the interior gaps but nearly doubles the work: 2.92 pairs per pixel, about 76 cycles per pixel.</li><li>The step is a local guess. Dropped in favour of an exact mechanism.</li></ul>
+    <div class="links"><a class="btn" href="examples/01-pixel-walk-test.html">Open the walk test</a></div></div></li>
+
+  <li><span class="num">2</span><div class="body">
+    <h2>Exact crossings along a row</h2>
+    <p class="q">Where exactly does a row of the patch cross into the next pixel?</p>
+    <ul class="find"><li>A pixel edge is a plane through the camera. Crossing it is a quadratic for Nagata and Phong.</li><li>Exact along a row, but rows are 1D: choosing them is still a guess.</li></ul>
+    <div class="links"><a class="btn" href="examples/02-row-explainer.html">Open the row explainer</a></div></div></li>
+
+  <li><span class="num">3</span><div class="body">
+    <h2>Pixel grid as knives</h2>
+    <p class="q">Start from the pixels instead: what does each pixel own on the patch?</p>
+    <ul class="find"><li>Each pixel edge slices the patch. Each slice is closed form.</li><li>Pixel corners (two slices meeting) are degree 8 on Phong and Nagata, so no closed form. They are a quadratic on a quadric (ellipsoid) or a bilinear patch.</li></ul>
+    <div class="links"><a class="btn" href="examples/03-pixel-slices.html">Open the slices page</a></div></div></li>
+
+  <li><span class="num">4</span><div class="body">
+    <h2>Ellipsoid quads</h2>
+    <p class="q">Can each quad be a piece of a quadric, built from its corners and normals?</p>
+    <ul class="find"><li>Fit through the 4 corners, with normals by least squares. A pixel corner maps to (u, v) with two quadratics.</li><li>A quadric has 9 free numbers but corners + normals ask for 12, so normals are only exact when they agree with one quadric.</li></ul>
+    <div class="links"><a class="btn" href="examples/00-curved-quad-lab.html">Open the lab (Ellipsoid view)</a></div></div></li>
+
+  <li><span class="num">5</span><div class="body">
+    <h2>S-curves by splitting <span class="tag current">current</span></h2>
+    <p class="q">How do we get S-bends from quadrics, which can't inflect?</p>
+    <ul class="find"><li>Add an artificial point where an edge's cubic inflects, split there, and give each side its own quadric. The wave gets a real S with every normal exact.</li><li>Pixel corner: 29 cycles, or 39 if latency-bound, per piece.</li><li>Open: pieces crease where they meet. Next: share data with neighbours.</li></ul>
+    <div class="links"><a class="btn" href="examples/00-curved-quad-lab.html">Open the lab (S-split view)</a></div></div></li>
+</ol>
+
+<p class="note">The cost model throughout is Intel Skylake, float32 scalar: ADD, MUL and FMA have latency 4 and throughput 0.5 cycles; SQRT 12/3; DIV 11/3. Pages compute in JavaScript float64.</p>
+</div>
+</body>
+</html>
