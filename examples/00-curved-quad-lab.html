@@ -11,7 +11,7 @@
 /* Layout: single technical column — live 3D test first, then cost tables in pipeline order */
 :root{
   --bg:#eef1f4;--surface:#ffffff;--fg:#151a21;--muted:#59626f;--line:#d6dce3;--accent:#2d56d2;--warn:#b4321f;--good:#1b7a52;
-  --c-nag:#1D9E75;--c-pho:#7F77DD;--c-pn:#D85A30;--c-cc:#D4537E;--c-ell:#3A86C8;--c-els:#B07D12;
+  --c-nag:#1D9E75;--c-pho:#7F77DD;--c-pn:#D85A30;--c-cc:#D4537E;--c-ell:#3A86C8;--c-els:#B07D12;--c-trm:#2E8B7A;
   --f-display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
   --f-body:"IBM Plex Sans",ui-sans-serif,system-ui,sans-serif;
   --f-mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
@@ -84,6 +84,7 @@ dt{color:var(--muted)}dd{margin:0;min-width:0}
     <div class="view"><canvas class="cv" id="c2" aria-label="PN-quad view"></canvas><div class="vname"><span class="sw" style="background:var(--c-pn)"></span>PN-quad</div><div class="err" id="e2"></div></div>
     <div class="view"><canvas class="cv" id="c4" aria-label="Ellipsoid quad view"></canvas><div class="vname"><span class="sw" style="background:var(--c-ell)"></span>Ellipsoid quad (quadric)</div><div class="err" id="e4"></div></div>
     <div class="view"><canvas class="cv" id="c5" aria-label="Ellipsoid quad with S-split view"></canvas><div class="vname"><span class="sw" style="background:var(--c-els)"></span>Ellipsoid quad + S-split</div><div class="err" id="e5"></div></div>
+    <div class="view"><canvas class="cv" id="c6" aria-label="Ellipsoid quad with S-split and neighbour trim view"></canvas><div class="vname"><span class="sw" style="background:var(--c-trm)"></span>Ellipsoid + S-split + neighbour trim (fails: see Diagnosis)</div><div class="err" id="e6"></div></div>
     <div class="view"><canvas class="cv" id="c3" aria-label="Catmull-Clark view"></canvas><div class="vname"><span class="sw" style="background:var(--c-cc)"></span>Catmull-Clark (baked target)</div><div class="err" id="e3"></div></div>
   </div>
 </section>
@@ -251,6 +252,11 @@ dt{color:var(--muted)}dd{margin:0;min-width:0}
       <li class="plus">Wave: all 16 pieces match their corner normals exactly (0.0°).</li>
       <li class="minus">Each corner is tried on up to 2 pieces (4 for a 4-way split). Build cost per piece.</li>
       <li class="minus">Pieces meet only at their corners: creases along split lines and quad edges.</li></ul></div>
+    <div class="card"><h3><span class="sw" style="background:var(--c-trm);display:inline-block;margin-right:8px"></span>Neighbour trim (option A)</h3><ul>
+      <li class="plus">Exact border by construction: a piece ends where its quadric crosses its neighbour's (union on convex edges, intersection on concave).</li>
+      <li class="minus">Fails here: neighbours that match the shared normals are tangent at the shared corners, so they touch there instead of crossing. Between the corners one usually stays above the other, so there's no crossing line along the edge. Result: holes and ribbons.</li>
+      <li class="minus">A quadric is a whole closed (or infinite) shape. Its far side must be masked off by mapping each test point back into the neighbour's patch.</li>
+      <li class="minus">Per pixel corner near an edge: up to 2 neighbour tests at 31 cycles each.</li></ul></div>
     <div class="card"><h3><span class="sw" style="background:var(--c-cc);display:inline-block;margin-right:8px"></span>Catmull-Clark</h3><ul>
       <li class="plus">Smooth across quad borders. Regular quads are exact bicubic B-splines at PN-quad hot-loop cost; no normals needed.</li>
       <li class="minus">Doesn't pass through the vertices; shrinks.</li>
@@ -303,12 +309,18 @@ const det=dot(A[0],cross(A[1],A[2])),m1=A[0][0],m2=A[0][0]*A[1][1]-A[0][1]*A[0][
 let cen=null;if(Math.abs(det)>1e-6){const inv=[cross(A[1],A[2]),cross(A[2],A[0]),cross(A[0],A[1])].map(r=>mul(r,1/det));cen=mul([dot(inv[0],g),dot(inv[1],g),dot(inv[2],g)],-0.5)}
 const qc=cen?Q(cen):0,ell=!!cen&&((m1>0&&m2>0&&det>0)||(m1<0&&m2>0&&det<0))&&qc*m1<0,dir=norm(N.reduce((a,b)=>add(a,b),[0,0,0]));
 const ang=Math.max(...N.map((n,i)=>{const gr=grad(L[i]);return Math.acos(Math.min(1,Math.abs(dot(gr,n))/(len(gr)||1)))*180/Math.PI}));
-const info={ell,ang,miss:0};
+const info={ell,ang,miss:0},orient=N.reduce((a,n,i)=>a+dot(grad(L[i]),n),0)<0?-1:1;
 const ev=(u,v)=>{const w=[(1-u)*(1-v),u*(1-v),u*v,(1-u)*v];let p=[0,0,0];for(let i=0;i<4;i++)p=add(p,mul(L[i],w[i]));let P=p;
   if(ell){const d=sub(p,cen),a=dot(d,Ax(d)),r=-qc/a;if(a!==0&&r>0)P=add(cen,mul(d,Math.sqrt(r)));else info.miss++}
   else{const a=dot(dir,Ax(dir)),b=dot(grad(p),dir),c=Q(p);let t=null;if(Math.abs(a)<1e-12){if(b)t=-c/b}else{const D=b*b-4*a*c;if(D>=0){const r1=(-b+Math.sqrt(D))/(2*a),r2=(-b-Math.sqrt(D))/(2*a);t=Math.abs(r1)<Math.abs(r2)?r1:r2}}if(t===null)info.miss++;else P=add(p,mul(dir,t))}
   return add(c0,mul(P,1/s))};
-ev.info=info;return ev}
+ev.info=info;ev.Qo=x=>orient*Q(mul(sub(x,c0),s));
+// inverse: world point on the quadric -> (u, v) on this quad. Same ray as the push (from the centre, or along dir) vs the bilinear base; quadratic.
+const ba=L[0],bb=sub(L[1],L[0]),bc=sub(L[3],L[0]),be=add(sub(L[2],L[1]),sub(L[0],L[3]));
+ev.inv=x=>{const X=mul(sub(x,c0),s),o=ell?cen:X,w=ell?sub(X,cen):dir,ax=Math.abs(w[0])<0.6?[1,0,0]:[0,1,0],n1=norm(cross(w,ax)),n2=cross(w,n1),k=n=>[dot(n,sub(ba,o)),dot(n,bb),dot(n,bc),dot(n,be)],[A1,B1,C1,D1]=k(n1),[A2,B2,C2,D2]=k(n2);
+  const qa=C2*D1-D2*C1,qb=A2*D1+C2*B1-B2*C1-D2*A1,qc=A2*B1-B2*A1;let vs=[];if(Math.abs(qa)<1e-12){if(Math.abs(qb)>1e-12)vs=[-qc/qb]}else{const h=qb/2,D=h*h-qa*qc;if(D>=0){const q=-(h+(h<0?-1:1)*Math.sqrt(D));vs=q===0?[0]:[q/qa,qc/q]}}
+  let best=null,bd=1e9;for(const v of vs){const den=B1+D1*v;if(Math.abs(den)<1e-12)continue;const u=-(A1+C1*v)/den,dd=Math.abs(u-0.5)+Math.abs(v-0.5);if(dd<bd){bd=dd;best=[u,v]}}return best};
+return ev}
 // S-split: where a quad edge's PN cubic (built from its 2 corners + normals) has an inflection, add an artificial point there.
 // The quad is cut along the line between the artificial points, and each piece gets its own quadric (convex piece, inverted piece).
 function pnEdge(x0,x1,n0,n1){const d=sub(x1,x0);return[x0,add(x0,mul(sub(d,mul(n0,dot(d,n0))),1/3)),sub(x1,mul(sub(d,mul(n1,dot(d,n1))),1/3)),x1]}
@@ -328,6 +340,44 @@ else{// 4 pieces; centre = where the two split lines cross, placed on the PN-qua
   parts=[Q([c00,A0,C,B0],uc/2,vc/2),Q([A0,c10,B1,C],(1+uc)/2,vc/2),Q([C,B1,c11,A1],(1+uc)/2,(1+vc)/2),Q([B0,C,A1,c01],uc/2,(1+vc)/2)];
   ev=(u,v)=>{const s=u0+du*v,t=v0+dv*u,l=u<s,b=v<t,uu=l?u/s:(u-s)/(1-s),vv=b?v/t:(v-t)/(1-t);return parts[b?(l?0:1):(l?3:2)](uu,vv)}}
 const I=parts.map(p=>p.info);ev.info={pieces:parts.length,ellN:I.filter(i=>i.ell).length,ell:I.every(i=>i.ell),ang:Math.max(...I.map(i=>i.ang)),get miss(){return I.reduce((a,i)=>a+i.miss,0)}};return ev}
+// Pieces of one quad for trimming: same split as quadricS, plus each piece's corners, average normal, centre,
+// the map from piece (u', v') to quad (u, v), and loc(u, v) for the reverse.
+function piecesS(X,N){const[x00,x10,x11,x01]=X,[n00,n10,n11,n01]=N,PNQ=pn(X,N);
+const iu0=inflect(x00,x10,n00,n10),iu1=inflect(x01,x11,n01,n11),iv0=inflect(x00,x01,n00,n01),iv1=inflect(x10,x11,n10,n11),su=iu0!==null||iu1!==null,sv=iv0!==null||iv1!==null;
+const u0=su?iu0??iu1:0,u1=su?iu1??iu0:0,v0=sv?iv0??iv1:0,v1=sv?iv1??iv0:0,du=u1-u0,dv=v1-v0,K=(p,n)=>({p,n}),c00=K(x00,n00),c10=K(x10,n10),c11=K(x11,n11),c01=K(x01,n01);
+const A0=su&&edgePoint(x00,x10,n00,n10,u0),A1=su&&edgePoint(x01,x11,n01,n11,u1),B0=sv&&edgePoint(x00,x01,n00,n01,v0),B1=sv&&edgePoint(x10,x11,n10,n11,v1);
+let C=null;if(su&&sv){const uc=(u0+du*v0)/(1-du*dv),vc=v0+dv*uc,h=1e-4,nn=norm(cross(sub(PNQ(uc+h,vc),PNQ(uc-h,vc)),sub(PNQ(uc,vc+h),PNQ(uc,vc-h)))),ref=add(add(n00,n10),add(n11,n01));C=K(PNQ(uc,vc),dot(nn,ref)<0?mul(nn,-1):nn);C.uc=uc;C.vc=vc}
+// piece side flags: l = left of the u split (or no u split), b = below the v split (or no v split)
+const mk=(cs,l,b)=>{const map=(a,c)=>{const al=!su?a:l?a*u0:a+(1-a)*u0,be=!su?0:l?a*du:(1-a)*du,ga=!sv?c:b?c*v0:c+(1-c)*v0,de=!sv?0:b?c*dv:(1-c)*dv,u=(al+be*ga)/(1-be*de);return[u,ga+de*u]};
+  const mu=map(0.5,0.5),ev=quadric(cs.map(k=>k.p),cs.map(k=>k.n),PNQ(mu[0],mu[1]));return{ev,Qo:ev.Qo,inv:ev.inv,info:ev.info,corners:cs.map(k=>k.p),nrm:norm(cs.reduce((a,k)=>add(a,k.n),[0,0,0])),cen:mul(cs.reduce((a,k)=>add(a,k.p),[0,0,0]),0.25),map}};
+let parts;
+if(!su&&!sv)parts=[mk([c00,c10,c11,c01],1,1)];
+else if(su&&!sv)parts=[mk([c00,A0,A1,c01],1,1),mk([A0,c10,c11,A1],0,1)];
+else if(sv&&!su)parts=[mk([c00,c10,B1,B0],1,1),mk([B0,B1,c11,c01],1,0)];
+else parts=[mk([c00,A0,C,B0],1,1),mk([A0,c10,B1,C],0,1),mk([C,B1,c11,A1],0,0),mk([B0,C,A1,c01],1,0)];
+const loc=(u,v)=>{const s0=u0+du*v,t0=v0+dv*u,l=!su||u<s0,b=!sv||v<t0,uu=!su?u:l?u/s0:(u-s0)/(1-s0),vv=!sv?v:b?v/t0:(v-t0)/(1-t0);return{p:parts[su&&sv?(b?(l?0:1):(l?3:2)):su?(l?0:1):sv?(b?0:1):0],u:uu,v:vv}};
+return{parts,loc,split:parts.length>1}}
+
+// Option A, neighbour trim: a piece's border is where its quadric crosses the neighbour's quadric.
+// Near each side, keep a point only if it is on this piece's side of the neighbour's shape:
+// convex edge -> outside the neighbour (union), concave edge -> inside it (intersection). Both pieces use the same rule, so they meet exactly.
+const TM=0.3,TN=36;
+function trimBuild(m,mode,TG,L,d){const N=vnorm(m),P=[],Q=[];
+m.f.forEach((q,fi)=>{const S=piecesS(q.map(i=>m.v[i]),q.map(i=>N[i]));Q.push(S);S.parts.forEach(p=>{p.quad=fi;P.push(p)})});
+const key=v=>v.map(x=>Math.round(x*1e5)).join(','),sides=new Map();
+P.forEach((p,pi)=>{p.nb=[null,null,null,null];for(let k=0;k<4;k++){const a=key(p.corners[k]),b=key(p.corners[(k+1)%4]),kk=a<b?a+'|'+b:b+'|'+a;if(!sides.has(kk))sides.set(kk,[]);sides.get(kk).push([pi,k])}});
+let shared=0,open=0;sides.forEach(l=>{if(l.length===2){const[[a,ka],[b,kb]]=l,pa=P[a],pb=P[b],sg=dot(sub(pb.cen,pa.cen),sub(pb.nrm,pa.nrm))>=0?1:-1;pa.nb[ka]={p:pb,sg};pb.nb[kb]={p:pa,sg};shared++}else open+=l.length});
+// side k of a piece: 0 = (v'=0), 1 = (u'=1), 2 = (v'=1), 3 = (u'=0)
+// the neighbour's shape only counts where the point maps into the neighbour's own (extended) patch: its far side must not cut this one
+const inExt=g=>g&&g[0]>=-TM&&g[0]<=1+TM&&g[1]>=-TM&&g[1]<=1+TM;
+const keep=(p,u,v,X)=>{for(let k=0;k<4;k++){if(!(k===0?v<0.5:k===1?u>0.5:k===2?v>0.5:u<0.5))continue;const nb=p.nb[k];if(!nb){if(k===0&&v<0||k===1&&u>1||k===2&&v>1||k===3&&u<0)return false;continue}if(inExt(nb.p.inv(X))&&nb.sg*nb.p.Qo(X)<0)return false}return true};
+const at=(p,u,v)=>{const B=p.ev(u,v);if(mode===0)return B;const h=1e-3,n=norm(cross(sub(p.ev(u+h,v),p.ev(u-h,v)),sub(p.ev(u,v+h),p.ev(u,v-h)))),g=p.map(u,v);return add(B,mul(n,d(g[0],g[1])))};
+const quads=[];let edgeHits=0;
+P.forEach(p=>{const G=[],a=-TM,w=1+2*TM;for(let j=0;j<=TN;j++){G[j]=[];for(let i=0;i<=TN;i++)G[j][i]=at(p,a+w*i/TN,a+w*j/TN)}
+  for(let j=0;j<TN;j++)for(let i=0;i<TN;i++){const u=a+w*(i+0.5)/TN,v=a+w*(j+0.5)/TN;if(!keep(p,u,v,p.ev(u,v)))continue;if(i===0||j===0||i===TN-1||j===TN-1)edgeHits++;quads.push([G[j][i],G[j][i+1],G[j+1][i+1],G[j+1][i]])}});
+// error on the usual 17 x 17 grid per quad, at points this quad still owns after trimming
+let mx=0,sm=0,ct=0,lost=0;m.f.forEach((q,fi)=>{for(let j=0;j<=R;j++)for(let i=0;i<=R;i++){const u=i/R,v=j/R,o=Q[fi].loc(u,v),X=o.p.ev(o.u,o.v);if(!keep(o.p,o.u,o.v,X)){lost++;continue}const tr=TG[fi][j][i],T=add(tr.x,mul(tr.n,d(u,v))),e=len(sub(at(o.p,o.u,o.v),T))/L*100;mx=Math.max(mx,e);sm+=e;ct++}});
+return{q:quads,mx,mean:sm/ct,qi:[],trim:{pieces:P.length,shared,open,edgeHits,lost,total:m.f.length*(R+1)*(R+1)}}}
 function cc(m){const V=m.v,F=m.f,key=(a,b)=>a<b?a+'_'+b:b+'_'+a;const fp=F.map(q=>mul(q.reduce((s,i)=>add(s,V[i]),[0,0,0]),1/q.length));const E=new Map();F.forEach((q,fi)=>{for(let k=0;k<q.length;k++){const a=q[k],b=q[(k+1)%q.length],kk=key(a,b);if(!E.has(kk))E.set(kk,{a,b,f:[]});E.get(kk).f.push(fi)}});const vf=V.map(()=>[]),ve=V.map(()=>[]);F.forEach((q,fi)=>q.forEach(i=>vf[i].push(fi)));E.forEach(e=>{ve[e.a].push(e);ve[e.b].push(e)});const oth=(e,i)=>V[e.a===i?e.b:e.a];
 const verts=V.map((P,i)=>{const be=ve[i].filter(e=>e.f.length===1);if(be.length){if(be.length===2&&vf[i].length>1)return mul(add(add(oth(be[0],i),oth(be[1],i)),mul(P,6)),1/8);return P}const n=vf[i].length,Fa=mul(vf[i].reduce((s,fi)=>add(s,fp[fi]),[0,0,0]),1/n),Ra=mul(ve[i].reduce((s,e)=>add(s,mul(add(V[e.a],V[e.b]),0.5)),[0,0,0]),1/ve[i].length);return mul(add(add(Fa,mul(Ra,2)),mul(P,n-3)),1/n)});
 const ei=new Map();E.forEach((e,k)=>{const p=e.f.length===2?mul(add(add(V[e.a],V[e.b]),add(fp[e.f[0]],fp[e.f[1]])),0.25):mul(add(V[e.a],V[e.b]),0.5);ei.set(k,verts.length);verts.push(p)});const f0=verts.length;fp.forEach(p=>verts.push(p));const nf=[],no=[],np=[],md=(a,b)=>[(a[0]+b[0])/2,(a[1]+b[1])/2];
@@ -336,10 +386,11 @@ const R=16;
 function truth(m){let s={v:m.v,f:m.f,o:m.f.map((_,i)=>i),p:m.f.map(()=>[[0,0],[1,0],[1,1],[0,1]])};for(let i=0;i<4;i++)s=cc(s);const N=vnorm(s);const G=m.f.map(()=>[]);s.f.forEach((q,k)=>q.forEach((vi,c)=>{const uv=s.p[k][c],i=Math.round(uv[0]*R),j=Math.round(uv[1]*R),g=G[s.o[k]];(g[j]||(g[j]=[]))[i]={x:s.v[vi],n:N[vi]}}));return G}
 function edgeLen(m){let s=0,c=0;m.f.forEach(q=>{for(let k=0;k<4;k++){s+=len(sub(m.v[q[(k+1)%4]],m.v[q[k]]));c++}});return s/c}
 function build(m){const TG=truth(m),L=edgeLen(m),A=0.12*L,d=(u,v)=>A*Math.sin(2*Math.PI*u)*Math.sin(2*Math.PI*v),N=vnorm(m);const res=[];
-for(let mode=0;mode<3;mode++){res[mode]=[];for(let t=0;t<6;t++){const quads=[],qi=[];let mx=0,sm=0,ct=0;m.f.forEach((q,fi)=>{const X=q.map(i=>m.v[i]),Nn=q.map(i=>N[i]);const ev=t===0?nagata(X,Nn):t===1?phong(X,Nn):t===2?pn(X,Nn):t===4?quadric(X,Nn,pn(X,Nn)(0.5,0.5)):t===5?quadricS(X,Nn):null;if(ev&&ev.info)qi.push(ev.info);const G=[];for(let j=0;j<=R;j++){G[j]=[];for(let i=0;i<=R;i++){const u=i/R,v=j/R,tr=TG[fi][j][i],T=add(tr.x,mul(tr.n,d(u,v)));let P;if(t===3)P=mode===0?tr.x:T;else if(mode===2)P=T;else{const B=ev(u,v);if(mode===0)P=B;else{const h=1e-3,n=norm(cross(sub(ev(u+h,v),ev(u-h,v)),sub(ev(u,v+h),ev(u,v-h))));P=add(B,mul(n,d(u,v)))}}const e=len(sub(P,T))/L*100;mx=Math.max(mx,e);sm+=e;ct++;G[j][i]=P}}for(let j=0;j<R;j++)for(let i=0;i<R;i++)quads.push([G[j][i],G[j][i+1],G[j+1][i+1],G[j+1][i]])});res[mode][t]={q:quads,mx,mean:sm/ct,qi}}}return res}
-const COL=[[29,158,117],[127,119,221],[216,90,48],[212,83,126],[58,134,200],[176,125,18]];
-let yaw=0.6,pitch=0.5,cage=true,mode=1,mesh=cube(),RES=build(mesh);const cvs=[0,1,2,3,4,5].map(i=>document.getElementById('c'+i));
-function stats(){for(let t=0;t<6;t++){const r=RES[mode][t];let x='';if(r.qi.length){const pc=r.qi.reduce((s,i)=>s+(i.pieces||1),0),sp=r.qi.filter(i=>i.pieces>1).length,e=r.qi.reduce((s,i)=>s+(i.ellN??(i.ell?1:0)),0),a=Math.max(...r.qi.map(i=>i.ang)),ms=r.qi.reduce((s,i)=>s+i.miss,0);x=(t===5?' · '+sp+' quads split → '+pc+' pieces':'')+' · normals off ≤ '+a.toFixed(1)+'° · '+e+'/'+pc+' ellipsoids'+(ms?' · '+ms+' misses':'')}document.getElementById('e'+t).textContent='Error max '+r.mx.toFixed(1)+'% · mean '+r.mean.toFixed(1)+'%'+x}}
+for(let mode=0;mode<3;mode++){res[mode]=[];for(let t=0;t<6;t++){const quads=[],qi=[];let mx=0,sm=0,ct=0;m.f.forEach((q,fi)=>{const X=q.map(i=>m.v[i]),Nn=q.map(i=>N[i]);const ev=t===0?nagata(X,Nn):t===1?phong(X,Nn):t===2?pn(X,Nn):t===4?quadric(X,Nn,pn(X,Nn)(0.5,0.5)):t===5?quadricS(X,Nn):null;if(ev&&ev.info)qi.push(ev.info);const G=[];for(let j=0;j<=R;j++){G[j]=[];for(let i=0;i<=R;i++){const u=i/R,v=j/R,tr=TG[fi][j][i],T=add(tr.x,mul(tr.n,d(u,v)));let P;if(t===3)P=mode===0?tr.x:T;else if(mode===2)P=T;else{const B=ev(u,v);if(mode===0)P=B;else{const h=1e-3,n=norm(cross(sub(ev(u+h,v),ev(u-h,v)),sub(ev(u,v+h),ev(u,v-h))));P=add(B,mul(n,d(u,v)))}}const e=len(sub(P,T))/L*100;mx=Math.max(mx,e);sm+=e;ct++;G[j][i]=P}}for(let j=0;j<R;j++)for(let i=0;i<R;i++)quads.push([G[j][i],G[j][i+1],G[j+1][i+1],G[j+1][i]])});res[mode][t]={q:quads,mx,mean:sm/ct,qi}}res[mode][6]=mode===2?{...res[mode][5],qi:[]}:trimBuild(m,mode,TG,L,d)}return res}
+const COL=[[29,158,117],[127,119,221],[216,90,48],[212,83,126],[58,134,200],[176,125,18],[46,139,122]];
+let yaw=0.6,pitch=0.5,cage=true,mode=1,mesh=cube(),RES=build(mesh);const cvs=[0,1,2,3,4,5,6].map(i=>document.getElementById('c'+i));
+function stats(){for(let t=0;t<7;t++){const r=RES[mode][t];let x='';if(r.qi.length){const pc=r.qi.reduce((s,i)=>s+(i.pieces||1),0),sp=r.qi.filter(i=>i.pieces>1).length,e=r.qi.reduce((s,i)=>s+(i.ellN??(i.ell?1:0)),0),a=Math.max(...r.qi.map(i=>i.ang)),ms=r.qi.reduce((s,i)=>s+i.miss,0);x=(t===5?' · '+sp+' quads split → '+pc+' pieces':'')+' · normals off ≤ '+a.toFixed(1)+'° · '+e+'/'+pc+' ellipsoids'+(ms?' · '+ms+' misses':'')}if(r.trim){const T=r.trim;x=' · '+T.pieces+' pieces, '+T.shared+' shared sides, '+T.open+' open · '+(100*T.lost/T.total).toFixed(1)+'% of grid owned by a neighbour · '+T.edgeHits+' margin hits'}else if(t===6)x=' · converted map ignores the base'
+document.getElementById('e'+t).textContent='Error max '+r.mx.toFixed(1)+'% · mean '+r.mean.toFixed(1)+'%'+x}}
 function render(){const cy=Math.cos(yaw),sy=Math.sin(yaw),cp=Math.cos(pitch),sp=Math.sin(pitch);const rot=p=>{const x=p[0]*cy-p[1]*sy,y1=p[0]*sy+p[1]*cy,z=p[2];return[x,y1*cp-z*sp,y1*sp+z*cp]};const Lt=norm([-0.4,-0.8,0.5]);const fg=getComputedStyle(document.body).color;
 cvs.forEach((cv,k)=>{const ctx=cv.getContext('2d'),W=cv.width;if(!W)return;const s=W/4.6,P=r=>[W/2+r[0]*s,W/2-r[2]*s];ctx.clearRect(0,0,W,W);const qs=RES[mode][k].q.map(q=>{const r=q.map(rot);return{r,d:(r[0][1]+r[1][1]+r[2][1]+r[3][1])/4}}).sort((a,b)=>b.d-a.d);const c=COL[k];
 qs.forEach(o=>{const n=norm(cross(sub(o.r[2],o.r[0]),sub(o.r[3],o.r[1])));const sh=0.25+0.75*Math.abs(dot(n,Lt));const col='rgb('+Math.round(c[0]*sh)+','+Math.round(c[1]*sh)+','+Math.round(c[2]*sh)+')';ctx.fillStyle=col;ctx.strokeStyle=col;ctx.lineWidth=0.8;ctx.beginPath();o.r.forEach((r,i)=>{const p=P(r);i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1])});ctx.closePath();ctx.fill();ctx.stroke()});

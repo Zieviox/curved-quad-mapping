@@ -136,6 +136,24 @@ Measured after the shoulder rule (error vs the Catmull-Clark target, % of averag
 - **Pixel corner:** 137-cycle latency chain, 63 uops, so 3.5 corners fit in a 224-entry reorder buffer. A corner on a split quad is tried on each piece until one accepts it.
 - **Comparison:** the step walk needed about 76 cycles per covered pixel (26 per step × 2.92 pairs per pixel at safety 0.7) and still left sliver gaps.
 
+## 6. Neighbour trim, option A (example 00) — fails
+
+Goal: no cracks between pieces. Each piece keeps its own quadric, and its border becomes the line where its quadric crosses the neighbour's.
+
+- **Rule:** near each side, a point stays on this piece only if it is on this piece's side of the neighbour's shape.
+  - Convex edge → keep it outside the neighbour (union).
+  - Concave edge → keep it inside the neighbour (intersection).
+  - Convexity is the sign of `(c_B − c_A)·(n_B − n_A)`. Both pieces use the same rule, so in theory they meet exactly.
+- **Required fix (worth keeping):** a quadric is a whole closed (or infinite) shape. A neighbour's far side reached over the middle of this piece and cut it. The test now applies only where the point maps back into the neighbour's own patch area (inverse map: one quadratic, same as the pixel corner).
+- **Measured:**
+  - Cube: 7.4% of grid points owned by a neighbour, 796 margin hits.
+  - Wave: 10.6% owned by a neighbour, 1151 margin hits.
+  - Both show holes and ribbons. Adding the edge midpoints from the PN cubic as extra fit targets (weights 0.3–3) changed nothing.
+- **Why it fails:** neighbours that match the shared vertex normals are tangent at the shared corners, so there they touch instead of cross. Between the two corners, one shape usually stays above the other, so no crossing line runs along the edge. The cleaner the normals, the worse this gets.
+- **Cost if it had worked:** a neighbour test is the inverse map plus one quadric sign check, about 31 cycles. There are up to 2 tests per pixel corner near an edge.
+
+Result: dropped. Watertight pieces need shared edge curves (each shared edge one exact curve that both pieces contain). One curve fixes 5 of a quadric's 9 numbers, so that needs more pieces per quad, as in Dahmen's piecewise quadrics.
+
 ## Prior art
 
 Collected from memory; not checked against the papers yet.
