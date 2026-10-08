@@ -77,4 +77,10 @@ Option (b): (u, v) from the projected side arcs only, against the surface's own 
 
 ![UV slides: the moving camera's screen (u, v) painted on the surface, seen from a fixed camera](docs/img/08-uv-slides.png)
 
+### 14 · Two-pass map — [Preview](https://htmlpreview.github.io/?https://github.com/Zieviox/curved-quad-mapping/blob/main/examples/09-two-pass-map.html) · [Source](examples/09-two-pass-map.html)
+
+Pass 1: each piece walks only its own spans (each edge's crossing with a pixel row is one quadratic) and writes (piece, u, v, distance) into each pixel's list. Pass 2: each pixel keeps the closest. 15–111 cycles per pixel in the model. Exact where pieces don't fold; a piece that folds past the outline fails as a whole.
+
+![Two-pass map: resolved pixels and the numbers of a selected pixel](docs/img/09-two-pass-map.png)
+
 Details and numbers are in the [R&D log](docs/rnd-log.md).

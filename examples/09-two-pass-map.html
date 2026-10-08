@@ -1,0 +1,474 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Two-Pass Map</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: phone-first. Steps, controls, screen + selected pixel numbers, cost; side by side from 900px. Same tokens as the other examples. */
+:root{
+  --bg:#eef1f4;--surface:#ffffff;--fg:#151a21;--muted:#59626f;--line:#d6dce3;--accent:#2d56d2;--warn:#c8321f;--good:#1b7a52;
+  --pin:#b9c4d6;--pst:#9fcfc6;--pco:#d7b2d4;--border:#2d56d2;--fillet:#1f8a7a;--contact:#8a94a3;--cross:#d0721a;--corner:#a0459b;--handle:#151a21;--art:#c8321f;
+  --f-display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
+  --f-body:"IBM Plex Sans",ui-sans-serif,system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0e1115;--surface:#161a20;--fg:#e4e8ee;--muted:#98a1ae;--line:#2a313a;--accent:#7f9cff;--warn:#ff5f4a;--good:#5fd0a0;--pin:#4a5568;--pst:#2f6b62;--pco:#6b4569;--border:#7f9cff;--fillet:#4fd1bb;--contact:#7d8794;--cross:#f0a050;--corner:#d68ad0;--handle:#e4e8ee;--art:#ff5f4a;color-scheme:dark}}
+:root[data-theme="dark"]{--pin:#4a5568;--pst:#2f6b62;--pco:#6b4569;--bg:#0e1115;--surface:#161a20;--fg:#e4e8ee;--muted:#98a1ae;--line:#2a313a;--accent:#7f9cff;--warn:#ff5f4a;--good:#5fd0a0;--border:#7f9cff;--fillet:#4fd1bb;--contact:#7d8794;--cross:#f0a050;--corner:#d68ad0;--handle:#e4e8ee;--art:#ff5f4a;color-scheme:dark}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:15px;line-height:1.55}
+.wrap{max-width:1100px;margin:0 auto;padding-inline:16px;padding-block:22px 56px;display:flex;flex-direction:column;gap:22px}
+h1{font-family:var(--f-display);font-weight:700;font-size:clamp(26px,5vw,34px);line-height:1.1;margin:0;text-wrap:balance}
+h2{font-family:var(--f-display);font-weight:600;font-size:18px;margin:0}
+p{margin:0;max-width:68ch}
+.eyebrow{font-family:var(--f-mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+ol.steps{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:6px;max-width:72ch}
+.ctrls{display:flex;flex-direction:column;gap:10px}
+.crow{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center}
+.clab{font-family:var(--f-mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);width:84px;flex:none}
+.seg{display:inline-flex;flex-wrap:wrap;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surface)}
+.seg button{font:500 13px var(--f-body);color:var(--muted);background:transparent;border:0;padding:8px 12px;min-height:36px;cursor:pointer}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button.on{color:var(--fg);background:var(--bg);box-shadow:inset 0 -2px 0 var(--accent)}
+button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.slider{display:flex;align-items:center;gap:10px;flex:1;min-width:200px}
+.slider input{flex:1;min-width:0;accent-color:var(--accent);height:30px}
+.slider output{font:500 13px var(--f-mono);font-variant-numeric:tabular-nums;width:64px}
+.main{display:grid;grid-template-columns:1fr;gap:18px}
+@media (min-width:900px){.main{grid-template-columns:minmax(0,1.3fr) minmax(0,1fr)}}
+.view{display:flex;flex-direction:column;gap:8px;min-width:0}
+canvas.px{image-rendering:pixelated;cursor:crosshair}
+.stage{position:relative}
+.mark{position:absolute;outline:2px solid var(--fg);outline-offset:1px;pointer-events:none}
+canvas{width:100%;max-width:100%;aspect-ratio:1;display:block;border:1px solid var(--line);border-radius:10px;background:var(--surface);touch-action:none;cursor:grab}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12.5px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.ln{width:18px;height:3px;border-radius:2px;display:inline-block}
+.tw{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:13px;font-variant-numeric:tabular-nums}
+th,td{padding:7px 10px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-weight:500;color:var(--muted);font-size:12px}
+td.n{text-align:right;font-family:var(--f-mono);white-space:nowrap}
+td.ok{color:var(--good)}td.bad{color:var(--warn)}
+tr:last-child td{border-bottom:0}
+.note{font-size:13px;color:var(--muted)}
+.btn{font:500 13px var(--f-body);color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px 12px;min-height:36px;cursor:pointer}
+.fps{position:absolute;left:8px;top:8px;font:500 12px/1.4 var(--f-mono);font-variant-numeric:tabular-nums;color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:3px 7px;pointer-events:none;opacity:.92;white-space:pre}
+tr.win td{font-weight:600}
+.log div{font:12px/1.5 var(--f-mono)}.log .e{color:var(--warn)}
+</style>
+
+<div class="wrap">
+<a id="back" href="../index.html" hidden style="font:500 13px var(--f-body);color:var(--accent);text-decoration:none">← All steps</a>
+<script>(()=>{const h=location.hostname;if(location.protocol==="file:"||h.endsWith("github.io")||h==="localhost")document.getElementById("back").hidden=false})()</script>
+<header>
+  <div class="eyebrow">Curved quads · step 14 · build, then resolve</div>
+  <h1>Two-Pass Map</h1>
+</header>
+
+<ol class="steps">
+  <li><b>Pass 1, build (per piece).</b> Project the piece's 4 edge arcs. On each pixel row, where an edge crosses the row is one quadratic (straight edge: linear). The sorted crossings are the spans this piece covers on that row. The piece never looks at any other pixel.</li>
+  <li>Along a span, for each pixel: <code>u = K3/(K3+K1)</code>, <code>v = K0/(K0+K2)</code> from the edges (stepped along the row), then the 3D point <b>P(u, v)</b> on the piece's surface (one quadratic), then its distance from the camera. The piece writes <b>(piece, u, v, distance)</b> into that pixel's list.</li>
+  <li><b>Pass 2, resolve (per pixel).</b> Go over each pixel's list once; the closest entry wins. Its numbers go into the final arrays (piece, u, v, distance, occlusion map), and the pixel is coloured from them.</li>
+  <li>Every step is a formula evaluated once. Tap a pixel to see the numbers it holds.</li>
+</ol>
+
+<section class="ctrls" aria-label="Settings">
+  <div class="crow"><span class="clab">Mesh</span><div class="seg" id="g-mesh"><button data-v="0">Smooth cube</button><button data-v="1">Hard cube</button><button data-v="2">Mixed cube</button><button data-v="3">Wave</button></div></div>
+  <div class="crow"><span class="clab">Show</span><div class="seg" id="g-view"><button data-v="0">Colour from (u, v)</button><button data-v="1">Distance (occlusion map)</button><button data-v="2">Entries per pixel</button><button data-v="3">Check against step 11</button></div></div>
+  <div class="crow"><span class="clab">Resolution</span><div class="seg" id="g-res"><button data-v="100">100²</button><button data-v="200">200²</button><button data-v="400">400²</button></div></div>
+  <div class="crow"><span class="clab"></span><button class="btn" id="spin">Auto orbit</button></div>
+</section>
+
+<div class="main">
+  <div class="view"><h2>Screen</h2><div class="stage"><canvas id="cv" class="px" aria-label="The resolved pixels. Tap a pixel to see its numbers, drag to orbit."></canvas><div class="mark" id="mark" hidden></div><div class="fps" id="fps"></div></div>
+    <div class="legend" id="legend"></div>
+    <p class="note">Drawn from the arrays pass 2 writes. Tap a pixel to see its numbers; drag to orbit. “Check against step 11” runs the step 11 ray pass only to compare; it isn't part of the method.</p></div>
+  <div class="view"><h2>Selected pixel</h2>
+    <p class="note" id="phead"></p>
+    <div class="tw"><table><thead><tr><th>Entry (pass 1)</th><th class="n">u</th><th class="n">v</th><th class="n">Distance</th><th></th></tr></thead><tbody id="ptab"><tr><td colspan="5">Tap a pixel</td></tr></tbody></table></div>
+    <h2>This frame</h2>
+    <div class="tw"><table><tbody id="checks"></tbody></table></div>
+    <div class="log" id="log"></div>
+  </div>
+</div>
+
+<section aria-label="Cost"><h2>Cost</h2><div class="tw"><table><thead><tr><th>Part</th><th>Ops</th><th class="n">FLOPs</th><th class="n">Cycles</th><th class="n">Per pixel</th></tr></thead><tbody id="cost"></tbody></table></div>
+  <p class="note">Skylake float32 model, one core, limited by throughput: ADD/MUL/FMA/MAX/MIN 0.5 cycle each, DIV and SQRT 3 (one divider), compares 1; each part's cycles are the largest of the three. FMA counts as 2 FLOPs. Per pixel = the part's cycles over all screen pixels. P(u, v) is counted from the step 10 forward map as written: 97 FMA, 86 MUL, 33 ADD, 8 DIV, 2 SQRT, 4 CMP (half of it is picking the right root against the blend of the 4 edge arcs).</p></section>
+</div>
+
+<script>
+const LOG=[];function log(m,e){LOG.push({m:String(m),e:!!e});const el=document.getElementById('log');if(el)el.innerHTML=LOG.slice(-6).map(x=>'<div'+(x.e?' class="e"':'')+'>'+x.m.replace(/</g,'&lt;')+'</div>').join('')}
+window.addEventListener('error',e=>log('ERROR '+e.message+' @'+e.lineno,true));
+// ================= step 10 conversion, embedded unchanged from example 06 =================
+const PIECES=(()=>{
+// ================= math, copied unchanged from example 04 =================
+const add=(a,b)=>[a[0]+b[0],a[1]+b[1],a[2]+b[2]],sub=(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]],mul=(a,s)=>[a[0]*s,a[1]*s,a[2]*s],dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2],cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]],len=a=>Math.hypot(a[0],a[1],a[2]),norm=a=>mul(a,1/(len(a)||1));
+const same=(a,b)=>Math.abs(a[0]-b[0])<1e-12&&Math.abs(a[1]-b[1])<1e-12&&Math.abs(a[2]-b[2])<1e-12;
+// ---------- source meshes: quads with corner positions and face-corner normals (raw, not normalized) ----------
+function cube(){return{v:[[-1,-1,-1],[1,-1,-1],[1,1,-1],[-1,1,-1],[-1,-1,1],[1,-1,1],[1,1,1],[-1,1,1]],f:[[0,3,2,1],[4,5,6,7],[0,1,5,4],[2,3,7,6],[0,4,7,3],[1,2,6,5]]}}
+function wave(){const v=[],f=[];for(let j=0;j<3;j++)for(let i=0;i<5;i++)v.push([(i-2)*0.9,(j-1)*0.9,i%2?-0.55:0.55]);for(let j=0;j<2;j++)for(let i=0;i<4;i++){const a=j*5+i;f.push([a,a+1,a+6,a+5])}return{v,f}}
+const faceN=(m,f)=>norm(cross(sub(m.v[f[2]],m.v[f[0]]),sub(m.v[f[3]],m.v[f[1]])));
+function vnorm(m){const n=m.v.map(()=>[0,0,0]);m.f.forEach(f=>{const fn=faceN(m,f);f.forEach(i=>n[i]=add(n[i],fn))});return n.map(norm)}
+function source(id){
+  if(id===0){const m=cube(),N=vnorm(m);return m.f.map(f=>({x:f.map(i=>m.v[i]),n:f.map(i=>N[i])}))}
+  if(id===1){const m=cube();return m.f.map(f=>{const fn=faceN(m,f);return{x:f.map(i=>m.v[i]),n:f.map(()=>fn)}})}
+  if(id===2){// top face sharp against the sides; sides smooth with each other; bottom smooth with everything
+    const m=cube(),N=vnorm(m),top=1;return m.f.map((f,fi)=>({x:f.map(i=>m.v[i]),n:f.map(i=>{if(fi===top)return faceN(m,f);if(m.v[i][2]>0){let s=[0,0,0];m.f.forEach((g,gi)=>{if(gi!==top&&g.includes(i))s=add(s,faceN(m,g))});return norm(s)}return N[i]})}))}
+  const m=wave(),N=vnorm(m);return m.f.map(f=>({x:f.map(i=>m.v[i]),n:f.map(i=>N[i])}))}
+
+// ---------- one ellipse arc between two handles ----------
+// Rational quadratic: end points P0, P2, apex A (where the end tangents meet), weight w.
+// w = L·cos(φ/2): L = average handle length, φ = how much the tangent turns. L = 1 with equal sides is a circular arc.
+// If the tangent lines don't meet in front of both ends (S-curve or twisted), split once at an artificial handle.
+let STATS;
+function arc(P0,n0,P2,n2){const d=sub(P2,P0);if(len(d)<1e-12)return[];const u0=norm(n0),u2=norm(n2),T0=sub(d,mul(u0,dot(d,u0))),T2=sub(d,mul(u2,dot(d,u2)));return arcT(P0,T0,len(n0),u0,P2,T2,len(n2),u2,0)}
+function arcT(P0,T0,L0,u0,P2,T2,L2,u2,depth){STATS.arcs++;const d=sub(P2,P0),D=len(d);
+  const D1=T0,D2=mul(T2,-1),w0=sub(P0,P2),a=dot(D1,D1),b=dot(D1,D2),c=dot(D2,D2),e1=dot(D1,w0),e2=dot(D2,w0),den=a*c-b*b;
+  if(len(cross(norm(T0),norm(d)))<1e-9&&len(cross(norm(T2),norm(d)))<1e-9)return[{P0,P2,straight:true}];
+  if(Math.abs(den)>1e-14*a*c){const s=(b*e2-c*e1)/den,t=(a*e2-b*e1)/den,A1=add(P0,mul(D1,s)),A2=add(P2,mul(D2,t));
+    if(len(sub(A1,A2))<1e-7*D&&s>1e-9&&t>1e-9){const ph=Math.acos(Math.max(-1,Math.min(1,dot(norm(T0),norm(T2))))),w=(L0+L2)/2*Math.cos(ph/2);return[{P0,P2,A:mul(add(A1,A2),0.5),w}]}}
+  if(depth>0){STATS.fail++;return[{P0,P2,straight:true,fail:true}]}
+  // artificial handle: on the handle cubic (handles scaled by length), at its inflection if it has one, else halfway
+  STATS.splits++;const C1=add(P0,mul(T0,L0/3)),C2=sub(P2,mul(T2,L2/3)),m=add(u0,u2),ia=dot(m,add(sub(C2,mul(C1,2)),P0)),ib=dot(m,add(sub(P2,mul(C2,2)),C1)),tm=ia*ib<0?ia/(ia-ib):0.5,r=1-tm;
+  const M=add(add(mul(P0,r*r*r),mul(C1,3*r*r*tm)),add(mul(C2,3*r*tm*tm),mul(P2,tm*tm*tm)));
+  // its tangent lies in both end planes (P0, T0, M) and (M, T2, P2), so each half is a flat curve and the two halves meet smoothly
+  let TM=cross(cross(T0,sub(M,P0)),cross(T2,sub(P2,M)));if(len(TM)<1e-12*D*D*D*D)TM=add(add(mul(sub(C1,P0),r*r),mul(sub(C2,C1),2*r*tm)),mul(sub(P2,C2),tm*tm));if(dot(TM,d)<0)TM=mul(TM,-1);
+  const uM=norm(add(mul(u0,r),mul(u2,tm))),LM=L0*r+L2*tm,nM=mul(norm(sub(uM,mul(norm(TM),dot(uM,norm(TM))))),LM);STATS.art.push({p:M,n:nM});
+  const h1=arcT(P0,T0,L0,u0,M,TM,LM,uM,1),res=h1.concat(arcT(M,TM,LM,uM,P2,T2,L2,u2,1));res.mid={p:M,n:nM,k:h1.length};return res}
+function evalArc(g,t){if(g.straight)return add(mul(g.P0,1-t),mul(g.P2,t));const r=1-t,b0=r*r,b1=2*g.w*r*t,b2=t*t,s=b0+b1+b2;return mul(add(add(mul(g.P0,b0),mul(g.A,b1)),mul(g.P2,b2)),1/s)}
+const sampleArcs=(segs,n)=>{const out=[];segs.forEach((g,i)=>{for(let k=i?1:0;k<=n;k++)out.push(evalArc(g,k/n))});return out};
+// ---------- S rule on pieces: an artificial handle on a side splits the piece too, so each part gets its own ellipsoid ----------
+// Split a single conic exactly at its middle (homogeneous de Casteljau), to give the opposite side a matching point.
+function halveConic(g){if(g.straight){const M=mul(add(g.P0,g.P2),0.5);return[{P0:g.P0,P2:M,straight:true},{P0:M,P2:g.P2,straight:true},M]}
+  const w=g.w,M=evalArc(g,0.5),wn=Math.sqrt((1+w)/2),AL=mul(add(g.P0,mul(g.A,w)),1/(1+w)),AR=mul(add(mul(g.A,w),g.P2),1/(1+w));return[{P0:g.P0,P2:M,A:AL,w:wn},{P0:M,P2:g.P2,A:AR,w:wn},M]}
+function splitSide(sg,hA,hB){// -> {first, second, p, n}; uses the artificial handle if the side has one, else halves the side
+  if(sg.mid)return{first:sg.slice(0,sg.mid.k),second:sg.slice(sg.mid.k),p:sg.mid.p,n:sg.mid.n};
+  if(sg.length!==1)return null;const[a,b,M]=halveConic(sg[0]),e=1e-4,T=norm(sub(evalArc(sg[0],0.5+e),evalArc(sg[0],0.5-e))),u=norm(add(norm(hA),norm(hB))),n=mul(norm(sub(u,mul(T,dot(u,T)))),(len(hA)+len(hB))/2);return{first:[a],second:[b],p:M,n}}
+const revArc=sg=>sg.slice().reverse().map(g=>g.straight?{P0:g.P2,P2:g.P0,straight:true}:{P0:g.P2,P2:g.P0,A:g.A,w:g.w});
+// ---------- 9b: one quadric per piece, fitted to its border arcs ----------
+// Hard: the piece's distinct corners. Soft: points along its 4 border arcs (Q = 0) and its corner handle directions (gradient parallel).
+// Scale fixed by trace(A) = 1. One fixed-size linear solve, no iteration.
+const WARC=1,ARCS=5;
+function fitPiece(pc){const U=[],UN=[];pc.P.forEach((p,i)=>{if(!U.some(u=>len(sub(u,p))<1e-12)){U.push(p);UN.push(pc.N[i])}});
+  const c0=mul(U.reduce((a,b)=>add(a,b),[0,0,0]),1/U.length),sc=U.length/U.reduce((a,u)=>a+len(sub(u,c0)),0)||1,loc=x=>mul(sub(x,c0),sc);
+  const row=x=>[x[0]*x[0],x[1]*x[1],x[2]*x[2],2*x[0]*x[1],2*x[0]*x[2],2*x[1]*x[2],x[0],x[1],x[2],1],grow=(x,t)=>[2*x[0]*t[0],2*x[1]*t[1],2*x[2]*t[2],2*(x[1]*t[0]+x[0]*t[1]),2*(x[2]*t[0]+x[0]*t[2]),2*(x[2]*t[1]+x[1]*t[2]),t[0],t[1],t[2],0];
+  const M=[];UN.forEach((n,i)=>{const u=norm(n),ax=Math.abs(u[0])<0.9?[1,0,0]:[0,1,0],t1=norm(cross(u,ax)),t2=cross(u,t1),L=loc(U[i]);M.push(grow(L,t1),grow(L,t2))});
+  pc.sides.forEach(sg=>{if(!sg.length)return;const pts=sampleArcs(sg,ARCS+1);for(let k=1;k<pts.length-1;k++)M.push(row(loc(pts[k])).map(v=>v*WARC))});
+  const H=U.map(u=>row(loc(u))).concat([[1,1,1,0,0,0,0,0,0,0]]),n=10+H.length,K=[];for(let i=0;i<n;i++)K.push(new Array(n+1).fill(0));
+  for(let i=0;i<10;i++){for(let j=0;j<10;j++){let v=0;M.forEach(r=>v+=r[i]*r[j]);K[i][j]=v+(i===j?1e-9:0)}H.forEach((h,hi)=>{K[i][10+hi]=h[i];K[10+hi][i]=h[i]})}K[n-1][n]=1;
+  for(let c=0;c<n;c++){let p=c;for(let r=c+1;r<n;r++)if(Math.abs(K[r][c])>Math.abs(K[p][c]))p=r;[K[c],K[p]]=[K[p],K[c]];if(Math.abs(K[c][c])<1e-300)continue;for(let r=0;r<n;r++)if(r!==c){const f=K[r][c]/K[c][c];if(f)for(let k=c;k<=n;k++)K[r][k]-=f*K[c][k]}}
+  const q=K.slice(0,10).map((r,i)=>r[n]/r[i]),A=[[q[0],q[3],q[4]],[q[3],q[1],q[5]],[q[4],q[5],q[2]]],g=[q[6],q[7],q[8]],k=q[9];
+  const Ax=x=>[dot(A[0],x),dot(A[1],x),dot(A[2],x)],Qf=x=>dot(x,Ax(x))+dot(g,x)+k,grad=x=>add(mul(Ax(x),2),g),det=dot(A[0],cross(A[1],A[2])),m1=A[0][0],m2=A[0][0]*A[1][1]-A[0][1]*A[0][1];
+  let cen=null;if(Math.abs(det)>1e-9){const inv=[cross(A[1],A[2]),cross(A[2],A[0]),cross(A[0],A[1])].map(r=>mul(r,1/det));cen=mul([dot(inv[0],g),dot(inv[1],g),dot(inv[2],g)],-0.5)}
+  const qc=cen?Qf(cen):0,ell=!!cen&&((m1>0&&m2>0&&det>0)||(m1<0&&m2>0&&det<0))&&qc*m1<0,dir=norm(UN.reduce((a,b)=>add(a,norm(b)),[0,0,0]));
+  const LP=pc.P.map(loc);let miss=0;
+  // piece point: bilinear base of its 4 corners, pushed onto the quadric (from the centre for an ellipsoid, else along the averaged handle direction)
+  pc.eval=(u,v)=>{const w=[(1-u)*(1-v),u*(1-v),u*v,(1-u)*v];let p=[0,0,0];for(let i=0;i<4;i++)p=add(p,mul(LP[i],w[i]));let X=p;
+    if(ell){const d=sub(p,cen),a=dot(d,Ax(d)),r=-qc/a;if(a!==0&&r>0)X=add(cen,mul(d,Math.sqrt(r)));else miss++}
+    else{const a=dot(dir,Ax(dir)),b=dot(grad(p),dir),c=Qf(p);let t=null;if(Math.abs(c)<1e-12)t=0;else if(Math.abs(a)<1e-12){if(Math.abs(b)>1e-15)t=-c/b;else if(Math.abs(c)<1e-12)t=0}else{let D=b*b-4*a*c;if(D<0&&D>-1e-9*(b*b+Math.abs(4*a*c)+1e-30))D=0;if(D>=0){const r1=(-b+Math.sqrt(D))/(2*a),r2=(-b-Math.sqrt(D))/(2*a);t=Math.abs(r1)<Math.abs(r2)?r1:r2}}if(t===null)miss++;else X=add(p,mul(dir,t))}
+    return add(c0,mul(X,1/sc))};
+  // ---- plane-pencil mapping: u blends the planes of the u=0 and u=1 border arcs, v those of v=0 and v=1.
+  // The u=0 / u=1 / v=0 / v=1 curves are then exactly the border arcs (when the arcs lie on the quadric).
+  // Forward (u,v) -> point: two planes meet in a line, the line hits the quadric (quadratic). Inverse: two plane evaluations.
+  const bil=(u,v)=>{const w=[(1-u)*(1-v),u*(1-v),u*v,(1-u)*v];let p=[0,0,0];for(let i=0;i<4;i++)p=add(p,mul(LP[i],w[i]));return p};
+  const sidePlane=k=>{const sg=pc.sides[k],a0=LP[k],a1=LP[(k+1)%4];
+    if(sg.length===1&&!sg[0].straight){const g=sg[0],P0=loc(g.P0),A=loc(g.A),P2=loc(g.P2),n=cross(sub(A,P0),sub(P2,P0));if(len(n)>1e-12*len(sub(P2,P0))**2)return{n:norm(n),p:P0}}
+    if(len(sub(a1,a0))<1e-12){const gq=grad(a0);if(len(gq)>1e-12)return{n:norm(gq),p:a0};return null}   // collapsed side: tangent plane at the point
+    if(sg.length>=1&&sg.every(g=>g.straight)){// straight side: plane through it and the surface normal there (the handles' direction where the slope is ~0, e.g. a doubled plane)
+      const m=mul(add(a0,a1),0.5);let gq=grad(m);if(len(gq)<1e-6)gq=add(norm(pc.N[k]),norm(pc.N[(k+1)%4]));const n=cross(sub(a1,a0),gq);if(len(n)>1e-9*len(sub(a1,a0)))return{n:norm(n),p:a0}}
+    const m=loc(evalArc(sg[Math.floor(sg.length/2)]||{P0:pc.P[k],P2:pc.P[(k+1)%4],straight:true},0.5)),n=cross(sub(m,a0),sub(a1,a0));return len(n)>1e-12?{n:norm(n),p:a0}:null};
+  const PL=[0,1,2,3].map(sidePlane);let pencil=PL.every(Boolean);
+  const side=(pl,x)=>dot(pl.n,sub(x,pl.p));
+  if(pencil){// orient: u=0 plane (side 3) positive inside, u=1 plane (side 1) negative inside; same for v (side 0 / side 2)
+    const ctr=bil(0.5,0.5),fix=(pl,wantPos)=>{const s0=side(pl,ctr);if((s0>0)!==wantPos)pl.n=mul(pl.n,-1)};fix(PL[3],true);fix(PL[1],false);fix(PL[0],true);fix(PL[2],false)}
+  const ev0=pc.eval;
+  const sideAt=(k,t)=>{const sg=pc.sides[k];if(!sg.length)return pc.P[k];const n=sg.length,i=Math.min(n-1,Math.floor(t*n));return evalArc(sg[i],t*n-i)};
+  const coons=(u,v)=>{const b0=sideAt(0,u),b1=sideAt(1,v),b2=sideAt(2,1-u),b3=sideAt(3,1-v),P=pc.P,c=add(add(mul(P[0],(1-u)*(1-v)),mul(P[1],u*(1-v))),add(mul(P[2],u*v),mul(P[3],(1-u)*v)));
+    return sub(add(add(mul(b0,1-v),mul(b2,v)),add(mul(b3,1-u),mul(b1,u))),c)};
+  if(pencil)pc.eval=(u,v)=>{const pu={n:add(mul(PL[3].n,1-u),mul(PL[1].n,u)),h:(1-u)*dot(PL[3].n,PL[3].p)+u*dot(PL[1].n,PL[1].p)},pv={n:add(mul(PL[0].n,1-v),mul(PL[2].n,v)),h:(1-v)*dot(PL[0].n,PL[0].p)+v*dot(PL[2].n,PL[2].p)};
+    const D=cross(pu.n,pv.n),DD=dot(D,D);if(!(DD>1e-20)){miss++;return null}const x0=mul(add(mul(cross(pv.n,D),pu.h),mul(cross(D,pu.n),pv.h)),1/DD),Dn=mul(D,1/Math.sqrt(DD));
+    const a=dot(Dn,Ax(Dn)),b=dot(grad(x0),Dn),c=Qf(x0),tr=dot(sub(loc(coons(u,v)),x0),Dn);let t=null;
+    if(Math.abs(a)<1e-12){if(Math.abs(b)>1e-15)t=-c/b}else{let Dq=b*b-4*a*c;if(Dq<0&&Dq>-1e-9*(b*b+Math.abs(4*a*c)+1e-30))Dq=0;if(Dq>=0){const r1=(-b+Math.sqrt(Dq))/(2*a),r2=(-b-Math.sqrt(Dq))/(2*a);t=Math.abs(r1-tr)<Math.abs(r2-tr)?r1:r2}}
+    if(t===null){miss++;return null}return add(c0,mul(add(x0,mul(Dn,t)),1/sc))};
+  pc.pencil=pencil;pc.geo={A,g,k,c0,sc,PL,pencil,Ax,Qf};   // (06) hand the fitted quadric and its 4 side planes to the pixel step
+  pc.ell=ell;pc.missCount=()=>miss;
+  // distance from a world point to the fitted quadric (first-order: |Q| / |grad Q|), for diagnosis
+  pc.dist=x=>{const X=loc(x),gq=len(grad(X));return Math.abs(Qf(X))/(gq||1e-30)/sc};
+}
+
+// ================= clean-slate conversion: quads -> arcs -> pieces -> surfaces =================
+// Each quad is converted on its own. It may read anything around it; later this becomes a packed cache.
+const key=p=>p.map(x=>Math.round(x*1e6)).join(',');
+const revMid=sg=>{const r=revArc(sg);if(sg.mid)r.mid={p:sg.mid.p,n:sg.mid.n,k:sg.length-sg.mid.k};return r};
+const TOL=1e-5;     // a crack below this fraction of an edge is treated as closed: it is the precision of the crack measurement itself
+const HANDLE_SPLITS=4;  // safety cap on chained artificial-handle splits inside one piece
+
+// 1. lookups
+function lookups(Q){const vtx=new Map(),edges=new Map();
+  Q.forEach((q,qi)=>{for(let i=0;i<4;i++){const k=key(q.x[i]);if(!vtx.has(k))vtx.set(k,{X:q.x[i],corners:[],nbr:new Set()});const V=vtx.get(k);V.corners.push({qi,i});V.nbr.add(key(q.x[(i+1)%4]));V.nbr.add(key(q.x[(i+3)%4]));
+    const kb=key(q.x[(i+1)%4]),ek=k<kb?k+'|'+kb:kb+'|'+k;if(!edges.has(ek))edges.set(ek,[]);edges.get(ek).push({qi,i})}});
+  // the neighbour's face-corner normal at position p, across edge (qi, i)
+  const across=(qi,i,p)=>{const q=Q[qi],ka=key(q.x[i]),kb=key(q.x[(i+1)%4]),o=edges.get(ka<kb?ka+'|'+kb:kb+'|'+ka).find(e=>e.qi!==qi);if(!o)return null;const r=Q[o.qi],kp=key(p);for(let k=0;k<4;k++)if(key(r.x[k])===kp)return r.n[k];return null};
+  return{vtx,edges,across}}
+
+// 2. vertex rounding (formulas from step 9a, unchanged)
+function roundVertex(V,Q,vtx,beta){const dirs=[];V.corners.forEach(({qi,i})=>{const n=Q[qi].n[i];if(!dirs.some(d=>same(d.raw,n)))dirs.push({raw:n,u:norm(n),L:len(n)})});
+  const el=[...V.nbr].map(k=>len(sub(vtx.get(k).X,V.X)));V.r=beta*el.reduce((a,b)=>a+b,0)/el.length;V.k=dirs.length;
+  if(V.k<=1){V.c=V.X;return}
+  if(V.k===2){const a=dirs[0].u,b=dirs[1].u;V.c=sub(V.X,mul(add(a,b),V.r/(1+dot(a,b))))}
+  else{const M=[[0,0,0],[0,0,0],[0,0,0]];let rhs=[0,0,0];dirs.forEach(({u})=>{for(let p=0;p<3;p++)for(let s=0;s<3;s++)M[p][s]+=u[p]*u[s];rhs=add(rhs,mul(u,-V.r))});
+    const det=dot(M[0],cross(M[1],M[2])),inv=[cross(M[1],M[2]),cross(M[2],M[0]),cross(M[0],M[1])];V.c=add(V.X,[dot(inv[0],rhs)/det,dot(inv[1],rhs)/det,dot(inv[2],rhs)/det])}
+  const s=dirs.reduce((a,d)=>add(a,d.u),[0,0,0]);V.corner=add(V.c,mul(norm(s),V.r));V.cornerN=mul(norm(s),dirs.reduce((a,d)=>a+d.L,0)/dirs.length)}
+
+// 3. arc cache: one curve per pair of handles, computed once, so every piece that uses it gets the identical curve
+function makeArcCache(){const m=new Map(),hk=(p,n)=>key(p)+'/'+key(n);
+  return(Pa,na,Pb,nb)=>{const ka=hk(Pa,na),kb=hk(Pb,nb);if(len(sub(Pa,Pb))<1e-12)return[];const fwd=ka<kb,k=fwd?ka+'#'+kb:kb+'#'+ka;if(!m.has(k))m.set(k,fwd?arc(Pa,na,Pb,nb):arc(Pb,nb,Pa,na));const sg=m.get(k);return fwd?sg:revMid(sg)}}
+
+// 4. one quad -> its pieces (layout from step 9b: inner piece, edge-strip halves, corner quarters)
+function quadPieces(Q,qi,LK,getArc){const q=Q[qi];
+  // end of edge i at one of its corners: shared border point + handle (fillet middle if sharp), and this face's contact point
+  const endAt=(i,c)=>{const V=LK.vtx.get(key(q.x[c])),nA=q.n[c],nB=LK.across(qi,i,q.x[c]),uA=norm(nA),contact=V.k<=1?q.x[c]:add(V.c,mul(uA,V.r));
+    if(nB&&!same(nA,nB)){const m=norm(add(uA,norm(nB)));return{sharp:true,p:add(V.c,mul(m,V.r)),n:mul(m,(len(nA)+len(nB))/2),contact,nA,V}}
+    return{sharp:false,p:contact,n:nA,contact,nA,V}};
+  const E=[0,1,2,3].map(i=>{const a=endAt(i,i),b=endAt(i,(i+1)%4),e={a,b,sharp:a.sharp||b.sharp};
+    e.border=getArc(a.p,a.n,b.p,b.n);e.contact=e.sharp?getArc(a.contact,a.nA,b.contact,b.nA):e.border;
+    e.crossA=a.sharp?getArc(a.contact,a.nA,a.p,a.n):[];e.crossB=b.sharp?getArc(b.contact,b.nA,b.p,b.n):[];return e});
+  const pcs=[{kind:0,P:E.map(e=>e.a.contact),N:E.map(e=>e.a.nA),sides:E.map(e=>e.contact)}];
+  E.forEach(e=>{if(e.sharp){const{a,b}=e;pcs.push({kind:1,P:[a.p,b.p,b.contact,a.contact],N:[a.n,b.n,b.nA,a.nA],sides:[e.border,revMid(e.crossB),revMid(e.contact),e.crossA]})}});
+  for(let i=0;i<4;i++){const a=E[i].a,z=E[(i+3)%4].b,V=a.V;if(V.k<3)continue;const ca=getArc(a.p,a.n,V.corner,V.cornerN),cz=getArc(z.p,z.n,V.corner,V.cornerN);if(!ca.length&&!cz.length)continue;
+    pcs.push({kind:2,P:[a.contact,a.p,V.corner,z.p],N:[a.nA,a.n,V.cornerN,z.n],sides:[E[i].crossA,ca,revMid(cz),revMid(E[(i+3)%4].crossB)]})}
+  return{E,pieces:pcs.filter(pc=>new Set(pc.P.map(key)).size>=3)}}
+
+// 5. splitting: cut a piece across the middles (or artificial handles) of two opposite sides; the cut is an arc between the two new handles
+function cut(pc,dir,getArc){const S=pc.sides,h=pc.N;
+  if(dir==='u'){const a=splitSide(S[0],h[0],h[1]),c=splitSide(S[2],h[2],h[3]);if(!a||!c)return null;const mid=getArc(a.p,a.n,c.p,c.n);
+    return[{kind:pc.kind,P:[pc.P[0],a.p,c.p,pc.P[3]],N:[h[0],a.n,c.n,h[3]],sides:[a.first,mid,c.second,S[3]]},{kind:pc.kind,P:[a.p,pc.P[1],pc.P[2],c.p],N:[a.n,h[1],h[2],c.n],sides:[a.second,S[1],c.first,revMid(mid)]}]}
+  const b=splitSide(S[1],h[1],h[2]),d=splitSide(S[3],h[3],h[0]);if(!b||!d)return null;const mid=getArc(b.p,b.n,d.p,d.n);
+  return[{kind:pc.kind,P:[pc.P[0],pc.P[1],b.p,d.p],N:[h[0],h[1],b.n,d.n],sides:[S[0],b.first,mid,d.second]},{kind:pc.kind,P:[d.p,b.p,pc.P[2],pc.P[3]],N:[d.n,b.n,h[2],h[3]],sides:[revMid(mid),b.second,S[2],d.first]}]}
+// largest first-order distance from the piece's border arcs to its fitted quadric
+const fitError=pc=>{let m=0;pc.sides.forEach(sg=>{if(sg.length)sampleArcs(sg,30).forEach(x=>m=Math.max(m,Math.min(pc.dist(x),1e3)))});return m};   // first-order |Q|/|∇Q|: reported only, unreliable on doubled planes
+function refine(pc,depth,maxDepth,hs,getArc,out,EL){
+  const S=pc.sides,hu=!!(S[0].mid||S[2].mid),hv=!!(S[1].mid||S[3].mid);
+  if((hu||hv)&&hs<HANDLE_SPLITS&&depth===0){const parts=cut(pc,hu?'u':'v',getArc);if(parts){parts.forEach(p=>refine(p,depth,maxDepth,hs+1,getArc,out,EL));return}}
+  pc.depth=depth;fitPiece(pc);pc.err=fitError(pc);pc.crack=crackOf(pc);
+  if(pc.crack>TOL*EL&&depth<maxDepth){for(const dir of depth%2?['v','u']:['u','v']){const parts=cut(pc,dir,getArc);if(parts){parts.forEach(p=>refine(p,depth+1,maxDepth,hs,getArc,out,EL));return}}}
+  out.push(pc)}
+
+// 6. measurement: crack = largest distance from the edge of a piece's surface to its border arc (holes count as infinite)
+function crackOf(pc){let c=0;const segDist=(p,a,b)=>{const ab=sub(b,a),t=Math.max(0,Math.min(1,dot(sub(p,a),ab)/(dot(ab,ab)||1)));return len(sub(p,add(a,mul(ab,t))))};
+  const sidePt=(k,t)=>k===0?pc.eval(t,0):k===1?pc.eval(1,t):k===2?pc.eval(1-t,1):pc.eval(0,1-t);
+  for(let k=0;k<4;k++){const sg=pc.sides[k];if(!sg.length)continue;const A=sampleArcs(sg,200);for(let i=0;i<=24;i++){const p=sidePt(k,i/24);if(!p)return Infinity;let m=1e9;for(let j=1;j<A.length;j++)m=Math.min(m,segDist(p,A[j-1],A[j]));c=Math.max(c,m)}}
+  return c}
+
+// interior check: points that leave their piece, i.e. land farther from the blend (Coons) of the piece's own 4 border arcs
+// than the piece is wide. Normal bulge (a sphere vs its flat-ish arc blend) stays well inside that; spikes don't.
+function strayOf(pc){const sideAt=(k,t)=>{const sg=pc.sides[k];if(!sg.length)return pc.P[k];const n=sg.length,i=Math.min(n-1,Math.floor(t*n));return evalArc(sg[i],t*n-i)};
+  let size=0;pc.P.forEach(a=>pc.P.forEach(b=>size=Math.max(size,len(sub(a,b)))));let m=0;for(let j=1;j<6;j++)for(let i=1;i<6;i++){const u=i/6,v=j/6,b0=sideAt(0,u),b1=sideAt(1,v),b2=sideAt(2,1-u),b3=sideAt(3,1-v),P=pc.P,c=add(add(mul(P[0],(1-u)*(1-v)),mul(P[1],u*(1-v))),add(mul(P[2],u*v),mul(P[3],(1-u)*v))),ref=sub(add(add(mul(b0,1-v),mul(b2,v)),add(mul(b3,1-u),mul(b1,u))),c),x=pc.eval(u,v);if(x&&len(sub(x,ref))>size)m++}
+  return m}
+
+// the whole conversion
+function convert(Q,beta,maxDepth){STATS={arcs:0,splits:0,fail:0,art:[]};
+  const LK=lookups(Q);LK.vtx.forEach(V=>roundVertex(V,Q,LK.vtx,beta));const getArc=makeArcCache();
+  let el=0;Q.forEach(q=>{for(let i=0;i<4;i++)el+=len(sub(q.x[(i+1)%4],q.x[i]))});const EL=el/(4*Q.length);
+  const quads=Q.map((q,qi)=>{const{E,pieces}=quadPieces(Q,qi,LK,getArc),out=[];pieces.forEach(pc=>refine(pc,0,maxDepth,0,getArc,out,EL));out.forEach(pc=>{pc.qi=qi;pc.stray=strayOf(pc)});return{E,pieces:out}});
+  // shared borders: the two quads on an edge must hold the same curve
+  let gap=0;LK.edges.forEach(l=>{if(l.length!==2)return;const[A,B]=l,pa=sampleArcs(quads[A.qi].E[A.i].border,16),pb=sampleArcs(quads[B.qi].E[B.i].border,16).reverse();if(pa.length!==pb.length){gap=Infinity;return}pa.forEach((p,k)=>gap=Math.max(gap,len(sub(p,pb[k]))))});
+  return{quads,pieces:quads.flatMap(q=>q.pieces),gap,EL,stats:STATS}}
+
+function roundedBoxDist(p,r){const h=1-r,q=p.map(x=>Math.abs(x)-h),o=Math.hypot(Math.max(q[0],0),Math.max(q[1],0),Math.max(q[2],0));return o+Math.min(Math.max(q[0],q[1],q[2]),0)-r}
+
+
+return{convert,source,mul,sampleArcs}})();
+// ================= helpers from step 13 (unchanged): camera, projected edges as conics K, the step 11 ray hit =================
+const add=(a,b)=>[a[0]+b[0],a[1]+b[1],a[2]+b[2]],sub=(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]],mul=(a,s)=>[a[0]*s,a[1]*s,a[2]*s],dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2],cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]],len=a=>Math.hypot(a[0],a[1],a[2]),norm=a=>mul(a,1/(len(a)||1));
+const FOV=40*Math.PI/180,EPS=1e-9,CHK=8;
+const clamp01=x=>Math.min(1,Math.max(0,x));
+function makeCam(W,T,yaw,pitch,dist){const cp=Math.cos(pitch),pos=add(T,mul([cp*Math.sin(yaw),-cp*Math.cos(yaw),Math.sin(pitch)],dist)),fwd=norm(sub(T,pos)),right=norm(cross(fwd,[0,0,1])),down=cross(fwd,right);return{pos,fwd,right,down,f:(W/2)/Math.tan(FOV/2),W}}
+const rayDir=(cam,x,y)=>add(cam.fwd,add(mul(cam.right,(x-cam.W/2)/cam.f),mul(cam.down,(y-cam.W/2)/cam.f)));
+const project=(cam,p)=>{const q=sub(p,cam.pos),z=dot(q,cam.fwd);return[cam.W/2+cam.f*dot(q,cam.right)/z,cam.W/2+cam.f*dot(q,cam.down)/z,z]};
+
+// ---- one side arc on the screen ----
+// A rational quadratic {P0, A, P2, w} projects to a rational quadratic with screen points p0, a, p2 and weight w' = w·zA / sqrt(z0·z2).
+// Its implicit form, in barycentric coordinates b0, b1, b2 of the triangle (p0, a, p2): K = b1² − 4w'²·b0·b2 (0 on the curve).
+// A straight side, or an arc whose plane passes through the camera, is a line on the screen.
+function sideConic(sg,cam){const g=sg[0],p0=project(cam,g.P0),p2=project(cam,g.P2);if(p0[2]<=1e-6||p2[2]<=1e-6)return null;
+  if(!g.straight){const a=project(cam,g.A),D=(a[0]-p0[0])*(p2[1]-p0[1])-(a[1]-p0[1])*(p2[0]-p0[0]),L2=(p2[0]-p0[0])**2+(p2[1]-p0[1])**2;
+    if(a[2]>1e-6&&Math.abs(D)>1e-6*L2){const w=g.w*a[2]/Math.sqrt(p0[2]*p2[2]);return{conic:true,p0,a,p2,D,W4:4*w*w,s:1}}}
+  return{conic:false,p0,p2,s:1}}
+function Kraw(c,x,y){const p0=c.p0,p2=c.p2;if(!c.conic)return(p2[0]-p0[0])*(y-p0[1])-(p2[1]-p0[1])*(x-p0[0]);const a=c.a,D=c.D,
+  b0=((a[0]-x)*(p2[1]-y)-(a[1]-y)*(p2[0]-x))/D,b1=((x-p0[0])*(p2[1]-p0[1])-(y-p0[1])*(p2[0]-p0[0]))/D,b2=((a[0]-p0[0])*(y-p0[1])-(a[1]-p0[1])*(x-p0[0]))/D;
+  return st.form===1?b1*b1-c.W4*b0*b2:b1-Math.sqrt(c.W4*Math.max(0,b0*b2))}
+// form 1, full conic: also 0 on the unused other half of the ellipse. Form 0, arc only: b1 − 2w'·√(b0·b2) is 0 only on the arc itself
+// (on the other half b1 = −2w'·√(b0·b2)); outside the two end tangents b0·b2 < 0 and it falls back to b1.
+// per piece and camera: the 4 projected sides, each scaled to 1 at the projected centre (sign included, so inside is positive)
+function screenSetup(pc,cam){if(pc.sides.some(sg=>sg.length!==1))return null;const K=[];for(let k=0;k<4;k++){const c=sideConic(pc.sides[k],cam);if(!c)return null;K.push(c)}
+  const C3=pc.eval(0.5,0.5);if(!C3)return null;const c=project(cam,C3);if(c[2]<=0)return null;
+  for(const k of K){const v=Kraw(k,c[0],c[1]);if(!(Math.abs(v)>1e-12))return null;k.s=1/v}return K}
+function suv(S,x,y){const k0=Kraw(S[0],x,y)*S[0].s,k1=Kraw(S[1],x,y)*S[1].s,k2=Kraw(S[2],x,y)*S[2].s,k3=Kraw(S[3],x,y)*S[3].s;
+  return{u:k3/(k3+k1),v:k0/(k0+k2),inside:k0>=-1e-9&&k1>=-1e-9&&k2>=-1e-9&&k3>=-1e-9}}
+
+// ---- the surface's own (u, v): ray vs the piece's quadric and side planes, as in step 11 ----
+function hitPiece(pc,cam,dir){const G=pc.geo,o=mul(sub(cam.pos,G.c0),G.sc),d=mul(dir,G.sc),Ad=G.Ax(d),a=dot(d,Ad),b=2*dot(o,Ad)+dot(G.g,d),c=G.Qf(o);
+  let ts;if(Math.abs(a)<1e-14){if(Math.abs(b)<1e-14)return null;ts=[-c/b]}else{const D=b*b-4*a*c;if(D<0)return null;const s=Math.sqrt(D),q=-0.5*(b+(b<0?-s:s));ts=[q/a,c/q].sort((x,y)=>x-y)}
+  for(const t of ts){if(!(t>1e-9))continue;const X=add(o,mul(d,t)),P=G.PL,s0=dot(P[0].n,sub(X,P[0].p)),s1=dot(P[1].n,sub(X,P[1].p)),s2=dot(P[2].n,sub(X,P[2].p)),s3=dot(P[3].n,sub(X,P[3].p));
+    if(s3<-EPS||s1>EPS||s0<-EPS||s2>EPS)continue;const u=s3/(s3-s1),v=s0/(s0-s2);
+    const F=pc.eval(clamp01(u),clamp01(v));if(!F)continue;const Xw=add(G.c0,mul(X,1/G.sc));if(len(sub(F,Xw))>1e-6*(1+len(Xw)))continue;return{t,u,v}}
+  return null}
+
+
+// ================= step 14: two passes. Build: each piece writes its own pixels. Resolve: each pixel keeps the closest. =================
+let st={mesh:0,form:0,view:0,res:200,yaw:0.7,pitch:0.45},R=null,SEL=null;
+try{const s=JSON.parse(localStorage.getItem('tp9')||'null');if(s)Object.assign(st,s)}catch(e){}
+st.form=0;   // the arc-only K (the full conic also vanishes on the ellipse's unused half; step 13)
+const save=()=>{try{localStorage.setItem('tp9',JSON.stringify(st))}catch(e){}};
+let CONV=null,CONVKEY='';
+function scene(){const k=String(st.mesh);if(CONVKEY!==k){CONV=PIECES.convert(PIECES.source(st.mesh),0.03,0);CONVKEY=k;
+    const all=PIECES.source(st.mesh).flatMap(f=>f.x),c=mul(all.reduce((s,p)=>add(s,p),[0,0,0]),1/all.length);let r=0;all.forEach(p=>r=Math.max(r,len(sub(p,c))));CONV.T=c;CONV.rad=r}
+  return CONV}
+
+// ---- one projected edge as a row crosser ----
+// The edge's control points in camera coordinates (right, down, forward). Its picture on the screen is the same rational quadratic with these as homogeneous points,
+// so where it crosses the pixel row at screen y = Y is  f·down(t) − (Y − W/2)·forward(t) = 0 : one quadratic in t (linear for a straight edge).
+function edgeRows(sg,cam){const g=sg[0],cc=p=>{const q=sub(p,cam.pos);return[dot(q,cam.right),dot(q,cam.down),dot(q,cam.fwd)]};
+  return g.straight?{lin:true,c0:cc(g.P0),c2:cc(g.P2)}:{lin:false,c0:cc(g.P0),c1:cc(g.A),c2:cc(g.P2),w:g.w}}
+// screen x of each crossing with t in [0, 1) (half-open, so a corner shared by two edges counts once)
+function crossings(s,cam,Y,out){const f=cam.f,h=cam.W/2,yc=Y-h,e=c=>f*c[1]-yc*c[2];
+  if(s.lin){const e0=e(s.c0),e2=e(s.c2),dn=e0-e2;if(dn===0)return 0;const t=e0/dn;if(t>=0&&t<1){const r=s.c0[0]+(s.c2[0]-s.c0[0])*t,z=s.c0[2]+(s.c2[2]-s.c0[2])*t;if(z>0){out.push(h+f*r/z);return 1}}return 0}
+  const a=e(s.c0),b=s.w*e(s.c1),c=e(s.c2),A=a-2*b+c,B=2*(b-a),C=a;   // a(1−t)² + 2bt(1−t) + ct²  =  At² + Bt + C
+  let ts;if(Math.abs(A)<=1e-12*(Math.abs(a)+Math.abs(b)+Math.abs(c))){if(B===0)return 0;ts=[-C/B]}else{const D=B*B-4*A*C;if(D<0)return 0;const sq=Math.sqrt(D),q=-0.5*(B+(B<0?-sq:sq));ts=q===0?[0,0]:[q/A,C/q]}
+  let n=0;for(const t of ts){if(!(t>=0&&t<1))continue;const u=1-t,b0=u*u,b1=2*s.w*t*u,b2=t*t,r=b0*s.c0[0]+b1*s.c1[0]+b2*s.c2[0],z=b0*s.c0[2]+b1*s.c1[2]+b2*s.c2[2];if(z>0){out.push(h+f*r/z);n++}}return n}
+// rows the piece can touch: the projected control points bound each edge (all in front of the camera, positive weights); otherwise every row
+function rowRange(E,cam,W){let y0=Infinity,y1=-Infinity;for(const s of E){const cs=s.lin?[s.c0,s.c2]:[s.c0,s.c1,s.c2];if(!s.lin&&!(s.w>0))return[0,W-1];for(const c of cs){if(!(c[2]>0))return[0,W-1];const y=W/2+cam.f*c[1]/c[2];y0=Math.min(y0,y);y1=Math.max(y1,y)}}
+  return[Math.max(0,Math.ceil(y0-0.5)),Math.min(W-1,Math.floor(y1-0.5))]}
+
+// ---- K along a row (u and v), stepped with forward differences: as in step 13 ----
+function prep(S){return S.map(c=>{const s=c.s;if(!c.conic){const g=Kraw(c,0,0)*s;return{t:0,a:Kraw(c,1,0)*s-g,b:Kraw(c,0,1)*s-g,g}}
+  const{p0,a,p2,D}=c,B=(x,y)=>[((a[0]-x)*(p2[1]-y)-(a[1]-y)*(p2[0]-x))/D,((x-p0[0])*(p2[1]-p0[1])-(y-p0[1])*(p2[0]-p0[0]))/D,((a[0]-p0[0])*(y-p0[1])-(a[1]-p0[1])*(x-p0[0]))/D],
+    o=B(0,0),X=B(1,0),Y=B(0,1),aff=i=>[X[i]-o[i],Y[i]-o[i],o[i]];
+  return{t:1,b0:aff(0),b1:aff(1).map(v=>v*s),b2:aff(2),c:s*s*c.W4,sg:Math.sign(s)}})}
+const af=(f,x,y)=>f[0]*x+f[1]*y+f[2],qAt=(d,x,y)=>d.c*af(d.b0,x,y)*af(d.b2,x,y);
+
+// ================= pass 1: build. Each piece walks only its own spans and writes (piece, u, v, distance) into each pixel's list =================
+function buildPass(P,cam,W){const N=W*W,head=new Int32Array(N).fill(-1);let cap=Math.max(1024,N*2),fp=new Int16Array(cap),fu=new Float32Array(cap),fv=new Float32Array(cap),fz=new Float32Array(cap),nx=new Int32Array(cap),n=0;
+  const grow=()=>{cap*=2;const g=(A,T)=>{const B=new T(cap);B.set(A);return B};fp=g(fp,Int16Array);fu=g(fu,Float32Array);fv=g(fv,Float32Array);fz=g(fz,Float32Array);nx=g(nx,Int32Array)};
+  const xs=[],r4=[0,1,2,3].map(()=>({k:0,d:0,dd:0,b:0,db:0}));let outside=0,noSurf=0;
+  P.forEach((e,i)=>{e.cnt={rows:0,spans:0,frags:0,rootsC:0,rootsS:0};if(!e.D)return;const D=e.D,E=e.E,[ya,yb]=rowRange(E,cam,W),g=D.map(d=>d.sg);
+    for(let y=ya;y<=yb;y++){const Y=y+0.5;xs.length=0;e.cnt.rows++;for(let k=0;k<4;k++){const m=crossings(E[k],cam,Y,xs);if(E[k].lin)e.cnt.rootsS+=m;else e.cnt.rootsC+=m}
+      if(xs.length<2)continue;xs.sort((p,q)=>p-q);
+      for(let s=0;s+1<xs.length;s+=2){const xa=Math.max(0,Math.ceil(xs[s]-0.5)),xb=Math.min(W-1,Math.ceil(xs[s+1]-0.5)-1);if(xb<xa)continue;e.cnt.spans++;
+        const sx=xa+0.5;for(let k=0;k<4;k++){const d=D[k],r=r4[k];r.dd=0;r.b=0;r.db=0;if(d.t===0){r.k=d.a*sx+d.b*Y+d.g;r.d=d.a}else{const q0=qAt(d,sx,Y),q1=qAt(d,sx+1,Y),q2=qAt(d,sx+2,Y);r.k=q0;r.d=q1-q0;r.dd=q2-2*q1+q0;r.b=af(d.b1,sx,Y);r.db=d.b1[0]}}
+        const[r0,r1,r2,r3]=r4,[t0,t1,t2,t3]=D.map(d=>d.t);
+        for(let x=xa;x<=xb;x++){
+          const K0=t0?r0.b-g[0]*Math.sqrt(Math.max(0,r0.k)):r0.k,K1=t1?r1.b-g[1]*Math.sqrt(Math.max(0,r1.k)):r1.k,K2=t2?r2.b-g[2]*Math.sqrt(Math.max(0,r2.k)):r2.k,K3=t3?r3.b-g[3]*Math.sqrt(Math.max(0,r3.k)):r3.k;
+          const u=K3/(K3+K1),v=K0/(K0+K2);if(!(u>=-1e-6&&u<=1+1e-6&&v>=-1e-6&&v<=1+1e-6))outside++;
+          // the 3D point at (u, v) on the piece's surface, and its distance from the camera along the view direction
+          const X=e.pc.eval(clamp01(u),clamp01(v));
+          if(!X)noSurf++;else{if(n>=cap)grow();const o=y*W+x;fp[n]=i;fu[n]=u;fv[n]=v;fz[n]=dot(sub(X,cam.pos),cam.fwd);nx[n]=head[o];head[o]=n;n++;e.cnt.frags++}
+          r0.k+=r0.d;r0.d+=r0.dd;r0.b+=r0.db;r1.k+=r1.d;r1.d+=r1.dd;r1.b+=r1.db;r2.k+=r2.d;r2.d+=r2.dd;r2.b+=r2.db;r3.k+=r3.d;r3.d+=r3.dd;r3.b+=r3.db}}}});
+  return{head,fp,fu,fv,fz,nx,n,outside,noSurf}}
+
+// ================= pass 2: resolve. Each pixel keeps the closest entry of its list =================
+function resolvePass(B,W,near,far){const N=W*W,pid=new Int16Array(N).fill(-1),pu=new Float32Array(N),pv=new Float32Array(N),pz=new Float32Array(N),occ=new Float32Array(N),layers=new Uint8Array(N);let covered=0,maxL=0;
+  for(let o=0;o<N;o++){let best=-1,bz=Infinity,L=0;for(let j=B.head[o];j>=0;j=B.nx[j]){L++;if(B.fz[j]<bz){bz=B.fz[j];best=j}}
+    layers[o]=Math.min(255,L);maxL=Math.max(maxL,L);if(best>=0){covered++;pid[o]=B.fp[best];pu[o]=B.fu[best];pv[o]=B.fv[best];pz[o]=bz;occ[o]=Math.max(1e-6,Math.min(1,(bz-near)/(far-near)))}}
+  return{pid,pu,pv,pz,occ,layers,covered,maxL}}
+
+// ---- verification only (not part of the method): the step 11 ray pass over the same pieces ----
+function rayPass(P,cam,W){const N=W*W,pid=new Int16Array(N).fill(-1);
+  P.forEach(e=>{let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;for(let j=0;j<=10;j++)for(let i=0;i<=10;i++){const X=e.pc.eval(i/10,j/10);if(!X)continue;const p=project(cam,X);if(p[2]<=0)continue;x0=Math.min(x0,p[0]);y0=Math.min(y0,p[1]);x1=Math.max(x1,p[0]);y1=Math.max(y1,p[1])}e.box=x1>=x0?[x0-2,y0-2,x1+2,y1+2]:null});
+  for(let y=0;y<W;y++)for(let x=0;x<W;x++){const sx=x+0.5,sy=y+0.5;let best=null;const d=rayDir(cam,sx,sy);
+    P.forEach((e,i)=>{if(!e.pc.geo||!e.pc.geo.pencil||!e.box||sx<e.box[0]||sx>e.box[2]||sy<e.box[1]||sy>e.box[3])return;const h=hitPiece(e.pc,cam,d);if(h&&(!best||h.t<best.t))best={t:h.t,i}});
+    if(best)pid[y*W+x]=best.i}
+  return pid}
+
+// ---- cost model (Skylake float32, one core, throughput-bound): ALU ops 0.5 cycle, divider ops (DIV, SQRT) 3, compares 1 ----
+const OPN=['add','mul','fma','max','min','sqrt','div','cmp'];
+const addOps=(T,o,n=1)=>{for(const k in o)T[k]=(T[k]||0)+o[k]*n;return T};
+const cyc=T=>Math.max(((T.add||0)+(T.mul||0)+(T.fma||0)+(T.max||0)+(T.min||0))*0.5,((T.div||0)+(T.sqrt||0))*3,(T.cmp||0)*1);
+const flops=T=>OPN.reduce((s,k)=>s+(T[k]||0)*(k==='fma'?2:1),0);
+const opStr=T=>OPN.filter(k=>T[k]).map(k=>(+T[k].toFixed(1)).toLocaleString('en-US')+' '+k.toUpperCase()).join(', ');
+const OPS={
+  // pass 1, per piece and frame: control points into camera coordinates; the K set-up of step 13 (screen points, barycentric forms, centre scale)
+  framePt:{add:3,mul:3,fma:6},frameRowPt:{div:1,fma:1,cmp:2},frameK:{0:{add:4,mul:2,div:1},1:{add:8,mul:8,fma:6,sqrt:1,div:2}},frameKpt:{add:5,mul:3,fma:6,div:1},frameCentre:{fma:12,add:8,mul:4,sqrt:4,div:4},
+  // pass 1, per piece and row: each edge's crossing with the row (quadratic / linear), and the screen x of each crossing found
+  rowC:{fma:5,add:2,mul:2,sqrt:1,div:2,cmp:5},rowS:{fma:2,add:1,div:1,cmp:2},rootC:{add:1,mul:6,fma:5,div:1,cmp:1},rootS:{fma:3,div:1,cmp:1},sort:{cmp:1},
+  // pass 1, per span: K row start
+  spanK:{0:{fma:2},1:{fma:8,mul:3,add:1}},
+  // pass 1, per pixel written: step K, u and v, clamp, P(u, v) (two planes → line → quadric → pick the root nearest the edges' blend), distance, write
+  pixK:{0:{add:1},1:{add:4,max:1,sqrt:1}},pixUV:{add:2,div:2,max:2,min:2},pixP:{fma:97,mul:86,add:33,div:8,sqrt:2,cmp:4},pixZ:{add:3,fma:2,mul:1},
+  // pass 2, per pixel: one compare per list entry; for a covered pixel the colour (checker) and the normalized distance
+  resEntry:{cmp:1},resPix:{mul:2,add:3,max:2,fma:1}};
+function costOf(R){const T={frame:{},row:{},span:{},pix:{},res:{}};
+  R.P.forEach(e=>{if(!e.D)return;const c=e.cnt,ty=e.D.map(d=>d.t),nc=ty.filter(t=>t).length,ns=4-nc;
+    addOps(T.frame,OPS.framePt,4+nc);addOps(T.frame,OPS.frameRowPt,4+nc);ty.forEach(t=>addOps(T.frame,OPS.frameK[t]));addOps(T.frame,OPS.frameKpt,5+nc);addOps(T.frame,OPS.frameCentre);
+    addOps(T.row,OPS.rowC,c.rows*nc);addOps(T.row,OPS.rowS,c.rows*ns);addOps(T.row,OPS.rootC,c.rootsC);addOps(T.row,OPS.rootS,c.rootsS);addOps(T.row,OPS.sort,c.rootsC+c.rootsS);
+    ty.forEach(t=>addOps(T.span,OPS.spanK[t],c.spans));
+    ty.forEach(t=>addOps(T.pix,OPS.pixK[t],c.frags));addOps(T.pix,OPS.pixUV,c.frags);addOps(T.pix,OPS.pixP,c.frags);addOps(T.pix,OPS.pixZ,c.frags)});
+  addOps(T.res,OPS.resEntry,R.B.n);addOps(T.res,OPS.resPix,R.F.covered);return T}
+
+// ---------------- run ----------------
+function run(fast){try{const C=scene(),W=st.res,dist=3.6*C.rad,cam=makeCam(W,C.T,st.yaw,st.pitch,dist),near=dist-1.35*C.rad,far=dist+1.35*C.rad,tf0=performance.now();
+  const P=C.pieces.map(pc=>{const S=screenSetup(pc,cam);return{pc,S,D:S?prep(S):null,E:S?pc.sides.map(sg=>edgeRows(sg,cam)):null}});
+  const t0=performance.now(),B=buildPass(P,cam,W),t1=performance.now(),F=resolvePass(B,W,near,far),t2=performance.now();
+  let CMP=null;if(st.view===3){const rp=rayPass(P,cam,W),N=W*W,cls=new Uint8Array(N);let same=0,other=0,onlyRay=0,onlyB=0;for(let o=0;o<N;o++){const a=F.pid[o],b=rp[o];if(a>=0&&b>=0){if(a===b){cls[o]=1;same++}else{cls[o]=2;other++}}else if(b>=0){cls[o]=3;onlyRay++}else if(a>=0){cls[o]=4;onlyB++}}CMP={cls,same,other,onlyRay,onlyB}}
+  R={C,cam,W,P,B,F,CMP,near,far,ms1:t1-t0,ms2:t2-t1};draw();R.frameMs=performance.now()-tf0;tick();if(!fast||!spin){checks();inspect()}}catch(e){log('ERROR '+(e.stack||e),true)}}
+const FT=[];function tick(){const t=performance.now();FT.push(t);while(FT.length&&t-FT[0]>1000)FT.shift();showFps()}
+function showFps(){if(!R)return;const t=performance.now(),live=FT.length>1&&t-FT[FT.length-1]<400,fps=live?(FT.length-1)*1000/(FT[FT.length-1]-FT[0]):null;
+  document.getElementById('fps').textContent=(fps?fps.toFixed(0)+' FPS':'— FPS (idle)')+'\nbuild '+R.ms1.toFixed(1)+' ms · resolve '+R.ms2.toFixed(1)+' ms\nwhole frame '+(R.frameMs||0).toFixed(1)+' ms'}
+setInterval(showFps,500);
+
+// ---------------- drawing ----------------
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d');let C={};
+function readC(){const g=getComputedStyle(document.documentElement);['fg','muted','line','surface','pin','pst','pco','good','warn','accent'].forEach(k=>C[k]=g.getPropertyValue('--'+k).trim())}
+const rgb=h=>{h=h.replace('#','');return[0,2,4].map(i=>parseInt(h.slice(i,i+2),16))};
+const mix=(a,b,t)=>a.map((x,i)=>Math.round(x*(1-t)+b[i]*t));
+function draw(){const W=R.W,{F,P}=R;if(cv.width!==W){cv.width=W;cv.height=W}const im=ctx.createImageData(W,W),d=im.data,bg=rgb(C.surface),fg=rgb(C.fg),warn=rgb(C.warn),base=[rgb(C.pin),rgb(C.pst),rgb(C.pco)],dark=base.map(b=>mix(b,fg,0.42)),
+    lay=[bg,mix(fg,bg,0.85),rgb(C.accent),rgb(C.warn),rgb(C.warn)],cmp=[bg,mix(fg,bg,0.78),warn,rgb(C.accent),rgb(C.good)];
+  for(let o=0;o<W*W;o++){let c;const i=F.pid[o];
+    if(st.view===1)c=i<0?bg:mix(fg,bg,F.occ[o]);
+    else if(st.view===2)c=lay[Math.min(4,F.layers[o])];
+    else if(st.view===3&&R.CMP)c=cmp[R.CMP.cls[o]];
+    else if(i<0)c=bg;else{const u=F.pu[o],v=F.pv[o];if(!(u>=-1e-6&&u<=1+1e-6&&v>=-1e-6&&v<=1+1e-6))c=warn;else{const k=P[i].pc.kind;c=((Math.floor(clamp01(u)*CHK-1e-9)+Math.floor(clamp01(v)*CHK-1e-9))&1)?dark[k]:base[k]}}
+    d[4*o]=c[0];d[4*o+1]=c[1];d[4*o+2]=c[2];d[4*o+3]=255}
+  ctx.putImageData(im,0,0);mark();legend()}
+function legend(){const L={0:[['var(--pin)','Inner piece'],['var(--pst)','Edge strip'],['var(--pco)','Corner piece'],['var(--warn)','u or v outside 0…1']],1:[['var(--fg)','Near'],['var(--surface)','Far, or nothing written (0)']],
+  2:[['color-mix(in srgb, var(--fg) 15%, var(--surface))','1 entry'],['var(--accent)','2 entries'],['var(--warn)','3 or more']],3:[['color-mix(in srgb, var(--fg) 22%, var(--surface))','Same piece as step 11'],['var(--warn)','A different piece wins'],['var(--accent)','Only step 11 covers it'],['var(--good)','Only the two passes cover it']]}[st.view];
+  document.getElementById('legend').innerHTML=L.map(([c,t])=>'<span><span class="ln" style="background:'+c+'"></span>'+t+'</span>').join('')}
+function mark(){const m=document.getElementById('mark');if(!SEL){m.hidden=true;return}const W=R.W;m.hidden=false;m.style.left=(SEL.x/W*100)+'%';m.style.top=(SEL.y/W*100)+'%';m.style.width=(100/W)+'%';m.style.height=(100/W)+'%'}
+const f0=x=>x.toLocaleString('en-US',{maximumFractionDigits:0}),f1=x=>x.toLocaleString('en-US',{maximumFractionDigits:x<10?1:0}),names=['inner','strip','corner'];
+// the numbers a pixel holds: its list from pass 1, and what pass 2 kept
+function inspect(){const el=document.getElementById('ptab'),hd=document.getElementById('phead');if(!SEL||!R){el.innerHTML='<tr><td colspan="5">Tap a pixel</td></tr>';hd.textContent='';return}
+  const W=R.W,o=SEL.y*W+SEL.x,B=R.B,F=R.F,rows=[];for(let j=B.head[o];j>=0;j=B.nx[j])rows.push(j);rows.reverse();
+  hd.textContent='Pixel ('+SEL.x+', '+SEL.y+'): '+rows.length+(rows.length===1?' entry':' entries')+(F.pid[o]>=0?' · kept: piece '+F.pid[o]+', u '+F.pu[o].toFixed(4)+', v '+F.pv[o].toFixed(4)+', distance '+F.pz[o].toFixed(4)+', occlusion map '+F.occ[o].toFixed(4):' · nothing written');
+  el.innerHTML=rows.length?rows.map(j=>{const pc=R.P[B.fp[j]].pc,win=F.pid[o]===B.fp[j]&&F.pz[o]===B.fz[j];return'<tr'+(win?' class="win"':'')+'><td>'+B.fp[j]+' '+names[pc.kind]+' (quad '+pc.qi+')</td><td class="n">'+B.fu[j].toFixed(4)+'</td><td class="n">'+B.fv[j].toFixed(4)+'</td><td class="n">'+B.fz[j].toFixed(4)+'</td><td>'+(win?'closest':'')+'</td></tr>'}).join(''):'<tr><td colspan="5">No piece wrote to this pixel</td></tr>'}
+function checks(){const r=R,W=r.W,rows=[];
+  rows.push(['Pixels covered (pass 2)',f0(r.F.covered)+' of '+f0(W*W)]);
+  rows.push(['List entries written (pass 1)',f0(r.B.n)+' ('+(r.B.n/Math.max(1,r.F.covered)).toFixed(2)+' per covered pixel, at most '+r.F.maxL+')']);
+  rows.push(['Entries with u or v outside 0…1 (folds)',f0(r.B.outside)]);
+  rows.push(['Span pixels where P(u, v) has no surface (not written)',f0(r.B.noSurf)]);
+  rows.push(['Pieces with no screen edges this frame',String(r.P.filter(e=>!e.D).length)+' of '+r.P.length]);
+  if(r.CMP){const c=r.CMP,t=c.same+c.other+c.onlyRay+c.onlyB;rows.push(['Check against step 11: same piece',f0(c.same)+' ('+(100*c.same/Math.max(1,t)).toFixed(1)+'%)']);rows.push(['Check: a different piece wins',f0(c.other)]);rows.push(['Check: only step 11 covers it',f0(c.onlyRay)]);rows.push(['Check: only the two passes cover it',f0(c.onlyB)])}
+  document.getElementById('checks').innerHTML=rows.map(([a,b])=>'<tr><td>'+a+'</td><td class="n">'+b+'</td></tr>').join('');costTable()}
+function costTable(){const T=costOf(R),W=R.W,px=W*W,row=(a,X,note)=>'<tr><td>'+a+'</td><td>'+opStr(X)+'</td><td class="n">'+f0(flops(X))+'</td><td class="n">'+f0(cyc(X))+'</td><td class="n">'+f1(cyc(X)/px)+'</td></tr>';
+  const parts=[['Pass 1 · frame setup (all pieces)',T.frame],['Pass 1 · row crossings (all pieces)',T.row],['Pass 1 · span starts',T.span],['Pass 1 · pixels written (K, u, v, P(u, v), distance)',T.pix],['Pass 2 · resolve and colour',T.res]];
+  const tot=parts.reduce((s,[,X])=>s+cyc(X),0),one=addOps(addOps(addOps(addOps({},OPS.pixK[1],4),OPS.pixUV),OPS.pixP),OPS.pixZ);
+  document.getElementById('cost').innerHTML=parts.map(([a,X])=>row(a,X)).join('')
+    +'<tr><td><b>Frame total</b></td><td></td><td class="n"></td><td class="n"><b>'+f0(tot)+'</b></td><td class="n"><b>'+f1(tot/px)+'</b></td></tr>'
+    +'<tr><td>Budget: 1,000 cycles per pixel</td><td>'+(100*tot/px/1000).toFixed(1)+'% used</td><td></td><td class="n">'+f0(1000*px)+'</td><td class="n">1,000</td></tr>'
+    +'<tr><td>Model at 3 GHz, one core</td><td>'+(tot/3000).toFixed(0)+' µs per frame → '+f0(3e9/tot)+' FPS</td><td></td><td></td><td></td></tr>'
+    +'<tr><td style="color:var(--muted)">One written pixel, 4 curved edges</td><td style="color:var(--muted)">'+opStr(one)+'</td><td class="n" style="color:var(--muted)">'+f0(flops(one))+'</td><td class="n" style="color:var(--muted)">'+f0(cyc(one))+'</td><td></td></tr>'
+    +'<tr><td style="color:var(--muted)">Measured here (JavaScript, float64)</td><td style="color:var(--muted)">build '+R.ms1.toFixed(1)+' ms, resolve '+R.ms2.toFixed(1)+' ms</td><td></td><td></td><td></td></tr>'}
+
+// ---------------- controls ----------------
+function seg(id,k){const g=document.getElementById(id),bs=[...g.querySelectorAll('button')],sync=()=>bs.forEach(b=>b.classList.toggle('on',String(st[k])===b.dataset.v));bs.forEach(b=>b.onclick=()=>{st[k]=+b.dataset.v;sync();if(k==='res'||k==='mesh')SEL=null;save();run()});sync()}
+seg('g-mesh','mesh');seg('g-view','view');seg('g-res','res');
+let ptr=null,raf=0;cv.addEventListener('pointerdown',e=>{ptr={x:e.clientX,y:e.clientY,sx:e.clientX,sy:e.clientY,drag:false};cv.setPointerCapture(e.pointerId)});
+cv.addEventListener('pointermove',e=>{if(!ptr)return;if(!ptr.drag&&Math.hypot(e.clientX-ptr.sx,e.clientY-ptr.sy)>8)ptr.drag=true;if(!ptr.drag)return;st.yaw-=(e.clientX-ptr.x)*0.01;st.pitch=Math.max(-1.3,Math.min(1.3,st.pitch+(e.clientY-ptr.y)*0.01));ptr.x=e.clientX;ptr.y=e.clientY;if(!raf)raf=requestAnimationFrame(()=>{raf=0;run(true)})});
+cv.addEventListener('pointerup',e=>{if(!ptr)return;const was=ptr;ptr=null;if(was.drag){save();run();return}const b=cv.getBoundingClientRect(),W=R.W;SEL={x:Math.max(0,Math.min(W-1,Math.floor((e.clientX-b.left)/b.width*W))),y:Math.max(0,Math.min(W-1,Math.floor((e.clientY-b.top)/b.height*W)))};mark();inspect()});
+cv.addEventListener('pointercancel',()=>{ptr=null});
+let spin=null;document.getElementById('spin').onclick=()=>{const b=document.getElementById('spin');if(spin){cancelAnimationFrame(spin.raf);spin=null;b.textContent='Auto orbit';save();run();return}
+  const step=()=>{st.yaw+=0.012;run(true);spin.raf=requestAnimationFrame(step)};spin={raf:requestAnimationFrame(step)};b.textContent='Stop orbit'};
+if(window.matchMedia)matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change',()=>{readC();draw()});
+new MutationObserver(()=>{readC();draw()}).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+readC();run();
+</script>
