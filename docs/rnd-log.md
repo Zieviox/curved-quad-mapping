@@ -219,6 +219,32 @@ Checks (all closed form, every mesh and setting tried):
 
 Next (9b): fill each piece with an ellipsoid that follows its border arcs, then measure the cracks.
 
+## 9b. Pieces: one quadric per piece, fitted to its border arcs (example 04)
+
+- **Pieces per quad:** an inner piece, an edge-strip half per sharp edge, and a corner quarter per sharp vertex. Zero-size pieces (no blending) are skipped.
+- **S rule on pieces:** an artificial handle on a side also splits the piece, so each part gets its own ellipsoid. If the opposite side has no handle, its conic is cut exactly in the middle (homogeneous de Casteljau) to give a matching point. A piece that needs a split in both directions isn't supported yet and is counted.
+- **Fit:**
+  - Hard constraints: the piece's corners.
+  - Least-squares targets: 5 points along each border arc (Q = 0) and the corner handle directions.
+  - Scale fixed by trace(A) = 1. One fixed-size solve.
+  - The piece surface is its bilinear base, pushed onto the quadric (from the centre for ellipsoids, else along the averaged handle direction).
+- **Crack:** the largest two-way distance between the edge of a piece's surface and its border arc. Neighbours share the arcs, so this bounds the gap between pieces. Values under 0.001% are the measurement floor (dense polylines).
+
+Measured (blending 3%):
+
+| Mesh | Length × 1 | Length × 2 |
+|---|---|---|
+| Smooth cube | 6 pieces, all ellipsoids (the sphere), crack 0.00054% (floor) | crack 21.9%, push misses |
+| Hard cube | 54 pieces (rounded box), crack 0.00048% (floor) | crack 0.309%, push misses |
+| Wave | 16 pieces (S-split), crack 0.0025% | 0.0049% |
+| Mixed cube | 18 pieces, crack **36.2%** | 52.1% |
+
+**Finding:** a piece has 4 border arcs, and one quadric can hold all 4 only when they're compatible (two-point rule). Box, sphere and wave borders are compatible, or nearly. On the mixed cube's lower side pieces (diagonal handles below, horizontal above) they aren't, and the best single quadric misses by 36% of an edge. Lengths other than 1 hit the same wall.
+
+**Open (asked):** how to fill pieces whose border arcs don't fit one quadric.
+
+Also: the surface lab (example 00) now opens in Converted displacement mode.
+
 ## Prior art
 
 Collected from memory at first. Step 7 checked the shared-edge part against abstracts and citing papers.
