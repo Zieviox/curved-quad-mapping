@@ -345,6 +345,29 @@ Open:
 - A cheaper far-sheet rule.
 - How pixels use the (u, v) of their 4 corners downstream (the occlusion system).
 
+### 11b. Occlusion map, and a depth bug it exposed
+
+- **Occlusion map** (your design): one cell per pixel, starting at 0 (empty).
+  - Each piece, in any order, writes the normalized distance of its nearest corner hit in each pixel it covers: `(t − near) / (far − near)`, with near/far from a sphere around the mesh.
+  - A write lands only if the cell is empty or farther (the depth pass). t is view depth, because the ray direction has a forward component of exactly 1.
+  - Mip chain: each coarser cell keeps the **farthest** of its 4 children, with empty counting as farthest. Anything behind a cell's value is hidden for sure.
+  - Rounded box at 128²: 5,118 cells written, 12,042 depth tests, 3,657 writes lost to something nearer, 8 mip levels (128² → 1²).
+- **Bug found by the map:** hit distances were computed in each piece's own scaled local units. Small pieces (scaled up about 10×) reported t ≈ 48 instead of ≈ 5 and lost the "nearest wins" test, so the back of the cube showed through at its front corner.
+  - Fixed by scaling the ray direction with the piece, so every t is in world units.
+  - Step 11's hole counts were unaffected (they count misses). Which piece counted as nearest was wrong before the fix.
+- **New check, see-through pixels:** a fully covered pixel whose mapped surface is more than 10% of the scene depth behind the nearest reference surface. The front is missing and something behind shows through; coverage alone can't see this.
+
+12 views, after the fix:
+
+| Mesh | Holes | See-through pixels |
+|---|---|---|
+| Smooth cube | 0 of 22,716 | 0 |
+| Rounded box | 0 of 13,164 | 0 |
+| Wave | 0 of 6,942 | 0 |
+| Mixed cube, depth 1 | 14 of 19,252 | 2 |
+| Mixed cube, depth 0 | 35 of 19,952 | 40 |
+| Smooth cube, length × 2 | 0 of 9,740 | 8 |
+
 ## Prior art
 
 Collected from memory at first. Step 7 checked the shared-edge part against abstracts and citing papers.
