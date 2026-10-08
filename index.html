@@ -116,7 +116,7 @@ code{font-family:var(--f-mono);font-size:.92em}
   <li><span class="num">11</span><div class="body">
     <h2>Pixel corners <span class="tag current">current</span></h2>
     <p class="q">Map every pixel corner to (piece, u, v): ray → piece's quadric (one quadratic) → its 4 side planes.</p>
-    <ul class="find"><li>Smooth cube, rounded box, wave: 0 holes over 12 camera views.</li><li>Mixed cube: 14 holes in 19,252 corners. Its cracks, as the pixels see them.</li><li>About 12–34 cycles per pixel (15 per tested piece, 0.8–2.2 pieces tested).</li></ul>
+    <ul class="find"><li>Smooth cube, rounded box, wave: 0 holes over 12 camera views.</li><li>Mixed cube: 14 holes in 19,252 corners. Its cracks, as the pixels see them.</li><li>About 12–34 cycles per pixel (15 per tested piece, 0.8–2.2 pieces tested).</li><li>Occlusion map: each pixel keeps its nearest normalized distance (0 = empty), with a farthest-of-4 mip chain.</li></ul>
     <div class="links"><a class="btn" href="examples/06-pixel-corners.html">Open pixel corners</a></div></div></li>
 </ol>
 

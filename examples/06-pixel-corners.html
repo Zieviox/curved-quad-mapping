@@ -76,7 +76,8 @@ tr:last-child td{border-bottom:0}
   <div class="crow"><span class="clab">Normal length</span><div class="seg" id="g-len"><button data-v="0.5">× 0.5</button><button data-v="1">× 1</button><button data-v="1.5">× 1.5</button><button data-v="2">× 2</button></div></div>
   <div class="crow"><span class="clab">Split depth</span><div class="seg" id="g-depth"><button data-v="0">0</button><button data-v="1">1</button><button data-v="2">2</button></div></div>
   <div class="crow"><span class="clab">Resolution</span><div class="seg" id="g-res"><button data-v="64">64²</button><button data-v="128">128²</button><button data-v="256">256²</button></div></div>
-  <div class="crow"><span class="clab">Show</span><div class="seg" id="g-view"><button data-v="0">(u, v) checker</button><button data-v="1">Piece</button><button data-v="2">Depth</button><button data-v="3">Problems</button></div></div>
+  <div class="crow"><span class="clab">Show</span><div class="seg" id="g-view"><button data-v="0">(u, v) checker</button><button data-v="1">Piece</button><button data-v="2">Depth</button><button data-v="3">Problems</button><button data-v="4">Occlusion map</button></div></div>
+  <div class="crow" id="mipRow"><span class="clab">Mip level</span><div class="seg" id="g-mip"></div><span class="note" id="mipo"></span></div>
 </section>
 
 <section aria-label="Summary"><div class="tw"><table><tbody id="checks"></tbody></table></div><div class="crow"><button class="btn" id="sweep">Check 12 views</button><span class="note" id="sweepo">A crack only shows as a hole when it opens toward the camera. This orbits the camera around the shape and adds up holes and gaps.</span></div></section>
@@ -282,12 +283,13 @@ return{convert,source,mul,sampleArcs}})();
 // ================= step 11: pixel corners -> (piece, u, v) =================
 const add=(a,b)=>[a[0]+b[0],a[1]+b[1],a[2]+b[2]],sub=(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]],mul=(a,s)=>[a[0]*s,a[1]*s,a[2]*s],dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2],cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]],len=a=>Math.hypot(a[0],a[1],a[2]),norm=a=>mul(a,1/(len(a)||1));
 const FOV=40*Math.PI/180,EPS=1e-9;
-function camera(W,mesh){const d=mesh===3?6.6:6.2,cp=Math.cos(st.pitch),pos=[d*cp*Math.sin(st.yaw),-d*cp*Math.cos(st.yaw),d*Math.sin(st.pitch)],fwd=norm(sub([0,0,0],pos)),right=norm(cross(fwd,[0,0,1])),down=cross(fwd,right);return{pos,fwd,right,down,f:(W/2)/Math.tan(FOV/2),W}}
+function camera(W,mesh){const d=mesh===3?6.6:6.2,rb=mesh===3?2.4:2.0,cp=Math.cos(st.pitch),pos=[d*cp*Math.sin(st.yaw),-d*cp*Math.cos(st.yaw),d*Math.sin(st.pitch)],fwd=norm(sub([0,0,0],pos)),right=norm(cross(fwd,[0,0,1])),down=cross(fwd,right);return{pos,fwd,right,down,f:(W/2)/Math.tan(FOV/2),W,near:d-rb,far:d+rb}}   // near/far: camera distance ∓ a sphere that holds the mesh
 const rayDir=(cam,x,y)=>add(cam.fwd,add(mul(cam.right,(x-cam.W/2)/cam.f),mul(cam.down,(y-cam.W/2)/cam.f)));
 const project=(cam,p)=>{const q=sub(p,cam.pos),z=dot(q,cam.fwd);return[cam.W/2+cam.f*dot(q,cam.right)/z,cam.W/2+cam.f*dot(q,cam.down)/z,z]};
 
 // one corner vs one piece: ray in the piece's local frame, quadratic, then the 4 side planes. Returns the nearest in-piece hit or null.
-function hitPiece(pc,cam,dir){const G=pc.geo,o=mul(sub(cam.pos,G.c0),G.sc),d=dir,Ad=G.Ax(d),a=dot(d,Ad),b=2*dot(o,Ad)+dot(G.g,d),c=G.Qf(o);
+function hitPiece(pc,cam,dir){const G=pc.geo,o=mul(sub(cam.pos,G.c0),G.sc),d=mul(dir,G.sc),   // scale the direction too, so t is in world units for every piece
+  Ad=G.Ax(d),a=dot(d,Ad),b=2*dot(o,Ad)+dot(G.g,d),c=G.Qf(o);
   let ts;if(Math.abs(a)<1e-14){if(Math.abs(b)<1e-14)return null;ts=[-c/b]}else{const D=b*b-4*a*c;if(D<0)return null;const s=Math.sqrt(D),q=-0.5*(b+(b<0?-s:s));ts=[q/a,c/q].sort((x,y)=>x-y)}
   for(const t of ts){if(!(t>1e-9))continue;const X=add(o,mul(d,t)),P=G.PL,s0=dot(P[0].n,sub(X,P[0].p)),s1=dot(P[1].n,sub(X,P[1].p)),s2=dot(P[2].n,sub(X,P[2].p)),s3=dot(P[3].n,sub(X,P[3].p));
     if(s3<-EPS||s1>EPS||s0<-EPS||s2>EPS)continue;const u=s3/(s3-s1),v=s0/(s0-s2);
@@ -296,23 +298,31 @@ function hitPiece(pc,cam,dir){const G=pc.geo,o=mul(sub(cam.pos,G.c0),G.sc),d=dir
     return{t,u,v,X:Xw}}
   return null}
 let STAT;
+// Occlusion map: one cell per pixel, 0 = empty. Each piece, in any order, writes the normalized distance of its nearest corner
+// hit in that pixel; a write only lands if the cell is empty or farther (the depth pass). t is view depth, since dir·forward = 1.
 function pixelPass(pieces,cam,timeOnly){const W=cam.W,N=W+1,hp=new Int32Array(N*N).fill(-1),hu=new Float32Array(N*N),hv=new Float32Array(N*N),ht=new Float32Array(N*N);let tests=0;
-  pieces.forEach((pc,pi)=>{if(!pc.geo||!pc.geo.pencil||!pc.box)return;const[x0,y0,x1,y1]=pc.box;
-    for(let y=Math.max(0,y0);y<=Math.min(W,y1);y++)for(let x=Math.max(0,x0);x<=Math.min(W,x1);x++){tests++;const h=hitPiece(pc,cam,rayDir(cam,x,y));if(!h)continue;const id=y*N+x;if(hp[id]<0||h.t<ht[id]){hp[id]=pi;hu[id]=h.u;hv[id]=h.v;ht[id]=h.t}}});
-  return{hp,hu,hv,ht,tests}}
+  const occ=new Float32Array(W*W),tagP=new Int32Array(N*N).fill(-1),tagT=new Float32Array(N*N),OC={tests:0,writes:0,rejected:0};
+  pieces.forEach((pc,pi)=>{if(!pc.geo||!pc.geo.pencil||!pc.box)return;const[x0,y0,x1,y1]=pc.box,ya=Math.max(0,y0),yb=Math.min(W,y1),xa=Math.max(0,x0),xb=Math.min(W,x1);
+    for(let y=ya;y<=yb;y++)for(let x=xa;x<=xb;x++){tests++;const h=hitPiece(pc,cam,rayDir(cam,x,y));if(!h)continue;const id=y*N+x;tagP[id]=pi;tagT[id]=h.t;if(hp[id]<0||h.t<ht[id]){hp[id]=pi;hu[id]=h.u;hv[id]=h.v;ht[id]=h.t}}
+    // this piece writes into the cells it covers
+    for(let y=ya;y<Math.min(W,yb);y++)for(let x=xa;x<Math.min(W,xb);x++){let d=Infinity;for(const c of[y*N+x,y*N+x+1,(y+1)*N+x,(y+1)*N+x+1])if(tagP[c]===pi&&tagT[c]<d)d=tagT[c];if(d===Infinity)continue;
+      const nd=Math.min(1,Math.max(1e-6,(d-cam.near)/(cam.far-cam.near))),i=y*W+x;OC.tests++;if(occ[i]===0||nd<occ[i]){occ[i]=nd;OC.writes++}else OC.rejected++}});
+  // mip chain: each coarser cell keeps the farthest of its 4 children (empty counts as farthest = 1), so anything behind it is hidden for sure
+  const mips=[occ];let w=W;while(w>1){const prev=mips[mips.length-1],h=w>>1,m=new Float32Array(h*h);for(let y=0;y<h;y++)for(let x=0;x<h;x++){let v=0;for(const[dx,dy]of[[0,0],[1,0],[0,1],[1,1]]){const c=prev[(2*y+dy)*w+2*x+dx];v=Math.max(v,c===0?1:c)}m[y*h+x]=v}mips.push(m);w=h}
+  return{hp,hu,hv,ht,tests,occ,mips,OC}}
 
 // reference: dense projection of the same pieces (4 x 4 sub-pixel coverage per pixel), and each piece's screen box
 function boxes(pieces,cam){pieces.forEach(pc=>{let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;for(let j=0;j<=16;j++)for(let i=0;i<=16;i++){const p=pc.eval(i/16,j/16);if(!p)continue;const[x,y,z]=project(cam,p);if(z<=0)continue;x0=Math.min(x0,x);y0=Math.min(y0,y);x1=Math.max(x1,x);y1=Math.max(y1,y)}pc.box=x1<x0?null:[Math.floor(x0)-2,Math.floor(y0)-2,Math.ceil(x1)+2,Math.ceil(y1)+2]})}
-function reference(pieces,cam){const W=cam.W,area=new Uint8Array(W*W),mask=new Uint16Array(W*W);
+function reference(pieces,cam){const W=cam.W,area=new Uint8Array(W*W),mask=new Uint16Array(W*W),zmin=new Float32Array(W*W).fill(Infinity);
   pieces.forEach(pc=>{// density: about 6 samples per pixel along the piece's longest projected side (a 9 x 9 probe measures it), so every 1/4-pixel cell is hit
     let span=0;const pr=[];for(let j=0;j<=8;j++)for(let i=0;i<=8;i++){const p=pc.eval(i/8,j/8);pr.push(p?project(cam,p):null)}for(let j=0;j<=8;j++)for(let i=0;i<8;i++){const a=pr[j*9+i],b=pr[j*9+i+1],c=pr[i*9+j],d=pr[(i+1)*9+j];if(a&&b)span=Math.max(span,Math.hypot(b[0]-a[0],b[1]-a[1])*8);if(c&&d)span=Math.max(span,Math.hypot(d[0]-c[0],d[1]-c[1])*8)}
     const S=Math.max(16,Math.min(700,Math.ceil(span*4.5)));let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;for(let j=0;j<=S;j++)for(let i=0;i<=S;i++){const p=pc.eval(i/S,j/S);if(!p)continue;const[x,y,z]=project(cam,p);if(z<=0)continue;x0=Math.min(x0,x);y0=Math.min(y0,y);x1=Math.max(x1,x);y1=Math.max(y1,y);
-      const px=Math.floor(x),py=Math.floor(y);if(px<0||py<0||px>=W||py>=W)continue;mask[py*W+px]|=1<<(Math.min(3,Math.floor((y-py)*4))*4+Math.min(3,Math.floor((x-px)*4)))}
+      const px=Math.floor(x),py=Math.floor(y);if(px<0||py<0||px>=W||py>=W)continue;if(z<zmin[py*W+px])zmin[py*W+px]=z;mask[py*W+px]|=1<<(Math.min(3,Math.floor((y-py)*4))*4+Math.min(3,Math.floor((x-px)*4)))}
     const bx=x1<x0?null:[Math.floor(x0)-1,Math.floor(y0)-1,Math.ceil(x1)+1,Math.ceil(y1)+1];if(bx&&pc.box)pc.box=[Math.min(pc.box[0],bx[0]),Math.min(pc.box[1],bx[1]),Math.max(pc.box[2],bx[2]),Math.max(pc.box[3],bx[3])]});
-  for(let i=0;i<W*W;i++){let m=mask[i],c=0;while(m){m&=m-1;c++}area[i]=c}return area}
+  for(let i=0;i<W*W;i++){let m=mask[i],c=0;while(m){m&=m-1;c++}area[i]=c}area.zmin=zmin;return area}
 
 // ---------- run ----------
-let st={mesh:2,beta:0.03,lm:1,depth:1,res:128,view:0,yaw:0.7,pitch:0.45},R=null,SEL=null;
+let st={mip:0,mesh:2,beta:0.03,lm:1,depth:1,res:128,view:0,yaw:0.7,pitch:0.45},R=null,SEL=null;
 try{const s=JSON.parse(localStorage.getItem('pc6')||'null');if(s)Object.assign(st,s)}catch(e){}
 const save=()=>{try{localStorage.setItem('pc6',JSON.stringify(st))}catch(e){}};
 function run(fast){try{STAT={noForward:0,otherSheet:0};const Q=PIECES.source(st.mesh).map(q=>({x:q.x,n:q.n.map(n=>mul(n,st.lm))}));
@@ -324,22 +334,29 @@ function analyse(){const W=R.cam.W,N=W+1,{hp}=R.P,a=R.area;let holes=0,interior=
   for(let y=1;y<W;y++)for(let x=1;x<W;x++){if(a[(y-1)*W+x-1]===16&&a[(y-1)*W+x]===16&&a[y*W+x-1]===16&&a[y*W+x]===16){interior++;if(hp[y*N+x]<0){holes++;R.holeAt[y*N+x]=1}}}
   for(let i=0;i<N*N;i++)if(hp[i]>=0)hits++;
   for(let y=0;y<W;y++)for(let x=0;x<W;x++){if(!a[y*W+x])continue;fp++;if(hp[y*N+x]<0&&hp[y*N+x+1]<0&&hp[(y+1)*N+x]<0&&hp[(y+1)*N+x+1]<0){if(a[y*W+x]<=2)slivers++;else{const nb=[[-1,0],[1,0],[0,-1],[0,1]].every(([dx,dy])=>{const X=x+dx,Y=y+dy;return X>=0&&Y>=0&&X<W&&Y<W&&a[Y*W+X]});if(nb)gaps++;else edgeGaps++;R.gapAt[y*W+x]=1}}}
-  R.A={holes,interior,gaps,edgeGaps,slivers,fp,hits}}
+  // see-through: the pixel maps to a surface more than 10% of the scene depth (far - near) behind the nearest reference surface in it,
+  // i.e. the front is missing and something behind shows through. Fully covered pixels only.
+  let see=0;R.seeAt=new Uint8Array(W*W);const tol=0.1*(R.cam.far-R.cam.near),zm=a.zmin;if(zm)for(let y=0;y<W;y++)for(let x=0;x<W;x++){if(a[y*W+x]!==16)continue;let d=Infinity;for(const c of[y*N+x,y*N+x+1,(y+1)*N+x,(y+1)*N+x+1])if(hp[c]>=0&&R.P.ht[c]<d)d=R.P.ht[c];if(d<Infinity&&d-zm[y*W+x]>tol){see++;R.seeAt[y*W+x]=1}}
+  R.A={holes,interior,gaps,edgeGaps,slivers,fp,hits,see}}
 
 // ---------- view ----------
 const cv=document.getElementById('cv'),ctx=cv.getContext('2d');let C={};
 function readC(){const g=getComputedStyle(document.documentElement);['fg','muted','line','border','surface','pin','pst','pco','good','warn','accent'].forEach(k=>C[k]=g.getPropertyValue('--'+k).trim())}
 const rgb=h=>{h=h.replace('#','');return[0,2,4].map(i=>parseInt(h.slice(i,i+2),16))};
-function draw(){const W=R.cam.W,N=W+1,{hp,hu,hv,ht}=R.P;if(cv.width!==W){cv.width=W;cv.height=W}const im=ctx.createImageData(W,W),d=im.data,bg=rgb(C.surface),warn=rgb(C.warn),acc=rgb(C.accent),good=rgb(C.good),base=[rgb(C.pin),rgb(C.pst),rgb(C.pco)];
+function drawOcc(){const L=Math.min(st.mip,R.P.mips.length-1),m=R.P.mips[L],w=R.cam.W>>L;if(cv.width!==w){cv.width=w;cv.height=w}const im=ctx.createImageData(w,w),d=im.data,bg=rgb(C.surface),acc=rgb(C.accent),fg=rgb(C.fg);
+  for(let i=0;i<w*w;i++){const v=m[i],c=v===0||(L>0&&v>=1)?bg:[0,1,2].map(k=>Math.round(fg[k]*(1-v)*0.85+bg[k]*(0.15+0.85*v)));const o=i*4;d[o]=c[0];d[o+1]=c[1];d[o+2]=c[2];d[o+3]=255}
+  ctx.putImageData(im,0,0);document.getElementById('mipo').textContent='level '+L+': '+w+' × '+w+(L?' (each cell = farthest of 2^'+L+' × 2^'+L+' pixels)':' (one cell per pixel)');mark();legend()}
+function mipButtons(){const n=R.P.mips.length,g=document.getElementById('g-mip');if(st.mip>=n)st.mip=0;g.innerHTML=[...Array(n).keys()].map(i=>'<button data-v="'+i+'"'+(i===st.mip?' class="on"':'')+'>'+i+'</button>').join('');[...g.querySelectorAll('button')].forEach(b=>b.onclick=()=>{st.mip=+b.dataset.v;save();mipButtons();draw()});document.getElementById('mipRow').hidden=st.view!==4}
+function draw(){if(st.view===4){mipButtons();return drawOcc()}document.getElementById('mipRow').hidden=true;const W=R.cam.W,N=W+1,{hp,hu,hv,ht}=R.P;if(cv.width!==W){cv.width=W;cv.height=W}const im=ctx.createImageData(W,W),d=im.data,bg=rgb(C.surface),warn=rgb(C.warn),acc=rgb(C.accent),good=rgb(C.good),base=[rgb(C.pin),rgb(C.pst),rgb(C.pco)];
   let tmin=1e9,tmax=-1e9;for(let i=0;i<N*N;i++)if(hp[i]>=0){tmin=Math.min(tmin,ht[i]);tmax=Math.max(tmax,ht[i])}
   const hue=i=>{const a=(i*137.508)%360/360;return[0,1,2].map(k=>Math.round(140+90*Math.cos(2*Math.PI*(a+k/3))))};
   for(let y=0;y<W;y++)for(let x=0;x<W;x++){const cs=[y*N+x,y*N+x+1,(y+1)*N+x,(y+1)*N+x+1].filter(i=>hp[i]>=0);let c=bg;
-    if(st.view===3){if(R.gapAt[y*W+x])c=warn;else if([y*N+x,y*N+x+1,(y+1)*N+x,(y+1)*N+x+1].some(i=>R.holeAt[i]))c=warn;else if(cs.length===4)c=good.map(v=>Math.round(v*0.35+bg[0]*0.65));else if(cs.length)c=acc.map(v=>Math.round(v*0.5+bg[0]*0.5));else if(R.area[y*W+x])c=acc}
+    if(st.view===3){if(R.gapAt[y*W+x]||(R.seeAt&&R.seeAt[y*W+x]))c=warn;else if([y*N+x,y*N+x+1,(y+1)*N+x,(y+1)*N+x+1].some(i=>R.holeAt[i]))c=warn;else if(cs.length===4)c=good.map(v=>Math.round(v*0.35+bg[0]*0.65));else if(cs.length)c=acc.map(v=>Math.round(v*0.5+bg[0]*0.5));else if(R.area[y*W+x])c=acc}
     else if(cs.length){const i=cs[0];if(st.view===0){const k=(Math.floor(hu[i]*8)+Math.floor(hv[i]*8))%2,b=base[R.C.pieces[hp[i]].kind];c=b.map(v=>Math.round(v*(k?1:0.72)))}else if(st.view===1)c=hue(hp[i]);else{const s=1-(ht[i]-tmin)/((tmax-tmin)||1);c=[0,1,2].map(k=>Math.round(bg[k]*(1-s)+acc[k]*s))}}
     else if(R.area[y*W+x])c=warn;
     const o=(y*W+x)*4;d[o]=c[0];d[o+1]=c[1];d[o+2]=c[2];d[o+3]=255}
   ctx.putImageData(im,0,0);mark();legend()}
-function legend(){const L={0:[['var(--pin)','Inner piece'],['var(--pst)','Edge strip'],['var(--pco)','Corner piece'],['var(--warn)','Footprint, no corner hit']],1:[['var(--accent)','One colour per piece'],['var(--warn)','Footprint, no corner hit']],2:[['var(--accent)','Near'],['var(--surface)','Far']],3:[['var(--warn)','Gap or hole'],['var(--good)','All 4 corners hit'],['var(--accent)','Some corners hit / edge']]}[st.view];
+function legend(){const L={0:[['var(--pin)','Inner piece'],['var(--pst)','Edge strip'],['var(--pco)','Corner piece'],['var(--warn)','Footprint, no corner hit']],1:[['var(--accent)','One colour per piece'],['var(--warn)','Footprint, no corner hit']],2:[['var(--accent)','Near'],['var(--surface)','Far']],3:[['var(--warn)','Gap or hole'],['var(--good)','All 4 corners hit'],['var(--accent)','Some corners hit / edge']],4:[['var(--fg)','Near (normalized distance → 0)'],['var(--surface)','Far, or empty (0 = nothing written)']]}[st.view];
   document.getElementById('legend').innerHTML=L.map(([c,t])=>'<span><span class="ln" style="background:'+c+'"></span>'+t+'</span>').join('')}
 function mark(){const m=document.getElementById('mark');if(!SEL){m.hidden=true;return}const W=R.cam.W;m.hidden=false;m.style.left=(SEL.x/W*100)+'%';m.style.top=(SEL.y/W*100)+'%';m.style.width=(100/W)+'%';m.style.height=(100/W)+'%'}
 function inspect(){const pt=document.getElementById('ptab');if(!SEL||!R){return}const W=R.cam.W,N=W+1,{hp,hu,hv,ht}=R.P,names=['inner','strip','corner'];
@@ -349,11 +366,13 @@ function checks(){const A=R.A,W=R.cam.W,N=W+1,rows=[],tp=R.P.tests/(N*N);if(R.fa
   rows.push(['Pieces',fmt(R.C.pieces.length)+(R.C.pieces.some(p=>!p.geo||!p.geo.pencil)?' ('+R.C.pieces.filter(p=>!p.geo||!p.geo.pencil).length+' without side planes, skipped)':''),R.C.pieces.every(p=>p.geo&&p.geo.pencil)]);
   rows.push(['Pixel corners that hit a piece',fmt(A.hits)+' of '+fmt(N*N),true]);
   rows.push(['Holes: corners inside the footprint that hit nothing',fmt(A.holes)+' of '+fmt(A.interior)+' interior corners',A.holes===0]);
+  rows.push(['See-through pixels: mapped surface is behind the nearest reference surface (front missing)',fmt(A.see),A.see===0]);
   rows.push(['Interior gaps: footprint pixels inside the outline with no corner hit',fmt(A.gaps)+' of '+fmt(A.fp)+' footprint pixels',A.gaps===0]);
   rows.push(['Outline gaps: pixels on the outline (more than 2/16 covered) where the surface passes between the corners',fmt(A.edgeGaps),true]);
   rows.push(['Outline slivers: ≤ 2/16 covered, no corner hit',fmt(A.slivers),true]);
   {const sh=R.C.pieces.reduce((a,p)=>a+p.missCount(),0);rows.push(['Holes in the pieces themselves (sampled points where a piece has no surface)',fmt(sh),sh===0])}
   rows.push(['Hits rejected as the far sheet of a quadric',fmt(STAT.otherSheet),true]);
+  {const O=R.P.OC,cells=R.P.occ.reduce((a,v)=>a+(v>0?1:0),0);rows.push(['Occlusion map: cells written / depth tests / writes that lost (something nearer was already there)',fmt(cells)+' / '+fmt(O.tests)+' / '+fmt(O.rejected),true]);rows.push(['Occlusion map: mip levels (farthest of 4 children)',R.P.mips.length+' ('+R.cam.W+'² → 1²), normalized depth = (t − near) / (far − near), near '+R.cam.near.toFixed(2)+', far '+R.cam.far.toFixed(2),true])}
   document.getElementById('checks').innerHTML=rows.map(r=>'<tr><td>'+r[0]+'</td><td class="n '+(r[2]?'ok':'bad')+'">'+r[1]+'</td></tr>').join('');
   const c=[['Pieces tested per corner (screen-box culling)',fmt(tp,2)],['Model: cycles per tested piece','15 (counted in the R&D log, step 9c)'],['Model: cycles per corner','≈ '+fmt(15*tp,0)+' (15 × pieces tested)'],['This browser: ns per tested piece',R.ns==null?'…':fmt(R.ns,1)+' ns ('+R.runs+' runs; includes the far-sheet check)'],['Stage times (ms)','conversion '+fmt(R.T.conv,1)+' · reference '+fmt(R.T.ref,1)+' · pixel pass '+fmt(R.T.pass,1)]];
   document.getElementById('ctab').innerHTML=c.map(r=>'<tr><td>'+r[0]+'</td><td class="n">'+r[1]+'</td></tr>').join('')}
@@ -370,6 +389,6 @@ if(window.matchMedia)matchMedia('(prefers-color-scheme: dark)').addEventListener
 new MutationObserver(()=>{readC();draw()}).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
 // sweep: 12 camera directions, same pieces, holes and gaps added up
 document.getElementById('sweep').onclick=()=>{const o=document.getElementById('sweepo'),keep=[st.yaw,st.pitch],views=[];for(let i=0;i<8;i++)views.push([i*Math.PI/4,0.45]);for(let i=0;i<4;i++)views.push([i*Math.PI/2+Math.PI/4,-0.6]);
-  let k=0,h=0,ic=0,g=0,eg=0;const step=()=>{if(k>=views.length){[st.yaw,st.pitch]=keep;run();o.textContent='12 views: holes '+fmt(h)+' of '+fmt(ic)+' interior corners · interior gaps '+fmt(g)+' · outline gaps '+fmt(eg);return}[st.yaw,st.pitch]=views[k++];run();h+=R.A.holes;ic+=R.A.interior;g+=R.A.gaps;eg+=R.A.edgeGaps;o.textContent='Checking view '+k+' of 12…';setTimeout(step,20)};step()};
+  let k=0,h=0,ic=0,g=0,eg=0,se=0;const step=()=>{if(k>=views.length){[st.yaw,st.pitch]=keep;run();o.textContent='12 views: holes '+fmt(h)+' of '+fmt(ic)+' interior corners · see-through pixels '+fmt(se)+' · interior gaps '+fmt(g)+' · outline gaps '+fmt(eg);return}[st.yaw,st.pitch]=views[k++];run();h+=R.A.holes;ic+=R.A.interior;g+=R.A.gaps;eg+=R.A.edgeGaps;se+=R.A.see;o.textContent='Checking view '+k+' of 12…';setTimeout(step,20)};step()};
 readC();run();
 </script>
