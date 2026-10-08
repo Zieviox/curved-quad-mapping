@@ -11,7 +11,7 @@
 /* Layout: single technical column — live 3D test first, then cost tables in pipeline order */
 :root{
   --bg:#eef1f4;--surface:#ffffff;--fg:#151a21;--muted:#59626f;--line:#d6dce3;--accent:#2d56d2;--warn:#b4321f;--good:#1b7a52;
-  --c-nag:#1D9E75;--c-pho:#7F77DD;--c-pn:#D85A30;--c-cc:#D4537E;--c-ell:#3A86C8;
+  --c-nag:#1D9E75;--c-pho:#7F77DD;--c-pn:#D85A30;--c-cc:#D4537E;--c-ell:#3A86C8;--c-els:#B07D12;
   --f-display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
   --f-body:"IBM Plex Sans",ui-sans-serif,system-ui,sans-serif;
   --f-mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
@@ -47,6 +47,7 @@ tr:last-child td{border-bottom:0}
 th{font-weight:500;color:var(--muted);font-size:12px;white-space:nowrap}
 td.n,th.n{text-align:right;font-family:var(--f-mono);white-space:nowrap}
 td.ops{font-family:var(--f-mono);font-size:12px}
+#ellcost td.ops{min-width:240px}#ellcost td:first-child{min-width:150px}
 tr.tot td{font-weight:500;background:var(--bg)}
 .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
 .card{min-width:0;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:8px}
@@ -80,6 +81,7 @@ dt{color:var(--muted)}dd{margin:0;min-width:0}
     <div class="view"><canvas class="cv" id="c1" aria-label="Phong quad view"></canvas><div class="vname"><span class="sw" style="background:var(--c-pho)"></span>Phong quad</div><div class="err" id="e1"></div></div>
     <div class="view"><canvas class="cv" id="c2" aria-label="PN-quad view"></canvas><div class="vname"><span class="sw" style="background:var(--c-pn)"></span>PN-quad</div><div class="err" id="e2"></div></div>
     <div class="view"><canvas class="cv" id="c4" aria-label="Ellipsoid quad view"></canvas><div class="vname"><span class="sw" style="background:var(--c-ell)"></span>Ellipsoid quad (quadric)</div><div class="err" id="e4"></div></div>
+    <div class="view"><canvas class="cv" id="c5" aria-label="Ellipsoid quad with S-split view"></canvas><div class="vname"><span class="sw" style="background:var(--c-els)"></span>Ellipsoid quad + S-split</div><div class="err" id="e5"></div></div>
     <div class="view"><canvas class="cv" id="c3" aria-label="Catmull-Clark view"></canvas><div class="vname"><span class="sw" style="background:var(--c-cc)"></span>Catmull-Clark (baked target)</div><div class="err" id="e3"></div></div>
   </div>
 </section>
@@ -158,6 +160,48 @@ dt{color:var(--muted)}dd{margin:0;min-width:0}
   <p class="note">Throughput sum is 26 cycles (bicubic 32). Interleaving 2 walkers (two rows or two patches) hides the chain.</p>
 </section>
 
+<section id="ellcost">
+  <h2>Ellipsoid quad: pixel-corner cost</h2>
+  <p class="note">A different pipeline from the step walk above. Each pixel corner is a ray from the camera. It hits the piece's quadric (quadratic), then the ray from the quadric's centre through that hit meets the flat bilinear base (quadratic), which gives (u, v). Neighbouring pixels share corners, so this costs about one corner per pixel. Counts are for one piece; the S-split adds pieces. Cycles = throughput on ports 0 and 1 (FP ops 0.5, COMISS and DIV/SQRT issue 1 each); the divider runs in parallel.</p>
+  <div class="tw"><table>
+    <thead><tr><th>Stage</th><th>Runs</th><th>Ops</th><th class="n">Cycles</th><th class="n">Divider</th></tr></thead>
+    <tbody>
+      <tr><td>1. Fit quadric</td><td>Piece × mesh change</td><td class="ops">53 ADD, 428 MUL, 2189 FMA, 8 SQRT, 21 DIV, 114 COMISS, 12 logic</td><td class="n">1,407</td><td class="n">87</td></tr>
+      <tr><td>1a. Shoulder source (PN-quad build + 1 point)</td><td>Quad × mesh change</td><td class="ops">132 ADD, 56 MUL, 157 FMA</td><td class="n">173</td><td class="n">—</td></tr>
+      <tr><td>1b. Inflection test</td><td>Edge × mesh change</td><td class="ops">13 ADD, 5 MUL, 26 FMA, 1 DIV, 1 COMISS</td><td class="n">23</td><td class="n">3</td></tr>
+      <tr><td>1c. Artificial edge point + normal</td><td>Inflected edge × mesh change</td><td class="ops">11 ADD, 24 MUL, 27 FMA, 1 SQRT, 2 DIV</td><td class="n">33</td><td class="n">9</td></tr>
+      <tr><td>1d. Centre point (4-way split only)</td><td>Quad × mesh change</td><td class="ops">14 ADD, 9 MUL, 94 FMA, 1 SQRT, 2 DIV, 1 COMISS, 3 logic</td><td class="n">61</td><td class="n">9</td></tr>
+      <tr><td>2. View transform</td><td>Piece × frame</td><td class="ops">7 ADD, 18 MUL, 36 FMA</td><td class="n">31</td><td class="n">—</td></tr>
+      <tr><td>3. Pixel-row setup</td><td>Piece × pixel row</td><td class="ops">2 ADD, 3 MUL, 19 FMA, 1 COMISS</td><td class="n">13</td><td class="n">—</td></tr>
+      <tr class="tot"><td>4. Pixel corner</td><td>Piece × corner</td><td class="ops">8 ADD, 19 MUL, 20 FMA, 2 SQRT, 3 DIV, 6 COMISS, 5 logic</td><td class="n">29</td><td class="n">15</td></tr>
+      <tr><td>4s. Split: piece (u′, v′) → quad (u, v)</td><td>Corner on a split quad</td><td class="ops">1 way: 1 SUB, 2 FMA, 1 COMISS · 4 way: 2 SUB, 6 MUL, 3 FMA, 1 DIV, 2 COMISS</td><td class="n">3 / 7</td><td class="n">— / 3</td></tr>
+    </tbody>
+  </table></div>
+  <h3>Inside one pixel corner</h3>
+  <div class="tw"><table>
+    <thead><tr><th>Part</th><th class="n">ADD</th><th class="n">MUL</th><th class="n">FMA</th><th>Other</th></tr></thead>
+    <tbody>
+      <tr><td>4a. Next corner on the pixel row: ray direction, a, Δa, b by forward differences</td><td class="n">6</td><td class="n"></td><td class="n"></td><td></td></tr>
+      <tr><td>4b. Hit test: b² − a·c</td><td class="n"></td><td class="n">1</td><td class="n">1</td><td>1 COMISS</td></tr>
+      <tr><td>4c. Hit distance t = (−b − √disc) / a</td><td class="n">1</td><td class="n"></td><td class="n"></td><td>1 SQRT, 1 DIV</td></tr>
+      <tr><td>4d. Ray from centre: w = (o − centre) + t·d</td><td class="n"></td><td class="n"></td><td class="n">3</td><td></td></tr>
+      <tr><td>4e. Two planes through that ray vs the bilinear base (axis-aligned plane normals: 2-term dots)</td><td class="n"></td><td class="n">8</td><td class="n">8</td><td></td></tr>
+      <tr><td>4f. Quadratic in v: coefficients, half-b, discriminant</td><td class="n"></td><td class="n">5</td><td class="n">6</td><td>1 SQRT, 1 COMISS</td></tr>
+      <tr><td>4g. Both roots with one divide, pick the one in [0, 1]</td><td class="n">1</td><td class="n">5</td><td class="n"></td><td>1 DIV, 2 COMISS, 4 logic</td></tr>
+      <tr><td>4h. u = −(A₁ + C₁·v) / (B₁ + D₁·v), range check</td><td class="n"></td><td class="n"></td><td class="n">2</td><td>1 DIV, 2 COMISS, 1 logic</td></tr>
+      <tr class="tot"><td>Total</td><td class="n">8</td><td class="n">19</td><td class="n">20</td><td>2 SQRT, 3 DIV, 6 COMISS, 5 logic · 63 uops</td></tr>
+    </tbody>
+  </table></div>
+  <div class="chain">ADD 4 → b² 4 → disc 4 → SQRT 12 → SUB 4 → DIV 11 → w 4 → plane coef 8 → qb 16 → half 4 → square 4 → disc 4 → SQRT 12 → q 4 → qa·q 4 → DIV 11 → root 4 → COMISS 3 → blend 1 → den 4 → DIV 11 → sign 1 → COMISS 3 = <b>137</b></div>
+  <dl>
+    <dt>Ports bound</dt><dd>29 cycles per corner (58 uops on ports 0 and 1). The divider is busy 15 of them.</dd>
+    <dt>Latency bound</dt><dd>Corners are independent; only the 4-cycle forward difference is loop-carried. A 224-entry reorder buffer holds 224 / 63 = 3.5 corners, so a 137-cycle chain gives 137 / 3.5 = <b>39 cycles</b> per corner if latency dominates.</dd>
+    <dt>Step walk, for comparison</dt><dd>26 cycles per step (2 walkers). It needed safety 0.7 to stop interior gaps, which meant 2.92 pairs per covered pixel: about 76 cycles per pixel, with sliver gaps left.</dd>
+    <dt>S-split</dt><dd>A corner on a split quad is tried on each piece until one accepts it: 1 to 2 tries (4 for a 4-way split) × stage 4, plus 4s.</dd>
+    <dt>Not counted</dt><dd>Finding which quad a pixel corner belongs to, occlusion between pieces, rays that miss.</dd>
+  </dl>
+</section>
+
 <section id="convert">
   <h2>Map conversion cost</h2>
   <p class="note">One-time preprocess: rebuild the baked point T = S + d·n on the source surface, then store T − flat(u, v) as a vector map. Source = regular bicubic patch, texels walked row by row.</p>
@@ -196,9 +240,15 @@ dt{color:var(--muted)}dd{margin:0;min-width:0}
       <li class="minus">Interior points not uniquely defined; counts use the zero-twist rule.</li></ul></div>
     <div class="card"><h3><span class="sw" style="background:var(--c-ell);display:inline-block;margin-right:8px"></span>Ellipsoid quad (quadric)</h3><ul>
       <li class="plus">Pixel corners in closed form: ray vs quadric (quadratic), then (u, v) by ray from the center vs the bilinear base (quadratic).</li>
-      <li class="plus">Exact through the 4 corners. Normals are matched exactly when one quadric fits all 4 (cube: a sphere).</li>
+      <li class="plus">Exact through the 4 corners; normals are a least-squares fit.</li>
+      <li class="minus">Corners and normals alone leave a whole family of exact fits, including two flat planes. A shoulder point (PN-quad midpoint) picks the curved one.</li>
       <li class="minus">4 corners + 8 normal conditions = 12, but a quadric has 9: normals are a least-squares fit otherwise.</li>
       <li class="minus">One quadric per quad: neighbours only meet along edges if they share the quadric. Conic edges: no S-bends.</li></ul></div>
+    <div class="card"><h3><span class="sw" style="background:var(--c-els);display:inline-block;margin-right:8px"></span>Ellipsoid quad + S-split</h3><ul>
+      <li class="plus">Makes S-bends: where an edge's PN cubic inflects, an artificial point (position + normal from that edge only) splits the quad, and each side gets its own quadric.</li>
+      <li class="plus">Wave: all 16 pieces match their corner normals exactly (0.0°).</li>
+      <li class="minus">Each corner is tried on up to 2 pieces (4 for a 4-way split). Build cost per piece.</li>
+      <li class="minus">Pieces meet only at their corners: creases along split lines and quad edges.</li></ul></div>
     <div class="card"><h3><span class="sw" style="background:var(--c-cc);display:inline-block;margin-right:8px"></span>Catmull-Clark</h3><ul>
       <li class="plus">Smooth across quad borders. Regular quads are exact bicubic B-splines at PN-quad hot-loop cost; no normals needed.</li>
       <li class="minus">Doesn't pass through the vertices; shrinks.</li>
@@ -217,6 +267,7 @@ dt{color:var(--muted)}dd{margin:0;min-width:0}
     <dt>Nagata edges</dt><dd>Minimum-length quadratic edge solved from the two normal constraints</dd>
     <dt>PN interior</dt><dd>Zero-twist rule</dd>
     <dt>Phong α</dt><dd>0.75</dd>
+    <dt>Ellipsoid fit</dt><dd>Corners hard; normals least squares; shoulder point = PN-quad midpoint, weight 0.1; scale trace(A) = 1</dd>
     <dt>Not counted</dt><dd>Fallback branches (Nagata singular edges, silhouettes), BVH or patch lookup</dd>
   </dl>
 </section>
@@ -231,13 +282,16 @@ function phong(X,N){return(u,v)=>{const w=[(1-u)*(1-v),u*(1-v),u*v,(1-u)*v];let 
 function nc(x0,x1,n0,n1){const d=sub(x1,x0),a0=dot(n0,d),a1=dot(n1,d),k=dot(n0,n1),den=1-k*k;if(den<1e-3)return[0,0,0];return add(mul(n0,(a0+k*a1)/den),mul(n1,(-a1-k*a0)/den))}
 function nagata(X,N){const[x00,x10,x11,x01]=X,[n00,n10,n11,n01]=N;const c1=nc(x00,x10,n00,n10),c2=nc(x10,x11,n10,n11),c3=nc(x01,x11,n01,n11),c4=nc(x00,x01,n00,n01);const a10=sub(sub(x10,x00),c1),a01=sub(sub(x01,x00),c4),a11=add(sub(sub(add(x11,x00),x10),x01),sub(add(c1,c4),add(c2,c3))),a21=sub(c3,c1),a12=sub(c2,c4);return(u,v)=>add(add(add(x00,mul(a10,u)),add(mul(a01,v),mul(a11,u*v))),add(add(mul(c1,u*u),mul(c4,v*v)),add(mul(a21,u*u*v),mul(a12,u*v*v))))}
 function pn(X,N){const e=(i,j)=>{const d=sub(X[j],X[i]);return add(X[i],mul(sub(d,mul(N[i],dot(d,N[i]))),1/3))};const B=[[],[],[],[]];B[0][0]=X[0];B[3][0]=X[1];B[3][3]=X[2];B[0][3]=X[3];B[1][0]=e(0,1);B[2][0]=e(1,0);B[1][3]=e(3,2);B[2][3]=e(2,3);B[0][1]=e(0,3);B[0][2]=e(3,0);B[3][1]=e(1,2);B[3][2]=e(2,1);B[1][1]=sub(add(B[1][0],B[0][1]),B[0][0]);B[2][1]=sub(add(B[2][0],B[3][1]),B[3][0]);B[1][2]=sub(add(B[1][3],B[0][2]),B[0][3]);B[2][2]=sub(add(B[2][3],B[3][2]),B[3][3]);const bn=t=>[(1-t)**3,3*t*(1-t)**2,3*t*t*(1-t),t**3];return(u,v)=>{const bu=bn(u),bv=bn(v);let p=[0,0,0];for(let i=0;i<4;i++)for(let j=0;j<4;j++)p=add(p,mul(B[i][j],bu[i]*bv[j]));return p}}
+const WMID=0.1;
 // Ellipsoid quad: one quadric per quad, Q(x) = x·A·x + g·x + k, in the quad's own normalized frame.
 // Hard: passes through the 4 corners. Soft (least squares): gradient parallel to the 4 normals (8 conditions). Scale fixed by trace(A) = 1.
 // Solved as one 15x15 linear system (fixed size, no iteration). Patch point = bilinear base point pushed onto the quadric:
 // along the ray from the center when the fit is an ellipsoid, otherwise along the quad's averaged normal (nearest root).
-function quadric(X,N){const c0=mul(X.reduce((a,b)=>add(a,b),[0,0,0]),0.25),s=4/X.reduce((a,x,i)=>a+len(sub(X[(i+1)%4],x)),0),L=X.map(x=>mul(sub(x,c0),s));
+function quadric(X,N,mid){const c0=mul(X.reduce((a,b)=>add(a,b),[0,0,0]),0.25),s=4/X.reduce((a,x,i)=>a+len(sub(X[(i+1)%4],x)),0),L=X.map(x=>mul(sub(x,c0),s));
 const row=x=>[x[0]*x[0],x[1]*x[1],x[2]*x[2],2*x[0]*x[1],2*x[0]*x[2],2*x[1]*x[2],x[0],x[1],x[2],1],grow=(x,t)=>[2*x[0]*t[0],2*x[1]*t[1],2*x[2]*t[2],2*(x[1]*t[0]+x[0]*t[1]),2*(x[2]*t[0]+x[0]*t[2]),2*(x[2]*t[1]+x[1]*t[2]),t[0],t[1],t[2],0];
 const M=[];N.forEach((n,i)=>{const a=Math.abs(n[0])<0.9?[1,0,0]:[0,1,0],t1=norm(cross(n,a)),t2=cross(n,t1);M.push(grow(L[i],t1),grow(L[i],t2))});
+// shoulder: weak pull toward the PN-quad midpoint. Corners + normals alone also admit degenerate fits (plane pairs); this picks the curved member.
+if(mid)M.push(row(mul(sub(mid,c0),s)).map(x=>x*WMID));
 const H=L.map(row).concat([[1,1,1,0,0,0,0,0,0,0]]),K=[];for(let i=0;i<15;i++)K.push(new Array(16).fill(0));
 for(let i=0;i<10;i++){for(let j=0;j<10;j++){let v=0;M.forEach(r=>v+=r[i]*r[j]);K[i][j]=2*v+(i===j?1e-9:0)}for(let h=0;h<5;h++){K[i][10+h]=H[h][i];K[10+h][i]=H[h][i]}}K[14][15]=1;
 for(let c=0;c<15;c++){let p=c;for(let r=c+1;r<15;r++)if(Math.abs(K[r][c])>Math.abs(K[p][c]))p=r;[K[c],K[p]]=[K[p],K[c]];for(let r=0;r<15;r++)if(r!==c){const f=K[r][c]/K[c][c];for(let k=c;k<16;k++)K[r][k]-=f*K[c][k]}}
@@ -253,6 +307,25 @@ const ev=(u,v)=>{const w=[(1-u)*(1-v),u*(1-v),u*v,(1-u)*v];let p=[0,0,0];for(let
   else{const a=dot(dir,Ax(dir)),b=dot(grad(p),dir),c=Q(p);let t=null;if(Math.abs(a)<1e-12){if(b)t=-c/b}else{const D=b*b-4*a*c;if(D>=0){const r1=(-b+Math.sqrt(D))/(2*a),r2=(-b-Math.sqrt(D))/(2*a);t=Math.abs(r1)<Math.abs(r2)?r1:r2}}if(t===null)info.miss++;else P=add(p,mul(dir,t))}
   return add(c0,mul(P,1/s))};
 ev.info=info;return ev}
+// S-split: where a quad edge's PN cubic (built from its 2 corners + normals) has an inflection, add an artificial point there.
+// The quad is cut along the line between the artificial points, and each piece gets its own quadric (convex piece, inverted piece).
+function pnEdge(x0,x1,n0,n1){const d=sub(x1,x0);return[x0,add(x0,mul(sub(d,mul(n0,dot(d,n0))),1/3)),sub(x1,mul(sub(d,mul(n1,dot(d,n1))),1/3)),x1]}
+// inflection: the curvature along the averaged normal m changes sign; m·B''(t) is linear in t, so t* = a / (a - b)
+function inflect(x0,x1,n0,n1){const P=pnEdge(x0,x1,n0,n1),m=add(n0,n1),a=dot(m,add(sub(P[2],mul(P[1],2)),P[0])),b=dot(m,add(sub(P[3],mul(P[2],2)),P[1]));return a*b<0?a/(a-b):null}
+// artificial point: position on the cubic edge; normal = interpolated normal with the tangent part removed (edge data only, so neighbours agree)
+function edgePoint(x0,x1,n0,n1,t){const P=pnEdge(x0,x1,n0,n1),r=1-t,p=add(add(mul(P[0],r*r*r),mul(P[1],3*r*r*t)),add(mul(P[2],3*r*t*t),mul(P[3],t*t*t))),T=add(add(mul(sub(P[1],P[0]),r*r),mul(sub(P[2],P[1]),2*r*t)),mul(sub(P[3],P[2]),t*t)),m=add(mul(n0,r),mul(n1,t));return{p,n:norm(sub(m,mul(T,dot(m,T)/dot(T,T))))}}
+function quadricS(X,N){const[x00,x10,x11,x01]=X,[n00,n10,n11,n01]=N;
+const iu0=inflect(x00,x10,n00,n10),iu1=inflect(x01,x11,n01,n11),iv0=inflect(x00,x01,n00,n01),iv1=inflect(x10,x11,n10,n11),su=iu0!==null||iu1!==null,sv=iv0!==null||iv1!==null;
+const PNQ=pn(X,N);if(!su&&!sv){const ev=quadric(X,N,PNQ(0.5,0.5));ev.info.pieces=1;ev.info.ellN=ev.info.ell?1:0;return ev}
+const u0=iu0??iu1,u1=iu1??iu0,v0=iv0??iv1,v1=iv1??iv0,A0=su&&edgePoint(x00,x10,n00,n10,u0),A1=su&&edgePoint(x01,x11,n01,n11,u1),B0=sv&&edgePoint(x00,x01,n00,n01,v0),B1=sv&&edgePoint(x10,x11,n10,n11,v1);
+const Q=(c,mu,mv)=>quadric(c.map(k=>k.p),c.map(k=>k.n),PNQ(mu,mv)),K=(p,n)=>({p,n}),c00=K(x00,n00),c10=K(x10,n10),c11=K(x11,n11),c01=K(x01,n01);let parts,ev;
+if(su&&!sv){const sm=(u0+u1)/2;parts=[Q([c00,A0,A1,c01],sm/2,0.5),Q([A0,c10,c11,A1],(1+sm)/2,0.5)];ev=(u,v)=>{const s=u0+(u1-u0)*v;return u<s?parts[0](u/s,v):parts[1]((u-s)/(1-s),v)}}
+else if(sv&&!su){const tm=(v0+v1)/2;parts=[Q([c00,c10,B1,B0],0.5,tm/2),Q([B0,B1,c11,c01],0.5,(1+tm)/2)];ev=(u,v)=>{const t=v0+(v1-v0)*u;return v<t?parts[0](u,v/t):parts[1](u,(v-t)/(1-t))}}
+else{// 4 pieces; centre = where the two split lines cross, placed on the PN-quad surface
+  const du=u1-u0,dv=v1-v0,uc=(u0+du*v0)/(1-du*dv),vc=v0+dv*uc,P=PNQ,h=1e-4,nn=norm(cross(sub(P(uc+h,vc),P(uc-h,vc)),sub(P(uc,vc+h),P(uc,vc-h)))),ref=add(add(n00,n10),add(n11,n01)),C=K(P(uc,vc),dot(nn,ref)<0?mul(nn,-1):nn);
+  parts=[Q([c00,A0,C,B0],uc/2,vc/2),Q([A0,c10,B1,C],(1+uc)/2,vc/2),Q([C,B1,c11,A1],(1+uc)/2,(1+vc)/2),Q([B0,C,A1,c01],uc/2,(1+vc)/2)];
+  ev=(u,v)=>{const s=u0+du*v,t=v0+dv*u,l=u<s,b=v<t,uu=l?u/s:(u-s)/(1-s),vv=b?v/t:(v-t)/(1-t);return parts[b?(l?0:1):(l?3:2)](uu,vv)}}
+const I=parts.map(p=>p.info);ev.info={pieces:parts.length,ellN:I.filter(i=>i.ell).length,ell:I.every(i=>i.ell),ang:Math.max(...I.map(i=>i.ang)),get miss(){return I.reduce((a,i)=>a+i.miss,0)}};return ev}
 function cc(m){const V=m.v,F=m.f,key=(a,b)=>a<b?a+'_'+b:b+'_'+a;const fp=F.map(q=>mul(q.reduce((s,i)=>add(s,V[i]),[0,0,0]),1/q.length));const E=new Map();F.forEach((q,fi)=>{for(let k=0;k<q.length;k++){const a=q[k],b=q[(k+1)%q.length],kk=key(a,b);if(!E.has(kk))E.set(kk,{a,b,f:[]});E.get(kk).f.push(fi)}});const vf=V.map(()=>[]),ve=V.map(()=>[]);F.forEach((q,fi)=>q.forEach(i=>vf[i].push(fi)));E.forEach(e=>{ve[e.a].push(e);ve[e.b].push(e)});const oth=(e,i)=>V[e.a===i?e.b:e.a];
 const verts=V.map((P,i)=>{const be=ve[i].filter(e=>e.f.length===1);if(be.length){if(be.length===2&&vf[i].length>1)return mul(add(add(oth(be[0],i),oth(be[1],i)),mul(P,6)),1/8);return P}const n=vf[i].length,Fa=mul(vf[i].reduce((s,fi)=>add(s,fp[fi]),[0,0,0]),1/n),Ra=mul(ve[i].reduce((s,e)=>add(s,mul(add(V[e.a],V[e.b]),0.5)),[0,0,0]),1/ve[i].length);return mul(add(add(Fa,mul(Ra,2)),mul(P,n-3)),1/n)});
 const ei=new Map();E.forEach((e,k)=>{const p=e.f.length===2?mul(add(add(V[e.a],V[e.b]),add(fp[e.f[0]],fp[e.f[1]])),0.25):mul(add(V[e.a],V[e.b]),0.5);ei.set(k,verts.length);verts.push(p)});const f0=verts.length;fp.forEach(p=>verts.push(p));const nf=[],no=[],np=[],md=(a,b)=>[(a[0]+b[0])/2,(a[1]+b[1])/2];
@@ -261,10 +334,10 @@ const R=16;
 function truth(m){let s={v:m.v,f:m.f,o:m.f.map((_,i)=>i),p:m.f.map(()=>[[0,0],[1,0],[1,1],[0,1]])};for(let i=0;i<4;i++)s=cc(s);const N=vnorm(s);const G=m.f.map(()=>[]);s.f.forEach((q,k)=>q.forEach((vi,c)=>{const uv=s.p[k][c],i=Math.round(uv[0]*R),j=Math.round(uv[1]*R),g=G[s.o[k]];(g[j]||(g[j]=[]))[i]={x:s.v[vi],n:N[vi]}}));return G}
 function edgeLen(m){let s=0,c=0;m.f.forEach(q=>{for(let k=0;k<4;k++){s+=len(sub(m.v[q[(k+1)%4]],m.v[q[k]]));c++}});return s/c}
 function build(m){const TG=truth(m),L=edgeLen(m),A=0.12*L,d=(u,v)=>A*Math.sin(2*Math.PI*u)*Math.sin(2*Math.PI*v),N=vnorm(m);const res=[];
-for(let mode=0;mode<3;mode++){res[mode]=[];for(let t=0;t<5;t++){const quads=[],qi=[];let mx=0,sm=0,ct=0;m.f.forEach((q,fi)=>{const X=q.map(i=>m.v[i]),Nn=q.map(i=>N[i]);const ev=t===0?nagata(X,Nn):t===1?phong(X,Nn):t===2?pn(X,Nn):t===4?quadric(X,Nn):null;if(ev&&ev.info)qi.push(ev.info);const G=[];for(let j=0;j<=R;j++){G[j]=[];for(let i=0;i<=R;i++){const u=i/R,v=j/R,tr=TG[fi][j][i],T=add(tr.x,mul(tr.n,d(u,v)));let P;if(t===3)P=mode===0?tr.x:T;else if(mode===2)P=T;else{const B=ev(u,v);if(mode===0)P=B;else{const h=1e-3,n=norm(cross(sub(ev(u+h,v),ev(u-h,v)),sub(ev(u,v+h),ev(u,v-h))));P=add(B,mul(n,d(u,v)))}}const e=len(sub(P,T))/L*100;mx=Math.max(mx,e);sm+=e;ct++;G[j][i]=P}}for(let j=0;j<R;j++)for(let i=0;i<R;i++)quads.push([G[j][i],G[j][i+1],G[j+1][i+1],G[j+1][i]])});res[mode][t]={q:quads,mx,mean:sm/ct,qi}}}return res}
-const COL=[[29,158,117],[127,119,221],[216,90,48],[212,83,126],[58,134,200]];
-let yaw=0.6,pitch=0.5,cage=true,mode=1,mesh=cube(),RES=build(mesh);const cvs=[0,1,2,3,4].map(i=>document.getElementById('c'+i));
-function stats(){for(let t=0;t<5;t++){const r=RES[mode][t];let x='';if(r.qi.length){const e=r.qi.filter(i=>i.ell).length,a=Math.max(...r.qi.map(i=>i.ang)),ms=r.qi.reduce((s,i)=>s+i.miss,0);x=' · normals off ≤ '+a.toFixed(1)+'° · '+e+'/'+r.qi.length+' ellipsoids'+(ms?' · '+ms+' misses':'')}document.getElementById('e'+t).textContent='Error max '+r.mx.toFixed(1)+'% · mean '+r.mean.toFixed(1)+'%'+x}}
+for(let mode=0;mode<3;mode++){res[mode]=[];for(let t=0;t<6;t++){const quads=[],qi=[];let mx=0,sm=0,ct=0;m.f.forEach((q,fi)=>{const X=q.map(i=>m.v[i]),Nn=q.map(i=>N[i]);const ev=t===0?nagata(X,Nn):t===1?phong(X,Nn):t===2?pn(X,Nn):t===4?quadric(X,Nn,pn(X,Nn)(0.5,0.5)):t===5?quadricS(X,Nn):null;if(ev&&ev.info)qi.push(ev.info);const G=[];for(let j=0;j<=R;j++){G[j]=[];for(let i=0;i<=R;i++){const u=i/R,v=j/R,tr=TG[fi][j][i],T=add(tr.x,mul(tr.n,d(u,v)));let P;if(t===3)P=mode===0?tr.x:T;else if(mode===2)P=T;else{const B=ev(u,v);if(mode===0)P=B;else{const h=1e-3,n=norm(cross(sub(ev(u+h,v),ev(u-h,v)),sub(ev(u,v+h),ev(u,v-h))));P=add(B,mul(n,d(u,v)))}}const e=len(sub(P,T))/L*100;mx=Math.max(mx,e);sm+=e;ct++;G[j][i]=P}}for(let j=0;j<R;j++)for(let i=0;i<R;i++)quads.push([G[j][i],G[j][i+1],G[j+1][i+1],G[j+1][i]])});res[mode][t]={q:quads,mx,mean:sm/ct,qi}}}return res}
+const COL=[[29,158,117],[127,119,221],[216,90,48],[212,83,126],[58,134,200],[176,125,18]];
+let yaw=0.6,pitch=0.5,cage=true,mode=1,mesh=cube(),RES=build(mesh);const cvs=[0,1,2,3,4,5].map(i=>document.getElementById('c'+i));
+function stats(){for(let t=0;t<6;t++){const r=RES[mode][t];let x='';if(r.qi.length){const pc=r.qi.reduce((s,i)=>s+(i.pieces||1),0),sp=r.qi.filter(i=>i.pieces>1).length,e=r.qi.reduce((s,i)=>s+(i.ellN??(i.ell?1:0)),0),a=Math.max(...r.qi.map(i=>i.ang)),ms=r.qi.reduce((s,i)=>s+i.miss,0);x=(t===5?' · '+sp+' quads split → '+pc+' pieces':'')+' · normals off ≤ '+a.toFixed(1)+'° · '+e+'/'+pc+' ellipsoids'+(ms?' · '+ms+' misses':'')}document.getElementById('e'+t).textContent='Error max '+r.mx.toFixed(1)+'% · mean '+r.mean.toFixed(1)+'%'+x}}
 function render(){const cy=Math.cos(yaw),sy=Math.sin(yaw),cp=Math.cos(pitch),sp=Math.sin(pitch);const rot=p=>{const x=p[0]*cy-p[1]*sy,y1=p[0]*sy+p[1]*cy,z=p[2];return[x,y1*cp-z*sp,y1*sp+z*cp]};const Lt=norm([-0.4,-0.8,0.5]);const fg=getComputedStyle(document.body).color;
 cvs.forEach((cv,k)=>{const ctx=cv.getContext('2d'),W=cv.width;if(!W)return;const s=W/4.6,P=r=>[W/2+r[0]*s,W/2-r[2]*s];ctx.clearRect(0,0,W,W);const qs=RES[mode][k].q.map(q=>{const r=q.map(rot);return{r,d:(r[0][1]+r[1][1]+r[2][1]+r[3][1])/4}}).sort((a,b)=>b.d-a.d);const c=COL[k];
 qs.forEach(o=>{const n=norm(cross(sub(o.r[2],o.r[0]),sub(o.r[3],o.r[1])));const sh=0.25+0.75*Math.abs(dot(n,Lt));const col='rgb('+Math.round(c[0]*sh)+','+Math.round(c[1]*sh)+','+Math.round(c[2]*sh)+')';ctx.fillStyle=col;ctx.strokeStyle=col;ctx.lineWidth=0.8;ctx.beginPath();o.r.forEach((r,i)=>{const p=P(r);i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1])});ctx.closePath();ctx.fill();ctx.stroke()});
