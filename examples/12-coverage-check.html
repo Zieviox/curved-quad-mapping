@@ -1,10 +1,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Operation Stress Test</title>
+<title>Coverage Check</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
-/* Layout: phone-first. Steps, case controls, pictures, then one table per comparison (tables scroll sideways inside their box on small screens). Same tokens as the other examples. */
+/* Layout: phone-first. Steps, controls, one interactive view. Same tokens as the other examples. */
 :root{
   --bg:#eef1f4;--surface:#ffffff;--fg:#151a21;--muted:#59626f;--line:#d6dce3;--accent:#2d56d2;--warn:#c8321f;--good:#1b7a52;
   --pin:#b9c4d6;--pst:#9fcfc6;--pco:#d7b2d4;--border:#2d56d2;--fillet:#1f8a7a;--contact:#8a94a3;--cross:#d0721a;--corner:#a0459b;--handle:#151a21;--art:#c8321f;
@@ -53,57 +53,31 @@ tr:last-child td{border-bottom:0}
 .note{font-size:13px;color:var(--muted)}
 .btn{font:500 13px var(--f-body);color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px 12px;min-height:36px;cursor:pointer}
 .log div{font:12px/1.5 var(--f-mono)}
-section{display:flex;flex-direction:column;gap:8px}
-td .note{font-size:12px}
-#solve td,#detect td,#packed td{min-width:120px}
-.pics{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
-.pic{margin:0;display:flex;flex-direction:column;gap:4px;font-size:13px}
-.pic canvas{width:100%;aspect-ratio:1;image-rendering:pixelated;border:1px solid var(--line);border-radius:8px;background:var(--surface);cursor:default}.log .e{color:var(--warn)}
+.stage{position:relative;max-width:640px}
+.fps{position:absolute;left:8px;top:8px;font:500 12px/1.4 var(--f-mono);color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:3px 7px;pointer-events:none;opacity:.92;white-space:pre}.log .e{color:var(--warn)}
 </style>
 
 <div class="wrap">
 <a id="back" href="../index.html" hidden style="font:500 13px var(--f-body);color:var(--accent);text-decoration:none">← All steps</a>
 <script>(()=>{const h=location.hostname;if(location.protocol==="file:"||h.endsWith("github.io")||h==="localhost")document.getElementById("back").hidden=false})()</script>
-<header>
-  <div class="eyebrow">Curved quads · step 16 · what each operation costs, and whether it's right</div>
-  <h1>Operation Stress Test</h1>
-</header>
+<header><div class="eyebrow">Curved quads · step 17 · coverage, interactive</div><h1>Coverage Check</h1></header>
 <ol class="steps">
-  <li>Every method we have is written <b>once</b>. From that one source the page builds three versions: <b>float64</b> (timed), <b>float32</b> (every + − × ÷, √, ∛, cos, acos rounded to float32; a × b ± c rounded once), and <b>counted</b> (every operation tallied, for the Skylake model).</li>
-  <li>The inputs are real: the step 10 pieces of the chosen mesh, seen by a real camera at 200².</li>
-  <li><b>Answer key:</b> each piece's surface sampled densely (several samples per pixel), independent of every method below. A pixel counts as <b>decided</b> for a piece when the piece covers, or misses, its whole 3 × 3 block; detection errors are counted only there. Exact u, v and depth come from the winning piece's quadric along the pixel's ray, at the root that matches the sampled depth.</li>
-  <li><b>Slide</b> = where a method's (u, v) puts you on the surface, P(u, v), against where the pixel really looks, in % of the average edge length.</li>
+  <li><b>Which pixels a piece walks:</b> its bulge box, the box of its edges widened by its <b>outline</b> points (where the surface turns edge-on to the camera; one quadratic per screen direction, from the quadric's outline conic), plus an <b>outline margin</b> in pixels.</li>
+  <li><b>Each pixel:</b> the ray against the piece's quadric (one quadratic, stepped along the row), the hit that <b>faces the camera</b>, the 4 side planes → inside or not, u, v, depth. Nearest kept.</li>
+  <li><b>Cube fix:</b> also require the surface normal at the hit to point the piece's way, so a back piece can't claim its antipode on a shared sphere.</li>
+  <li><b>Check</b> samples each piece's surface densely for this exact view and marks wrong pixels red. Drag to orbit.</li>
 </ol>
-<section class="ctrls" aria-label="Case">
-  <div class="crow"><span class="clab">Mesh</span><div class="seg" id="g-mesh"><button data-v="0" class="on">Smooth cube</button><button data-v="1">Hard cube</button><button data-v="2">Mixed cube</button><button data-v="3">Wave</button></div></div>
-  <div class="crow"><span class="clab">View</span><div class="seg" id="g-view"><button data-v="0">Straight on</button><button data-v="1" class="on">Oblique</button><button data-v="2">Glancing</button></div></div>
-  <div class="crow"><span class="clab"></span><button class="btn" id="run">Run again</button><span class="note" id="prog"></span></div>
-  <p class="note" id="case"></p>
+<section class="ctrls" aria-label="Settings">
+  <div class="crow"><span class="clab">Mesh</span><div class="seg" id="g-mesh"><button data-v="0">Smooth cube</button><button data-v="1">Hard cube</button><button data-v="2">Mixed cube</button><button data-v="3">Wave</button></div></div>
+  <div class="crow"><span class="clab">Cube fix</span><div class="seg" id="g-fix"><button data-v="1">On</button><button data-v="0">Off</button></div></div>
+  <div class="crow"><span class="clab">Margin</span><div class="slider"><input id="margin" type="range" min="0" max="4" step="1" aria-label="Outline margin in pixels"><output id="margino"></output></div></div>
+  <div class="crow"><span class="clab">Show</span><div class="seg" id="g-view"><button data-v="0">(u, v) checker</button><button data-v="1">Depth</button></div><div class="seg" id="g-boxes"><button data-v="0">No boxes</button><button data-v="1">Bulge boxes</button></div></div>
+  <div class="crow"><span class="clab">Resolution</span><div class="seg" id="g-res"><button data-v="200">200²</button><button data-v="400">400²</button></div></div>
+  <div class="crow"><span class="clab"></span><button class="btn" id="check">Check against answer key</button><button class="btn" id="spin">Auto orbit</button><span class="note" id="prog"></span></div>
 </section>
-
-<section><h2>Pictures: which hit each rule takes</h2><div class="pics" id="pics"></div>
-  <p class="note">Each rule's whole frame (packed pipeline, float64, 200²) coloured by piece and its (u, v) checker, next to the answer key. Red: a decided pixel where the frame's piece disagrees with the answer key, or its depth is outside the piece's depth range inside that pixel (±0.5%).</p></section>
-
-<section><h2>Calibration: one operation in this browser</h2><div class="tw"><table><thead><tr><th>Loop body (1,000,000 iterations)</th><th class="n">ns per iteration</th></tr></thead><tbody id="cal"></tbody></table></div>
-  <p class="note">The difference to the first row is what the added operation costs here. JavaScript runs float64 without SIMD, so these are not Skylake float32 numbers; they say how to read the measured columns below.</p></section>
-
-<section><h2>Solving: pixel → u, v and / or the 3D point</h2><div class="tw"><table><thead><tr><th>Method</th><th class="n">Measured ns per call</th><th>Operations per call (counted)</th><th class="n">Model cycles</th><th>Accuracy, float64</th><th>Accuracy, float32</th></tr></thead><tbody id="solve"></tbody></table></div>
-  <p class="note">Model cycles: Skylake float32, one core, throughput-bound: ADD / MUL / FMA / MAX / MIN / NEG 0.5 cycle, DIV and SQRT 3 (one divider), compares 1 — the largest of the three — plus 20 cycles per library call (cube root, acos, cos), an assumption. Same level gives u as the bottom and top edges' own arc parameter, which is not the surface's u naming, so part of its Δu is naming, not position; its slide uses P(u, v) with that u.</p></section>
-
-<section><h2>Detection: which piece covers a pixel</h2><div class="tw"><table><thead><tr><th>Test</th><th class="n">Measured ns per call</th><th>Operations per call (counted)</th><th class="n">Model cycles</th><th>Wrong, float64</th><th>Wrong, float32</th></tr></thead><tbody id="detect"></tbody></table></div>
-  <p class="note">Each test runs on the pairs (piece × pixel) the screen box lets through, except the box itself (all pairs). “Wrongly in”: the test says the piece covers the pixel and the answer key says it doesn't; “wrongly out”: the reverse.</p>
-  <h2 style="margin-top:14px">Which hit counts</h2><div class="tw"><table><thead><tr><th>Rule</th><th>float64</th><th>float32</th></tr></thead><tbody id="roots"></tbody></table></div>
-  <p class="note">On the solving samples (the winning piece of each pixel): wrong = the chosen hit's depth is off the exact one by more than 0.1%; no hit = the rule found none.</p>
-  <h2 style="margin-top:14px">Who wins a pixel</h2><div class="tw"><table><thead><tr><th>Method</th><th class="n">Time</th><th class="n">Memory</th><th class="n">Entries</th></tr></thead><tbody id="resolve"></tbody></table></div>
-  <p class="note">Same entries for all (spans + sign rule): piece, u, v, depth. Memory counts what is kept per pixel (lists: the entries and their links).</p>
-  <p class="note"><b>Backup, not implemented:</b> if a pixel ever needs several entries (layers), the lists can be packed too: pass 1 first counts the entries per pixel, a running sum gives each pixel one block of its own, then pass 1 writes the entries straight into those blocks; pass 2 reads each block in order, with no links to follow.</p></section>
-
-<section><h2>Packed: cache layout</h2><div class="tw"><table><thead><tr><th>Pipeline</th><th class="n">Measured ns per pixel walked: objects → packed</th><th>Operations per pixel walked (counted, packed)</th><th class="n">Model cycles per pixel walked</th><th>Same result as unpacked?</th></tr></thead><tbody id="packed"></tbody></table></div>
-  <p class="note" id="packedNote"></p>
-  <p class="note"><b>Packed</b> = all pieces' numbers in one flat array, each piece's block ordered by how often a number is used (per pixel → per span → per row → per frame → P(u, v)). At a span's first pixel the values that change along the row (ray direction, a and b of the quadratic, the 4 planes' n·d, the edge K values) are set up once; every further pixel only adds fixed steps, so nothing is read from the array inside a span. Output: separate arrays (depth float32, piece 16-bit, u and v 16-bit fixed point = 10 bytes per pixel). “Unpacked” = the per-piece objects, every pixel computed from scratch.</p></section>
-
-<section><h2>Whole frames: fixed cost against per-pixel cost</h2><div class="tw"><table><thead><tr><th>Pipeline</th><th class="n">100²</th><th class="n">400²</th><th class="n">1000²</th></tr></thead><tbody id="scale"></tbody></table></div>
-  <p class="note" id="scaleSetup"></p><p class="note">Measured, float64, one run after a warm-up. The frame setup per piece is fixed; everything else grows with the pixels a piece covers.</p></section>
+<div class="stage"><canvas id="cv" class="px" aria-label="The coverage pass. Drag to orbit."></canvas><div class="fps" id="fps"></div></div>
+<p class="note" id="stats"></p>
+<p class="note">Colours: inner piece, edge strip, corner piece, with each piece's (u, v) as a checker. Red (after Check): wrong piece or depth against the answer key.</p>
 </div>
 
 <script>
@@ -735,31 +709,42 @@ function pictures(Fr,AK){const W=Fr.W,B=packFrame(Fr),kinds=Fr.S.pieces.map(P=>P
       if(o.pid[k]!==i||(i>=0&&!AK.depthOk(k,o.z[k]))){wrong[k]=1;n++}}
     card(title,c=>paint(c,W,o.pid,o.u,o.v,65535,kinds,wrong),f(n,0)+' pixels wrong (red) · '+f(o.walked,0)+' pixels walked')})}
 
-// ---------------- page ----------------
-let mesh=0,view=1,busy=false;
-const rowsHTML=(rows,cls=[])=>rows.map(r=>'<tr>'+r.map((c,i)=>'<td'+(cls[i]?' class="'+cls[i]+'"':'')+'>'+c+'</td>').join('')+'</tr>').join('');
-async function runAll(){if(busy)return;busy=true;const prog=t=>$('prog').textContent=t;$('run').disabled=true;try{
-  prog('Converting and setting up the frame…');await sleep();const Fr=makeFrame(mesh,view,200);
-  prog('Answer key: sampling each piece densely…');await sleep();const AK=answerKey(Fr);
-  $('case').textContent=['Smooth cube','Hard cube','Mixed cube','Wave'][mesh]+' · '+VIEWS[view][0]+' · 200² · '+Fr.rec.filter(Boolean).length+' pieces in front of the camera · '+f(AK.samples.n,0)+' solving samples · '+f(AK.pairs.n,0)+' piece × pixel pairs ('+f(AK.pairs.dec.reduce((s,v)=>s+v,0),0)+' decided)';
-  prog('Pictures…');await sleep();pictures(Fr,AK);
-  prog('Calibration…');await sleep();$('cal').innerHTML=rowsHTML(calibration().map(r=>[r.name,f(r.ns,2)]),['','n']);
-  prog('Solving: timing, counting, accuracy…');await sleep();const SV=solvingTests(Fr,AK);
-  $('solve').innerHTML=rowsHTML(SV.map(r=>{const acc=a=>r.point?'point off by '+fe(a.slm,2)+'% avg, '+fe(a.sl,2)+'% max'+(a.miss?' · '+f(a.miss,0)+' no answer':''):
-      'Δu,v '+fe(a.dum,3)+' avg / '+fe(a.du,3)+' max · slide '+fe(a.slm,2)+'% / '+fe(a.sl,2)+'%'+(r.z?' · depth '+fe(a.dz*100,3)+'%':'')+(a.outside?' · '+f(a.outside,0)+' outside 0…1':'')+(a.miss?' · '+f(a.miss,0)+' no answer':'');
-    return['<b>'+r.name+'</b><br><span class="note">'+r.gives+' · '+r.from+'</span>',f(r.ns,0),opText(r.ops),f(model(r.ops),0),acc(r.a64),acc(r.a32)]}),['','n','','n','','']);
-  prog('Detection: timing, counting, accuracy…');await sleep();const DT=detectionTests(Fr,AK);
-  $('detect').innerHTML=rowsHTML(DT.map(r=>{const acc=a=>(/box/i.test(r.name.split('(')[0])&&!r.name.startsWith('Row')?f(a.fn,0)+' pixels of the piece missed':f(a.fp,0)+' wrongly in, '+f(a.fn,0)+' wrongly out')+' (of '+f(a.dec,0)+')';
-    return['<b>'+r.name+'</b><br><span class="note">'+r.decides+' · '+r.from+'</span>',f(r.ns,0)+(r.perRow?' per row':''),opText(r.ops),f(model(r.ops),0)+(r.perRow?' per row':''),acc(r.a64),acc(r.a32)]}),['','n','','n','','']);
-  const RT=rootTests(Fr,AK);$('roots').innerHTML=rowsHTML(RT.map(r=>[r.name,...['a64','a32'].map(k=>f(r[k].wrong,0)+' wrong, '+f(r[k].miss,0)+' no hit (of '+f(r[k].n,0)+')')]));
-  prog('Who wins a pixel…');await sleep();const RS=resolveTests(Fr);$('resolve').innerHTML=rowsHTML(RS.map(r=>[r.name,f(r.ns*r.entries/1e6,2)+' ms per frame',f(r.bytes,1)+' bytes per pixel',f(r.entries/r.pixels,2)+' entries per pixel']),['','n','n','n']);
-  const PK=await packedTests(mesh,view,prog),pb=LAY.PSTRIDE;
-  $('packed').innerHTML=rowsHTML(PK.rows.map(r=>['<b>'+r.key+'</b> · '+r.from+'<br><span class="note">'+f(r.walked,0)+' pixels walked, '+f(r.covered,0)+' covered</span>',f(r.msU*1e6/r.walked,0)+' → '+f(r.msP*1e6/r.walked,0)+'<br><span class="note">'+f(r.msU/r.msP,1)+'× faster</span>',opText(r.ops),f(model(r.ops),0),
-    (r.other?f(r.other,0)+' pixels with another piece':'same piece everywhere')+' · depth within '+fe(r.dz*100,2)+'% · u, v within '+fe(r.du,5)]),['','n','','n','']);
-  $('packedNote').textContent='400², '+PK.pieces+' pieces. Per piece: '+pb+' numbers ('+f(pb*8,0)+' bytes in float64 here, '+f(pb*4,0)+' in float32); the per-pixel part (ray, quadric, side planes) is the first 43 numbers: 172 bytes in float32, 3 cache lines.';
-  const SC=await scalingTests(mesh,view,prog);$('scale').innerHTML=rowsHTML(SC.P.map(p=>['<b>'+p.name+'</b><br><span class="note">'+p.from+'</span>',...SC.res.map(W=>f(p['ms'+W],1)+' ms<br><span class="note">'+f(p['ms'+W]*1e6/(W*W),0)+' ns/pixel</span>')]),['','n','n','n']);
-  $('scaleSetup').textContent='Frame setup (per piece, all pieces) included: '+SC.res.map(W=>W+'²: '+f(SC.P[0]['set'+W],2)+' ms').join(' · ');
-  prog('Done.')}catch(e){prog('ERROR '+(e.stack||e))}busy=false;$('run').disabled=false}
-function seg(id,set){const bs=[...$(id).querySelectorAll('button')];bs.forEach(b=>b.onclick=()=>{bs.forEach(x=>x.classList.toggle('on',x===b));set(+b.dataset.v);runAll()})}
-seg('g-mesh',v=>mesh=v);seg('g-view',v=>view=v);$('run').onclick=runAll;runAll();
+
+// ================= step 17: coverage check, interactive =================
+// Each piece walks its bulge box (closed form from its outline's touch points) widened by an outline margin;
+// every pixel: ray × the piece's quadric, the hit that faces the camera (+ the cube fix: the normal there points the piece's way), side planes → u, v, depth; nearest kept.
+let st={mesh:0,res:200,margin:1,fix:1,view:0,boxes:0,yaw:0.75,pitch:0.3},R=null,KEY=null;
+try{Object.assign(st,JSON.parse(localStorage.getItem('cov12')||'{}'))}catch(e){}
+const save=()=>{try{localStorage.setItem('cov12',JSON.stringify(st))}catch(e){}};
+function frameAt(){const S=loadMesh(st.mesh),W=st.res,cam=makeCamera(W,S.centre,S.yaw0+st.yaw,Math.max(-1.3,Math.min(1.3,S.pitch0+st.pitch)),3.6*S.radius),t0=performance.now(),rec=S.pieces.map(P=>frameRecord(P,cam));
+  return{S,cam,W,rec,setupMs:performance.now()-t0,near:3.6*S.radius-1.35*S.radius,far:3.6*S.radius+1.35*S.radius}}
+const cv=$('cv'),ctx=cv.getContext('2d'),FT=[];
+function render(){try{const t0=performance.now(),Fr=frameAt(),B=packFrame(Fr),t1=performance.now(),o=runPacked(Fr,B,{key:'B',mode:st.fix?4:3,walk:'box',margin:st.margin},K64),t2=performance.now();
+  R={Fr,o,ms:{setup:t1-t0,pass:t2-t1}};KEY=null;draw();R.ms.frame=performance.now()-t0;const t=performance.now();FT.push(t);while(t-FT[0]>1000)FT.shift();fps();stats()}catch(e){$('prog').textContent='ERROR '+(e.stack||e)}}
+function draw(wrong){const{Fr,o}=R,W=Fr.W,kinds=Fr.S.pieces.map(P=>P.pc.kind);
+  if(st.view===1){cv.width=W;cv.height=W;const css=getComputedStyle(document.documentElement),col=k=>css.getPropertyValue(k).trim().slice(1).match(/../g).map(h=>parseInt(h,16)),fg=col('--fg'),bg=col('--surface'),im=ctx.createImageData(W,W);
+    for(let k=0;k<W*W;k++){const d=o.z[k],t=d?Math.min(1,Math.max(0,(d-Fr.near)/(Fr.far-Fr.near))):1;for(let c=0;c<3;c++)im.data[4*k+c]=Math.round(fg[c]+(bg[c]-fg[c])*t);im.data[4*k+3]=255}ctx.putImageData(im,0,0)}
+  else paint(cv,W,o.pid,o.u,o.v,65535,kinds,wrong||null);
+  if(st.boxes){ctx.lineWidth=Math.max(1,W/300);ctx.strokeStyle=getComputedStyle(document.documentElement).getPropertyValue('--accent');Fr.rec.forEach(r=>{if(!r)return;const m=st.margin;ctx.strokeRect(r.wx0-m,r.wy0-m,r.wx1-r.wx0+2*m,r.wy1-r.wy0+2*m)})}}
+function fps(){if(!R)return;const live=FT.length>1&&performance.now()-FT[FT.length-1]<400;$('fps').textContent=(live?((FT.length-1)*1000/(FT[FT.length-1]-FT[0])).toFixed(0)+' FPS':'— FPS (idle)')+'\nsetup '+R.ms.setup.toFixed(1)+' ms · pass '+R.ms.pass.toFixed(1)+' ms\nwhole frame '+(R.ms.frame||0).toFixed(1)+' ms'}
+setInterval(fps,500);
+function stats(extra){const{o,Fr}=R;let cov=0;for(let k=0;k<o.pid.length;k++)if(o.pid[k]>=0)cov++;
+  $('stats').textContent=f(o.walked,0)+' pixels walked · '+f(cov,0)+' covered · '+Fr.rec.filter(Boolean).length+' pieces'+(extra?' · '+extra:'')}
+// check: the answer key (each piece's surface sampled densely) for this exact view; red = a decided pixel with the wrong piece, or a depth outside the piece's depth range inside that pixel (±0.5%)
+async function check(){if(!R)return;$('prog').textContent='Sampling the answer key…';await sleep();const{Fr,o}=R,W=Fr.W,AK=answerKey(Fr,AK_LIGHT),wrong=new Uint8Array(W*W);let n=0,dec=0;
+  for(let k=0;k<W*W;k++){const x=k%W,y=Math.floor(k/W),i=AK.win[k];if(x<1||y<1||x>=W-1||y>=W-1)continue;
+    const d=i>=0?AK.cover[i*W*W+k]&&[[-1,0],[1,0],[0,-1],[0,1]].every(([a,b])=>AK.win[(y+b)*W+x+a]===i):[[-1,0],[1,0],[0,-1],[0,1]].every(([a,b])=>AK.win[(y+b)*W+x+a]<0);if(!d)continue;dec++;
+    if(o.pid[k]!==i||(i>=0&&!AK.depthOk(k,o.z[k]))){wrong[k]=1;n++}}
+  KEY=wrong;draw(wrong);stats(f(n,0)+' of '+f(dec,0)+' decided pixels wrong (red)');$('prog').textContent='Checked. Moving the camera clears it.'}
+const AK_LIGHT=true;
+// controls
+function seg(id,k){const bs=[...$(id).querySelectorAll('button')],sync=()=>bs.forEach(b=>b.classList.toggle('on',String(st[k])===b.dataset.v));bs.forEach(b=>b.onclick=()=>{st[k]=+b.dataset.v;sync();save();render()});sync()}
+seg('g-mesh','mesh');seg('g-view','view');seg('g-res','res');seg('g-fix','fix');seg('g-boxes','boxes');
+const mi=$('margin'),mo=$('margino');mi.value=st.margin;mo.textContent=st.margin+' px';mi.oninput=()=>{st.margin=+mi.value;mo.textContent=st.margin+' px';save();render()};
+$('check').onclick=check;
+let ptr=null,raf=0,spin=0;cv.addEventListener('pointerdown',e=>{ptr={x:e.clientX,y:e.clientY};cv.setPointerCapture(e.pointerId)});
+cv.addEventListener('pointermove',e=>{if(!ptr)return;st.yaw-=(e.clientX-ptr.x)*0.01;st.pitch=Math.max(-1.6,Math.min(1.6,st.pitch+(e.clientY-ptr.y)*0.01));ptr={x:e.clientX,y:e.clientY};if(!raf)raf=requestAnimationFrame(()=>{raf=0;render()})});
+const up=()=>{if(ptr){ptr=null;save()}};cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',up);
+$('spin').onclick=e=>{if(spin){cancelAnimationFrame(spin);spin=0;e.target.textContent='Auto orbit';save();return}e.target.textContent='Stop orbit';const step=()=>{st.yaw+=0.012;render();spin=requestAnimationFrame(step)};spin=requestAnimationFrame(step)};
+render();
 </script>

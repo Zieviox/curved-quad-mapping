@@ -637,6 +637,27 @@ Which hit counts (wrong / no hit, float64; float32 gives the same numbers for th
 - What's left on the smooth cube is a band on the top face. Every piece's quadric is the same sphere, and every piece's side planes pass through its centre. So for a back piece, the facing hit is the antipodal point on the front, inside its own planes, at the same depth as the true front piece. The first piece written keeps the pixel (the bottom face over the top face).
 - The wave's band at the seam is the same for every rule and every walk; not yet explained.
 
+## 17. Coverage check (example 12), and a measurement fix
+
+An interactive page with the full working pipeline: bulge box + outline margin, ray × quadric with per-pixel facing (+ optional cube fix), side planes, packed, nearest depth at write. Camera orbit, FPS, and a check against the answer key.
+
+**Measurement fix.** The answer key kept the *nearest* sample anywhere in a pixel. Near the outline, depth changes by more than 1% across one pixel, so correct pixel-centre depths were flagged.
+- The check now accepts any depth within the winning piece's own depth range inside the pixel (±0.5%).
+- With that, the "remaining" smooth-cube band (2,025 pixels) and the wave seam band (527) were artifacts. Every one had the right piece with the right centre depth.
+
+Default view, margin 1 px:
+
+| Mesh | Wrong pixels | Pixels walked / covered |
+|---|---|---|
+| Smooth cube | 0 of 37,721 | 65,333 / 19,800 |
+| Rounded box | 0 of 36,871 | 58,030 / 12,585 |
+| Mixed cube | 170 of 37,272 | 60,699 / 16,241 |
+| Wave | 0 of 37,602 | 22,450 / 9,028 |
+
+The cube fix (normal at the hit points the piece's way, one stepped multiply-add per pixel) changes nothing here; the antipode tie it was meant for came from the same measurement artifact.
+
+Open items for the next session: [`wrap-up.md`](wrap-up.md).
+
 ## Prior art
 
 Collected from memory at first. Step 7 checked the shared-edge part against abstracts and citing papers.

@@ -91,4 +91,8 @@ Only the closed form, written as plain arithmetic, storing the nearest depth per
 
 Every solving and detection method on real pieces: measured time, counted operations and Skylake cycles, and accuracy in float64 and float32 against an independent answer key. Each method is written once; the float32 and counted versions are generated from it.
 
+### 17 · Coverage check — [Preview](https://htmlpreview.github.io/?https://github.com/Zieviox/curved-quad-mapping/blob/main/examples/12-coverage-check.html) · [Source](examples/12-coverage-check.html)
+
+The working pipeline, interactive: bulge box + outline margin, ray × quadric with per-pixel facing, side planes, packed, nearest depth at write. 0 wrong pixels on the smooth cube, rounded box and wave. Open items: [`docs/wrap-up.md`](docs/wrap-up.md).
+
 Details and numbers are in the [R&D log](docs/rnd-log.md).
