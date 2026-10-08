@@ -483,6 +483,11 @@ Every value is computed once from a formula; no piece tests pixels outside its s
 - Example: smooth cube face +x at yaw 0.3. 1,162 of its 1,190 visible pixels have u or v outside 0…1. At one of them the edges give u = −1.58 where the surface's (u, v) is (0.12, 0.995).
 - Each smooth-cube face spans 90° of the sphere, so at an oblique view 2 of the 3 visible faces fail this way.
 
+**Code rewrite (same results).** The page code was rewritten as named stages: set up each piece → pass 1 → pass 2 → shade.
+- Each edge is projected once, and that one description serves the row crossings, its K and the row stepping.
+- Removed: the unused full-conic form and the helpers copied over from 08.
+- Checked against the previous version on 4 meshes × 4 camera angles: the same piece on every pixel and the same number of list entries. Distances agree within 3·10⁻⁵, u and v within 10⁻⁷ except one pixel at 1.2·10⁻⁴.
+
 **Finding 2: step 11 drops flat pieces at random pixels.**
 - On a flat piece the quadric is a doubled plane, so the ray's two roots are nearly equal.
 - Step 11's check re-runs the forward map and compares within 10⁻⁶, and that comparison sometimes fails. The face behind then shows through.
