@@ -243,6 +243,31 @@ Measured (blending 3%):
 
 **Open (asked):** how to fill pieces whose border arcs don't fit one quadric.
 
+### 9c. Drawing fix: the plane-pencil mapping
+
+The first drawing flattened each piece to its straight-edged corner quad and pushed it onto the quadric. Straight edges pushed like that don't land on curved border arcs. On the mixed cube's worst piece the arcs were only 6.8% from the quadric, but the drawn edge was 36% off.
+
+New mapping, still closed form:
+- Every border arc lies in a plane. u blends the planes of the u = 0 and u = 1 arcs, and v blends those of the v = 0 and v = 1 arcs.
+  - A straight side uses the plane through it and the surface normal (the handle direction where the slope is ~0, as on a doubled plane).
+  - A collapsed side uses the tangent plane.
+- Forward (u, v) → point: the two blended planes meet in a line, and the line hits the quadric in a quadratic. Of its two hits, take the one closer to a Coons blend of the 4 border arcs. That blend is only a reference for picking, never drawn.
+- The u = 0/1 and v = 0/1 curves are then exactly the border arcs, whenever the arcs lie on the quadric.
+- A line that misses the quadric is drawn as a hole and counted; nothing hides it.
+
+Measured after the fix (blending 3%):
+
+| Mesh | Length × 1 | Length × 2 |
+|---|---|---|
+| Smooth cube | crack 0.00054% (floor) | borders 0.0012%, but piece interiors miss the quadric (222 holes, spikes) |
+| Hard cube | 0.00048% (floor), no holes | holes at the corner pieces |
+| Wave | 0.0021% | 0.0048% |
+| Mixed cube | **8.35%** (fit error 6.8%) | 13.7% |
+
+**Pixel pipeline effect (counted, not built yet):** going back from a hit point to (u, v) becomes 4 plane values, updated by forward differences along the pixel row, plus one shared reciprocal. That replaces the second quadratic.
+- Per pixel corner per piece: 13 ADD, 4 MUL, 5 FMA, 1 SQRT, 2 DIV, 5 COMISS → **15 cycles** (was 29). Latency chain 69 cycles; about 32 uops, so 7 corners fit in the reorder buffer.
+- Pixel-row setup gains 4 MUL and 8 FMA per piece.
+
 Also: the surface lab (example 00) now opens in Converted displacement mode.
 
 ## Prior art

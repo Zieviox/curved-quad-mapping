@@ -163,13 +163,39 @@ function fitPiece(pc){const U=[],UN=[];pc.P.forEach((p,i)=>{if(!U.some(u=>len(su
   // piece point: bilinear base of its 4 corners, pushed onto the quadric (from the centre for an ellipsoid, else along the averaged handle direction)
   pc.eval=(u,v)=>{const w=[(1-u)*(1-v),u*(1-v),u*v,(1-u)*v];let p=[0,0,0];for(let i=0;i<4;i++)p=add(p,mul(LP[i],w[i]));let X=p;
     if(ell){const d=sub(p,cen),a=dot(d,Ax(d)),r=-qc/a;if(a!==0&&r>0)X=add(cen,mul(d,Math.sqrt(r)));else miss++}
-    else{const a=dot(dir,Ax(dir)),b=dot(grad(p),dir),c=Qf(p);let t=null;if(Math.abs(c)<1e-12)t=0;else if(Math.abs(a)<1e-12){if(Math.abs(b)>1e-15)t=-c/b;else if(Math.abs(c)<1e-12)t=0}else{let D=b*b-4*a*c;if(D<0&&D>-1e-9*(b*b+1e-30))D=0;if(D>=0){const r1=(-b+Math.sqrt(D))/(2*a),r2=(-b-Math.sqrt(D))/(2*a);t=Math.abs(r1)<Math.abs(r2)?r1:r2}}if(t===null)miss++;else X=add(p,mul(dir,t))}
+    else{const a=dot(dir,Ax(dir)),b=dot(grad(p),dir),c=Qf(p);let t=null;if(Math.abs(c)<1e-12)t=0;else if(Math.abs(a)<1e-12){if(Math.abs(b)>1e-15)t=-c/b;else if(Math.abs(c)<1e-12)t=0}else{let D=b*b-4*a*c;if(D<0&&D>-1e-9*(b*b+Math.abs(4*a*c)+1e-30))D=0;if(D>=0){const r1=(-b+Math.sqrt(D))/(2*a),r2=(-b-Math.sqrt(D))/(2*a);t=Math.abs(r1)<Math.abs(r2)?r1:r2}}if(t===null)miss++;else X=add(p,mul(dir,t))}
     return add(c0,mul(X,1/sc))};
+  // ---- plane-pencil mapping: u blends the planes of the u=0 and u=1 border arcs, v those of v=0 and v=1.
+  // The u=0 / u=1 / v=0 / v=1 curves are then exactly the border arcs (when the arcs lie on the quadric).
+  // Forward (u,v) -> point: two planes meet in a line, the line hits the quadric (quadratic). Inverse: two plane evaluations.
+  const bil=(u,v)=>{const w=[(1-u)*(1-v),u*(1-v),u*v,(1-u)*v];let p=[0,0,0];for(let i=0;i<4;i++)p=add(p,mul(LP[i],w[i]));return p};
+  const sidePlane=k=>{const sg=pc.sides[k],a0=LP[k],a1=LP[(k+1)%4];
+    if(sg.length===1&&!sg[0].straight){const g=sg[0],P0=loc(g.P0),A=loc(g.A),P2=loc(g.P2),n=cross(sub(A,P0),sub(P2,P0));if(len(n)>1e-12*len(sub(P2,P0))**2)return{n:norm(n),p:P0}}
+    if(len(sub(a1,a0))<1e-12){const gq=grad(a0);if(len(gq)>1e-12)return{n:norm(gq),p:a0};return null}   // collapsed side: tangent plane at the point
+    if(sg.length>=1&&sg.every(g=>g.straight)){// straight side: plane through it and the surface normal there (the handles' direction where the slope is ~0, e.g. a doubled plane)
+      const m=mul(add(a0,a1),0.5);let gq=grad(m);if(len(gq)<1e-6)gq=add(norm(pc.N[k]),norm(pc.N[(k+1)%4]));const n=cross(sub(a1,a0),gq);if(len(n)>1e-9*len(sub(a1,a0)))return{n:norm(n),p:a0}}
+    const m=loc(evalArc(sg[Math.floor(sg.length/2)]||{P0:pc.P[k],P2:pc.P[(k+1)%4],straight:true},0.5)),n=cross(sub(m,a0),sub(a1,a0));return len(n)>1e-12?{n:norm(n),p:a0}:null};
+  const PL=[0,1,2,3].map(sidePlane);let pencil=PL.every(Boolean);
+  const side=(pl,x)=>dot(pl.n,sub(x,pl.p));
+  if(pencil){// orient: u=0 plane (side 3) positive inside, u=1 plane (side 1) negative inside; same for v (side 0 / side 2)
+    const ctr=bil(0.5,0.5),fix=(pl,wantPos)=>{const s0=side(pl,ctr);if((s0>0)!==wantPos)pl.n=mul(pl.n,-1)};fix(PL[3],true);fix(PL[1],false);fix(PL[0],true);fix(PL[2],false)}
+  const ev0=pc.eval;
+  const sideAt=(k,t)=>{const sg=pc.sides[k];if(!sg.length)return pc.P[k];const n=sg.length,i=Math.min(n-1,Math.floor(t*n));return evalArc(sg[i],t*n-i)};
+  const coons=(u,v)=>{const b0=sideAt(0,u),b1=sideAt(1,v),b2=sideAt(2,1-u),b3=sideAt(3,1-v),P=pc.P,c=add(add(mul(P[0],(1-u)*(1-v)),mul(P[1],u*(1-v))),add(mul(P[2],u*v),mul(P[3],(1-u)*v)));
+    return sub(add(add(mul(b0,1-v),mul(b2,v)),add(mul(b3,1-u),mul(b1,u))),c)};
+  if(pencil)pc.eval=(u,v)=>{const pu={n:add(mul(PL[3].n,1-u),mul(PL[1].n,u)),h:(1-u)*dot(PL[3].n,PL[3].p)+u*dot(PL[1].n,PL[1].p)},pv={n:add(mul(PL[0].n,1-v),mul(PL[2].n,v)),h:(1-v)*dot(PL[0].n,PL[0].p)+v*dot(PL[2].n,PL[2].p)};
+    const D=cross(pu.n,pv.n),DD=dot(D,D);if(!(DD>1e-20)){miss++;return null}const x0=mul(add(mul(cross(pv.n,D),pu.h),mul(cross(D,pu.n),pv.h)),1/DD),Dn=mul(D,1/Math.sqrt(DD));
+    const a=dot(Dn,Ax(Dn)),b=dot(grad(x0),Dn),c=Qf(x0),tr=dot(sub(loc(coons(u,v)),x0),Dn);let t=null;
+    if(Math.abs(a)<1e-12){if(Math.abs(b)>1e-15)t=-c/b}else{let Dq=b*b-4*a*c;if(Dq<0&&Dq>-1e-9*(b*b+Math.abs(4*a*c)+1e-30))Dq=0;if(Dq>=0){const r1=(-b+Math.sqrt(Dq))/(2*a),r2=(-b-Math.sqrt(Dq))/(2*a);t=Math.abs(r1-tr)<Math.abs(r2-tr)?r1:r2}}
+    if(t===null){miss++;return null}return add(c0,mul(add(x0,mul(Dn,t)),1/sc))};
+  pc.pencil=pencil;
   pc.ell=ell;pc.missCount=()=>miss;
+  // distance from a world point to the fitted quadric (first-order: |Q| / |grad Q|), for diagnosis
+  pc.dist=x=>{const X=loc(x),gq=len(grad(X));return Math.abs(Qf(X))/(gq||1e-30)/sc};
   // crack: two-way distance between each side of the piece's surface and its border arc
   let crack=0;const segDist=(p,a,b)=>{const ab=sub(b,a),t=Math.max(0,Math.min(1,dot(sub(p,a),ab)/(dot(ab,ab)||1)));return len(sub(p,add(a,mul(ab,t))))},polyDist=(p,pl)=>{let m=1e9;for(let i=1;i<pl.length;i++)m=Math.min(m,segDist(p,pl[i-1],pl[i]));return m};
   const sidePt=(k,t)=>k===0?pc.eval(t,0):k===1?pc.eval(1,t):k===2?pc.eval(1-t,1):pc.eval(0,1-t);
-  pc.sides.forEach((sg,kk)=>{if(!sg.length)return;const A1=sampleArcs(sg,400),B=[];for(let i=0;i<=200;i++)B.push(sidePt(kk,i/200));B.forEach(p=>crack=Math.max(crack,polyDist(p,A1)));A1.forEach(p=>crack=Math.max(crack,polyDist(p,B)))});
+  pc.sides.forEach((sg,kk)=>{if(!sg.length)return;const A1=sampleArcs(sg,400),B=[];let hole=false;for(let i=0;i<=200;i++){const q=sidePt(kk,i/200);if(q)B.push(q);else hole=true}if(hole||B.length<2){crack=Infinity;return}B.forEach(p=>crack=Math.max(crack,polyDist(p,A1)));A1.forEach(p=>crack=Math.max(crack,polyDist(p,B)))});
   pc.crack=crack}
 
 // ---------- the per-quad network ----------
@@ -233,8 +259,8 @@ function draw(){const dp=window.devicePixelRatio||1,W=Math.round(cv.clientWidth*
   const poly=(pts,col,lw,alpha=1)=>{if(pts.length<2)return;ctx.globalAlpha=alpha;ctx.strokeStyle=col;ctx.lineWidth=lw*dp;ctx.beginPath();pts.forEach((p,i)=>{const q=P(p);i?ctx.lineTo(q[0],q[1]):ctx.moveTo(q[0],q[1])});ctx.stroke();ctx.globalAlpha=1};
   if(st.surf){const rgb=h=>{h=h.replace('#','');return[0,2,4].map(i=>parseInt(h.slice(i,i+2),16))},base=[rgb(C.pin),rgb(C.pst),rgb(C.pco)],good=rgb(C.good),bad=rgb(C.warn),Lt=norm([-0.4,-0.8,0.5]),cyR=Math.cos(st.yaw),syR=Math.sin(st.yaw),depth=p=>{const y1=p[0]*syR+p[1]*cyR;return y1*Math.cos(st.pitch)-p[2]*Math.sin(st.pitch)},tris=[],G=8;
     R.out.forEach(o=>o.pieces.forEach(pc=>{const pts=[];for(let j=0;j<=G;j++){pts[j]=[];for(let i=0;i<=G;i++)pts[j][i]=pc.eval(i/G,j/G)}
-      const t=Math.min(1,pc.crack/(0.01*R.edgeLen)),cc=st.crackc?good.map((v,k)=>v+(bad[k]-v)*t):base[pc.kind];
-      for(let j=0;j<G;j++)for(let i=0;i<G;i++){const q=[pts[j][i],pts[j][i+1],pts[j+1][i+1],pts[j+1][i]],nn=norm(cross(sub(q[2],q[0]),sub(q[3],q[1]))),sh=0.45+0.55*Math.abs(dot(nn,Lt));tris.push({q,z:q.reduce((a,p)=>a+depth(p),0)/4,col:'rgb('+cc.map(v=>Math.round(v*sh)).join(',')+')'})}}));
+      const t=Math.min(1,(isFinite(pc.crack)?pc.crack:1e9)/(0.01*R.edgeLen)),cc=st.crackc?good.map((v,k)=>v+(bad[k]-v)*t):base[pc.kind];
+      for(let j=0;j<G;j++)for(let i=0;i<G;i++){const q=[pts[j][i],pts[j][i+1],pts[j+1][i+1],pts[j+1][i]];if(q.some(x=>!x))continue;const nn=norm(cross(sub(q[2],q[0]),sub(q[3],q[1]))),sh=0.45+0.55*Math.abs(dot(nn,Lt));tris.push({q,z:q.reduce((a,p)=>a+depth(p),0)/4,col:'rgb('+cc.map(v=>Math.round(v*sh)).join(',')+')'})}}));
     tris.sort((a,b)=>b.z-a.z);tris.forEach(t=>{ctx.fillStyle=t.col;ctx.strokeStyle=t.col;ctx.lineWidth=0.6;ctx.beginPath();t.q.forEach((p,i)=>{const s2=P(p);i?ctx.lineTo(s2[0],s2[1]):ctx.moveTo(s2[0],s2[1])});ctx.closePath();ctx.fill();ctx.stroke()})}
   if(st.cage){ctx.setLineDash([4*dp,4*dp]);R.Q.forEach(q=>poly(q.x.concat([q.x[0]]),C.muted,1,0.45));ctx.setLineDash([])}
   R.out.forEach(o=>{o.contact.forEach(sg=>poly(sampleArcs(sg,24),C.contact,1.4));o.cross.forEach(sg=>poly(sampleArcs(sg,16),C.cross,1.6));o.corner.forEach(sg=>poly(sampleArcs(sg,16),C.corner,1.6));o.border.forEach(b=>poly(sampleArcs(b.segs,32),b.sharp?C.fillet:C.border,2.2))});
@@ -245,13 +271,13 @@ function checks(){const rows=[],fmt=x=>x===Infinity?'shape mismatch':x<1e-12?'0'
   rows.push(['Arcs built',S.arcs,true]);rows.push(['Artificial handles (S or twist splits)',S.splits,true]);rows.push(['Arcs that still could not be one flat ellipse arc',S.fail,S.fail===0]);
   const pcs=R.out.flatMap(o=>o.pieces),mc=Math.max(...pcs.map(p=>p.crack)),pct=100*mc/R.edgeLen,misses=pcs.reduce((a,p)=>a+p.missCount(),0);
   rows.push(['Pieces (inner + edge-strip halves + corner quarters)',pcs.length,true]);rows.push(['Pieces whose quadric is an ellipsoid',pcs.filter(p=>p.ell).length+' / '+pcs.length,true]);
-  rows.push(['Largest crack: piece surface edge vs its border arc (% of edge length)',pct<1e-7?'0':pct.toPrecision(3)+'%',pct<1e-6]);
-  if(misses)rows.push(['Surface points where the push missed the quadric',misses,false]);
+  rows.push(['Largest crack: piece surface edge vs its border arc (% of edge length)',!isFinite(pct)?'hole on a border':pct<1e-7?'0':pct.toPrecision(3)+'%',pct<1e-6]);
+  if(misses)rows.push(['Surface points where the line misses the quadric (drawn as holes)',misses,false]);
   if(UNSUP)rows.push(['Pieces that needed a split both ways (not supported yet)',UNSUP,false]);
   if(st.mesh===1){let mx=0;const r=2*st.beta;R.out.forEach(o=>[...o.border.map(b=>b.segs),...o.contact,...o.cross,...o.corner].forEach(sg=>sampleArcs(sg,24).forEach(p=>mx=Math.max(mx,Math.abs(roundedBoxDist(p,r))))));rows.push(['Hard cube: largest distance from the exact rounded box (radius '+r.toFixed(3)+')',fmt(mx),mx<1e-9])}
   if(st.mesh===0){let mx=0;R.out.forEach(o=>o.border.forEach(b=>sampleArcs(b.segs,24).forEach(p=>mx=Math.max(mx,Math.abs(len(p)-Math.sqrt(3))))));rows.push(['Smooth cube: largest distance of the borders from the sphere of radius √3',fmt(mx),mx<1e-9])}
   document.getElementById('checks').innerHTML=rows.map(r=>'<tr><td>'+r[0]+'</td><td class="n '+(r[2]?'ok':'bad')+'">'+r[1]+'</td></tr>').join('');
-  document.getElementById('qtab').innerHTML=R.out.map(o=>'<tr><td>Q'+o.qi+'</td><td class="n">'+o.inner+'</td><td class="n">'+o.strips+'</td><td class="n">'+o.corners+'</td><td class="n">'+[...o.border.map(b=>b.segs),...o.contact,...o.cross,...o.corner].reduce((a,sg)=>a+sg.length,0)+'</td><td class="n">'+o.border.reduce((a,b)=>a+Math.max(0,b.segs.length-1),0)+'</td><td class="n">'+(()=>{const c=100*Math.max(...o.pieces.map(p=>p.crack))/R.edgeLen;return c<1e-7?'0':c.toPrecision(3)+'%'})()+'</td></tr>').join('')}
+  document.getElementById('qtab').innerHTML=R.out.map(o=>'<tr><td>Q'+o.qi+'</td><td class="n">'+o.inner+'</td><td class="n">'+o.strips+'</td><td class="n">'+o.corners+'</td><td class="n">'+[...o.border.map(b=>b.segs),...o.contact,...o.cross,...o.corner].reduce((a,sg)=>a+sg.length,0)+'</td><td class="n">'+o.border.reduce((a,b)=>a+Math.max(0,b.segs.length-1),0)+'</td><td class="n">'+(()=>{const c=100*Math.max(...o.pieces.map(p=>p.crack))/R.edgeLen;return !isFinite(c)?'hole':c<1e-7?'0':c.toPrecision(3)+'%'})()+'</td></tr>').join('')}
 
 // controls
 function seg(id,k){const g=document.getElementById(id),bs=[...g.querySelectorAll('button')],sync=()=>bs.forEach(b=>b.classList.toggle('on',String(st[k])===b.dataset.v));bs.forEach(b=>b.onclick=()=>{st[k]=+b.dataset.v;sync();save();run()});sync()}
