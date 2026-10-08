@@ -441,6 +441,54 @@ Question: take (u, v) straight from the projected side arcs (option b), which is
   - depth + (u, v) 12 cycles per piece whose edges contain the pixel (0.93 per pixel);
   - about 20 cycles per pixel and 265 µs per frame at 3 GHz.
 
+## 14. Two-pass map (example 09)
+
+**Pass 1, build (per piece).** Each piece touches only the pixels it covers.
+- Project its 4 edge arcs. On each pixel row, an edge's crossing with the row is one quadratic: f·down(t) − (Y − W/2)·forward(t) = 0, using the arc's control points in camera coordinates. A straight edge gives a linear equation.
+- The sorted crossings give the spans the piece covers on that row.
+- Along a span, for each pixel:
+  - u, v from the edges (step 13, arc-only K, stepped along the row);
+  - the 3D point P(u, v) from the step 10 forward map;
+  - its distance along the view direction.
+- The piece appends (piece, u, v, distance) to that pixel's list.
+
+**Pass 2, resolve (per pixel).** The closest entry of the pixel's list wins. It is written to the final arrays (piece, u, v, distance, occlusion map), and the pixel is coloured from them.
+
+Every value is computed once from a formula; no piece tests pixels outside its spans.
+
+**Cost** (Skylake model, one core, 200²):
+
+| | Cycles per pixel | Share of a 1,000-cycle budget |
+|---|---|---|
+| Smooth cube | 103–111 | about 11% |
+| Rounded box | 71–78 | |
+| Mixed cube | 94–97 | |
+| Wave | 15–27 | |
+
+- One written pixel costs 124 cycles: 6 SQRT and 10 DIV. P(u, v) alone is 108 of those, and half of that is picking the root against the blend of the 4 edge arcs.
+- Pass 1 is almost all of it. Pass 2 is about 2.5 cycles per pixel.
+
+**Same piece as step 11** (4 camera angles, pitch 0.45):
+
+| Mesh | Same piece |
+|---|---|
+| Wave | 98.2–100% |
+| Rounded box | 99.3–99.6% |
+| Smooth cube | 80–87% |
+| Mixed cube | 72–76% |
+
+**Finding 1: a folded piece fails as a whole.**
+- When part of a piece turns more than about 90° from the camera, its far edge projects inside its own visible image.
+- The piece's projected centre then lies on the wrong side of that edge. The K scaled to 1 at the centre has the wrong sign, and u or v leaves 0…1 almost everywhere on the piece.
+- Example: smooth cube face +x at yaw 0.3. 1,162 of its 1,190 visible pixels have u or v outside 0…1. At one of them the edges give u = −1.58 where the surface's (u, v) is (0.12, 0.995).
+- Each smooth-cube face spans 90° of the sphere, so at an oblique view 2 of the 3 visible faces fail this way.
+
+**Finding 2: step 11 drops flat pieces at random pixels.**
+- On a flat piece the quadric is a doubled plane, so the ray's two roots are nearly equal.
+- Step 11's check re-runs the forward map and compares within 10⁻⁶, and that comparison sometimes fails. The face behind then shows through.
+- The isolated "different piece" dots on the rounded box are these. The two-pass map has the correct piece there: same distance as the ray, 5.1118.
+- Not changed (step 11's math).
+
 ## Prior art
 
 Collected from memory at first. Step 7 checked the shared-edge part against abstracts and citing papers.
