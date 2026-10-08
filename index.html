@@ -108,10 +108,16 @@ code{font-family:var(--f-mono);font-size:.92em}
     <div class="links"><a class="btn" href="examples/04-handles-arcs.html">Open handles and arcs</a></div></div></li>
 
   <li><span class="num">10</span><div class="body">
-    <h2>Clean-slate conversion <span class="tag current">current</span></h2>
+    <h2>Clean-slate conversion</h2>
     <p class="q">Same math, rebuilt conversion (lookups → vertex rounding → shared arc cache → pieces → splits), plus "split further".</p>
     <ul class="find"><li>Cube, hard cube and wave: closed. Smooth cube at length × 2: edges closed now, insides still have holes.</li><li>Mixed cube: splitting once halves the crack (8.35% → 3.44%); deeper splits leave holes. Pieces whose corner arcs can't share a quadric only get smaller, never exact.</li></ul>
     <div class="links"><a class="btn" href="examples/05-quad-pieces.html">Open quad pieces</a></div></div></li>
+
+  <li><span class="num">11</span><div class="body">
+    <h2>Pixel corners <span class="tag current">current</span></h2>
+    <p class="q">Map every pixel corner to (piece, u, v): ray → piece's quadric (one quadratic) → its 4 side planes.</p>
+    <ul class="find"><li>Smooth cube, rounded box, wave: 0 holes over 12 camera views.</li><li>Mixed cube: 14 holes in 19,252 corners. Its cracks, as the pixels see them.</li><li>About 12–34 cycles per pixel (15 per tested piece, 0.8–2.2 pieces tested).</li></ul>
+    <div class="links"><a class="btn" href="examples/06-pixel-corners.html">Open pixel corners</a></div></div></li>
 </ol>
 
 <p class="note">The cost model throughout is Intel Skylake, float32 scalar: ADD, MUL and FMA have latency 4 and throughput 0.5 cycles; SQRT 12/3; DIV 11/3. Pages compute in JavaScript float64.</p>

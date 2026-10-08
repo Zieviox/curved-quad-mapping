@@ -59,4 +59,10 @@ Same math as step 9, with the conversion rewritten: lookups, vertex rounding, a 
 
 ![Quad pieces: mixed cube at split depth 1, coloured by crack](docs/img/05-quad-pieces.png)
 
+### 11 · Pixel corners — [Preview](https://htmlpreview.github.io/?https://github.com/Zieviox/curved-quad-mapping/blob/main/examples/06-pixel-corners.html) · [Source](examples/06-pixel-corners.html)
+
+Every pixel corner is a ray: piece's quadric (one quadratic), then its 4 side planes give (u, v). Smooth cube, rounded box and wave: 0 holes over 12 camera views. The mixed cube's cracks show as 14 holes in 19,252 corners. About 12–34 cycles per pixel in the cost model.
+
+![Pixel corners: rounded box, (u, v) checker per piece](docs/img/06-pixel-corners.png)
+
 Details and numbers are in the [R&D log](docs/rnd-log.md).
