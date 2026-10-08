@@ -99,6 +99,43 @@ Findings:
 - **Cracks:** each quad has its own quadric, so neighbours only meet along an edge if they share the quadric. Every cut is a conic, so there are no S-bends.
 - **More room, still closed form:** a ray hits an implicit surface of degree n in a degree-n equation. That is closed form up to degree 4 (quadratic, Cardano, Ferrari). A cubic surface has 19 degrees of freedom and a quartic 34, enough to match all 4 normals exactly and leave room for edge conditions with neighbours.
 
+## 5. S-curves by splitting at the inflection (example 00)
+
+Idea: where a curve starts to invert, add an artificial point, and give the inverted part its own quadric.
+
+- **Where:** each quad edge gets its PN cubic, built from its 2 corners + 2 normals. Its inflection is where the curvature along the averaged normal `m = n0 + n1` changes sign. `m·B''(t)` is linear in t, so `t* = a / (a − b)` with `a = m·(P2 − 2P1 + P0)` and `b = m·(P3 − 2P2 + P1)`. There is an inflection when `a·b < 0`. This is closed form, one DIV.
+- **Artificial point:** the cubic at t*. Its normal is the interpolated normal with the tangent part removed. It uses edge data only, so both quads on an edge get the same point.
+- **Split:** cut along the line between the artificial points: 2 pieces, or 4 when both directions inflect. The centre point of a 4-way split comes from the PN-quad. Each piece gets its own quadric. Piece (u′, v′) → quad (u, v) is closed form.
+
+**New finding (applies to every quadric fit):** corners and normals do not pin down a quadric. On coplanar corners, `Q + k·M²` (M = the plane through the corners) fits all of them exactly for every k, and so do two flat planes. The first wave fit landed on two planes, which gave the staircase. The fit now adds a weak shoulder point (PN-quad midpoint, weight 0.1) that picks one member of that family.
+
+Measured after the shoulder rule (error vs the Catmull-Clark target, % of average cage edge, no map):
+
+| Mesh | Ellipsoid quad | Ellipsoid + S-split |
+|---|---|---|
+| Cube | max 57.3, mean 45.6 · normals 0.0° · 6/6 ellipsoids · faces crease (no longer one shared sphere) | same (no inflections, no split) |
+| Wave | max 31.5, mean 12.9 · normals off ≤ 30.2° · 0/8 ellipsoids · nearly straight | max 37.0, mean 16.9 · 8 quads → 16 pieces · normals 0.0° · real S-curve |
+
+- The S-split matches every normal exactly on the wave and shows the S. Its pieces are cylinder-like quadrics, not ellipsoids, which is expected for an extruded profile.
+- The shoulder rule costs the cube its shared sphere. Each face now picks its own ellipsoid, so the faces crease where they meet. Which point the shoulder comes from is a design choice; the PN-quad midpoint is just the first one tried.
+
+### Cost: pixel-corner pipeline (per piece, Skylake throughput)
+
+| Stage | Runs | Ops | Cycles |
+|---|---|---|---|
+| 1. Fit quadric | piece × mesh change | 53 ADD, 428 MUL, 2189 FMA, 8 SQRT, 21 DIV, 114 COMISS | 1,407 |
+| 1a. Shoulder source (PN build + 1 point) | quad × mesh change | 132 ADD, 56 MUL, 157 FMA | 173 |
+| 1b. Inflection test | edge × mesh change | 13 ADD, 5 MUL, 26 FMA, 1 DIV, 1 COMISS | 23 |
+| 1c. Artificial edge point | inflected edge × mesh change | 11 ADD, 24 MUL, 27 FMA, 1 SQRT, 2 DIV | 33 |
+| 1d. Centre point (4-way split) | quad × mesh change | 14 ADD, 9 MUL, 94 FMA, 1 SQRT, 2 DIV | 61 |
+| 2. View transform | piece × frame | 7 ADD, 18 MUL, 36 FMA | 31 |
+| 3. Pixel-row setup | piece × pixel row | 2 ADD, 3 MUL, 19 FMA | 13 |
+| **4. Pixel corner** | piece × corner | 8 ADD, 19 MUL, 20 FMA, 2 SQRT, 3 DIV, 6 COMISS, 5 logic | **29** (ports), **39** if latency-bound |
+| 4s. Split mapping | corner on a split quad | ≤ 2 SUB, 6 MUL, 3 FMA, 1 DIV | 3 (1-way) / 7 (4-way) |
+
+- **Pixel corner:** 137-cycle latency chain, 63 uops, so 3.5 corners fit in a 224-entry reorder buffer. A corner on a split quad is tried on each piece until one accepts it.
+- **Comparison:** the step walk needed about 76 cycles per covered pixel (26 per step × 2.92 pairs per pixel at safety 0.7) and still left sliver gaps.
+
 ## Prior art
 
 Collected from memory; not checked against the papers yet.
