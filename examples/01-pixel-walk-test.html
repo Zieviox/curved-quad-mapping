@@ -348,7 +348,7 @@ document.getElementById('b-copy').onclick=()=>{const t=document.getElementById('
 // ---------- canvas: tap inspects, drag orbits ----------
 let ptr=null,raf=0;
 cv.addEventListener('pointerdown',e=>{ptr={x:e.clientX,y:e.clientY,sx:e.clientX,sy:e.clientY,drag:false};cv.setPointerCapture(e.pointerId)});
-cv.addEventListener('pointermove',e=>{if(!ptr)return;if(!ptr.drag&&Math.hypot(e.clientX-ptr.sx,e.clientY-ptr.sy)>8)ptr.drag=true;if(!ptr.drag)return;st.yaw+=(e.clientX-ptr.x)*0.01;st.pitch=Math.max(-1.4,Math.min(1.4,st.pitch+(e.clientY-ptr.y)*0.01));ptr.x=e.clientX;ptr.y=e.clientY;if(!raf)raf=requestAnimationFrame(()=>{raf=0;run(false)})});
+cv.addEventListener('pointermove',e=>{if(!ptr)return;if(!ptr.drag&&Math.hypot(e.clientX-ptr.sx,e.clientY-ptr.sy)>8)ptr.drag=true;if(!ptr.drag)return;st.yaw-=(e.clientX-ptr.x)*0.01;st.pitch=Math.max(-1.4,Math.min(1.4,st.pitch+(e.clientY-ptr.y)*0.01));ptr.x=e.clientX;ptr.y=e.clientY;if(!raf)raf=requestAnimationFrame(()=>{raf=0;run(false)})});
 cv.addEventListener('pointerup',e=>{if(!ptr)return;const was=ptr;ptr=null;if(was.drag){save();if(raf){cancelAnimationFrame(raf);raf=0}run(true);return}const b=cv.getBoundingClientRect(),W=RES?RES.cam.W:st.res;SEL={x:Math.max(0,Math.min(W-1,Math.floor((e.clientX-b.left)/b.width*W))),y:Math.max(0,Math.min(W-1,Math.floor((e.clientY-b.top)/b.height*W)))};GI=RES?RES.cmp.gaps.findIndex(g=>g.p===SEL.y*W+SEL.x):-1;mark();loupe();inspect()});
 cv.addEventListener('pointercancel',()=>{ptr=null});
 

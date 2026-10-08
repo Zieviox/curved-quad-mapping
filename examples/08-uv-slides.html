@@ -52,6 +52,7 @@ td.ok{color:var(--good)}td.bad{color:var(--warn)}
 tr:last-child td{border-bottom:0}
 .note{font-size:13px;color:var(--muted)}
 .btn{font:500 13px var(--f-body);color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px 12px;min-height:36px;cursor:pointer}
+.fps{position:absolute;left:8px;top:8px;font:500 12px/1.4 var(--f-mono);font-variant-numeric:tabular-nums;color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:3px 7px;pointer-events:none;opacity:.92;white-space:pre}
 .log div{font:12px/1.5 var(--f-mono)}.log .e{color:var(--warn)}
 </style>
 
@@ -78,11 +79,12 @@ tr:last-child td{border-bottom:0}
   <div class="crow"><span class="clab">Left view</span><div class="seg" id="g-mode"><button data-v="0">Screen (u, v): option b</button><button data-v="1">Surface (u, v): step 11</button></div></div>
   <div class="crow"><span class="clab">Marker u</span><div class="slider"><input id="mu" type="range" min="0.02" max="0.98" step="0.01" aria-label="Marker u"><output id="muo"></output></div></div>
   <div class="crow"><span class="clab">Marker v</span><div class="slider"><input id="mv" type="range" min="0.02" max="0.98" step="0.01" aria-label="Marker v"><output id="mvo"></output></div></div>
-  <div class="crow"><span class="clab"></span><button class="btn" id="reset">Reset cameras</button><button class="btn" id="face">Left camera straight on</button></div>
+  <div class="crow"><span class="clab">Resolution</span><div class="seg" id="g-res"><button data-v="100">100²</button><button data-v="200">200²</button><button data-v="400">400²</button><button data-v="800">800²</button></div></div>
+  <div class="crow"><span class="clab"></span><button class="btn" id="spin">Auto orbit</button><button class="btn" id="reset">Reset cameras</button><button class="btn" id="face">Left camera straight on</button></div>
 </section>
 
 <div class="main">
-  <div class="view"><h2>Left: the moving camera</h2><canvas id="cv" aria-label="What the moving camera sees. Drag to orbit."></canvas>
+  <div class="view"><h2>Left: the moving camera</h2><div class="stage"><canvas id="cv" aria-label="What the moving camera sees. Drag to orbit."></canvas><div class="fps" id="fps"></div></div>
     <p class="note" id="lnote">Each pixel's (u, v) is computed from the projected side arcs only. Drag to orbit.</p></div>
   <div class="view"><h2>Right: a fixed second camera</h2><canvas id="ov" aria-label="The same quad from a fixed camera, painted with the left camera's screen (u, v). Drag to orbit this view."></canvas>
     <div class="legend"><span><span class="ln" style="background:var(--pin)"></span>Checker: the left camera's screen (u, v)</span><span><span class="ln" style="background:var(--fg)"></span>Thin lines: the surface's own (u, v)</span><span><span class="ln" style="background:var(--warn)"></span>Screen (u, v) outside 0…1: a projected side runs across it (fold)</span><span><span class="ln" style="background:var(--line)"></span>Turned away from the left camera</span></div>
@@ -91,6 +93,8 @@ tr:last-child td{border-bottom:0}
 
 <section aria-label="Numbers"><h2>How far it slides</h2><div class="tw"><table><tbody id="checks"></tbody></table></div>
   <p class="note">Slide = for a surface point the left camera sees, the distance between that point and the surface point its screen (u, v) names, in % of the average edge length. Only parts facing the left camera are counted.</p>
+  <h2 style="margin-top:14px">Cost</h2><div class="tw"><table><thead><tr><th>Part</th><th>Ops</th><th class="n">FLOPs</th><th class="n">Cycles</th></tr></thead><tbody id="cost"></tbody></table></div>
+  <p class="note">Cycles: Skylake float32 model, one core, limited by throughput. ADD/MUL/FMA/MAX/MIN 0.5 cycle each, DIV and SQRT 3 (one divider), compares 1; the cycles are the largest of the three. FMA counts as 2 FLOPs. Measured times are this browser running the same loops in JavaScript (float64).</p>
   <div class="log" id="log"></div></section>
 </div>
 
@@ -280,7 +284,7 @@ return{convert,source,mul,sampleArcs}})();
 
 // ================= step 13: (u, v) from the projected side arcs only (option b), against the surface's own (u, v) =================
 const add=(a,b)=>[a[0]+b[0],a[1]+b[1],a[2]+b[2]],sub=(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]],mul=(a,s)=>[a[0]*s,a[1]*s,a[2]*s],dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2],cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]],len=a=>Math.hypot(a[0],a[1],a[2]),norm=a=>mul(a,1/(len(a)||1));
-const FOV=40*Math.PI/180,EPS=1e-9,RES=200,CHK=8;
+const FOV=40*Math.PI/180,EPS=1e-9,CHK=8;
 const clamp01=x=>Math.min(1,Math.max(0,x));
 function makeCam(W,T,yaw,pitch,dist){const cp=Math.cos(pitch),pos=add(T,mul([cp*Math.sin(yaw),-cp*Math.cos(yaw),Math.sin(pitch)],dist)),fwd=norm(sub(T,pos)),right=norm(cross(fwd,[0,0,1])),down=cross(fwd,right);return{pos,fwd,right,down,f:(W/2)/Math.tan(FOV/2),W}}
 const rayDir=(cam,x,y)=>add(cam.fwd,add(mul(cam.right,(x-cam.W/2)/cam.f),mul(cam.down,(y-cam.W/2)/cam.f)));
@@ -325,7 +329,7 @@ function landing(pc,S,cam,ut,vt){const F=(a,b)=>{const X=pc.eval(a,b);if(!X)retu
   const f=F(a,b);if(!f||Math.hypot(f[0],f[1])>1e-5)return null;return{a,b,X:pc.eval(a,b)}}
 
 // ---------------- state ----------------
-let st={mesh:0,quad:2,mode:0,form:0,mu:0.3,mv:0.65,cy:0,cp:0,oy:0,op:0,init:false},R=null;
+let st={mesh:0,quad:2,mode:0,form:0,res:200,mu:0.3,mv:0.65,cy:0,cp:0,oy:0,op:0,init:false},R=null;
 try{const s=JSON.parse(localStorage.getItem('uv8')||'null');if(s)Object.assign(st,s)}catch(e){}
 const save=()=>{try{localStorage.setItem('uv8',JSON.stringify(st))}catch(e){}};
 let CONV=null,CONVKEY='';
@@ -336,23 +340,74 @@ function quadInfo(){const C=conv(),q=PIECES.source(st.mesh)[st.quad],T=mul(q.x.r
   const mk=pcs.find(p=>p.kind===0)||pcs[0];return{C,T,dist:2.1*side,yaw0:Math.atan2(n[0],-n[1]),pitch0:Math.max(-1.25,Math.min(1.25,Math.asin(Math.max(-1,Math.min(1,n[2]))))),pcs,mk,n}}
 function resetCams(Q){st.cy=Q.yaw0+0.75;st.cp=Math.max(-1.3,Math.min(1.3,Q.pitch0+0.3));st.oy=Q.yaw0-0.15;st.op=Math.max(-1.3,Math.min(1.3,Q.pitch0+0.2));st.init=true}
 
-function run(){try{const Q=quadInfo();if(!st.init)resetCams(Q);
-  const cam=makeCam(RES,Q.T,st.cy,st.cp,Q.dist),EL=Q.C.EL;
+// ---- the pixel pass, as the method would run it: per piece, per row, forward differences along the row ----
+// each side becomes: t0 straight (K affine), t1 arc only (b1 affine, q = c·b0·b2 quadratic, K = b1 − sg·√max(0,q)), t2 full conic (K quadratic)
+function prep(S){return S.map(c=>{const s=c.s;if(!c.conic){const g=Kraw(c,0,0)*s;return{t:0,a:Kraw(c,1,0)*s-g,b:Kraw(c,0,1)*s-g,g}}
+  const{p0,a,p2,D}=c,B=(x,y)=>[((a[0]-x)*(p2[1]-y)-(a[1]-y)*(p2[0]-x))/D,((x-p0[0])*(p2[1]-p0[1])-(y-p0[1])*(p2[0]-p0[0]))/D,((a[0]-p0[0])*(y-p0[1])-(a[1]-p0[1])*(x-p0[0]))/D],
+    o=B(0,0),X=B(1,0),Y=B(0,1),aff=i=>[X[i]-o[i],Y[i]-o[i],o[i]];
+  return st.form===1?{t:2,b0:aff(0),b1:aff(1),b2:aff(2),s,c:s*c.W4}:{t:1,b0:aff(0),b1:aff(1).map(v=>v*s),b2:aff(2),c:s*s*c.W4,sg:Math.sign(s)}})}
+const af=(f,x,y)=>f[0]*x+f[1]*y+f[2];
+const quadAt=(d,x,y)=>d.t===1?d.c*af(d.b0,x,y)*af(d.b2,x,y):d.s*af(d.b1,x,y)**2-d.c*af(d.b0,x,y)*af(d.b2,x,y);
+function pixelPass(P,W){const pid=new Int16Array(W*W).fill(-1),cnt=new Uint8Array(W*W),pu=new Float32Array(W*W),pv=new Float32Array(W*W);let tests=0,rows=0;
+  const L=P.map(e=>e.S&&e.box?prep(e.S):null),st4=[0,0,0,0].map(()=>({k:0,d:0,dd:0,b:0,db:0}));
+  for(let y=0;y<W;y++){const sy=y+0.5;
+    for(let i=0;i<P.length;i++){const D=L[i];if(!D)continue;const bx=P[i].box;if(sy<bx[1]||sy>bx[3])continue;const x0=Math.max(0,Math.ceil(bx[0]-0.5)),x1=Math.min(W-1,Math.floor(bx[2]-0.5));if(x1<x0)continue;rows++;
+      // row start: each side's value and its differences at x0 + 0.5
+      const sx=x0+0.5;for(let k=0;k<4;k++){const d=D[k],r=st4[k];r.dd=0;r.b=0;r.db=0;if(d.t===0){r.k=af([d.a,d.b,d.g],sx,sy);r.d=d.a}
+        else{const q0=quadAt(d,sx,sy),q1=quadAt(d,sx+1,sy),q2=quadAt(d,sx+2,sy);r.k=q0;r.d=q1-q0;r.dd=q2-2*q1+q0;if(d.t===1){r.b=af(d.b1,sx,sy);r.db=d.b1[0]}}}
+      const t0=D[0].t,t1=D[1].t,t2=D[2].t,t3=D[3].t,r0=st4[0],r1=st4[1],r2=st4[2],r3=st4[3],g0=D[0].sg,g1=D[1].sg,g2=D[2].sg,g3=D[3].sg;
+      for(let x=x0;x<=x1;x++){tests++;
+        const K0=t0===1?r0.b-g0*Math.sqrt(Math.max(0,r0.k)):r0.k,K1=t1===1?r1.b-g1*Math.sqrt(Math.max(0,r1.k)):r1.k,K2=t2===1?r2.b-g2*Math.sqrt(Math.max(0,r2.k)):r2.k,K3=t3===1?r3.b-g3*Math.sqrt(Math.max(0,r3.k)):r3.k;
+        if(Math.min(K0,K1,K2,K3)>=-1e-9){const o=y*W+x;if(cnt[o]++===0){pid[o]=i;pu[o]=K3/(K3+K1);pv[o]=K0/(K0+K2)}}
+        r0.k+=r0.d;r0.d+=r0.dd;r0.b+=r0.db;r1.k+=r1.d;r1.d+=r1.dd;r1.b+=r1.db;r2.k+=r2.d;r2.d+=r2.dd;r2.b+=r2.db;r3.k+=r3.d;r3.d+=r3.dd;r3.b+=r3.db}}}
+  let owned=0,twice=0;for(let o=0;o<W*W;o++){if(cnt[o])owned++;if(cnt[o]>1)twice++}
+  return{pid,pu,pv,owned,twice,tests,rows,L}}
+function rayPass(P,cam,W){const pid=new Int16Array(W*W).fill(-1),pu=new Float32Array(W*W),pv=new Float32Array(W*W);let owned=0,tests=0;
+  for(let y=0;y<W;y++)for(let x=0;x<W;x++){const sx=x+0.5,sy=y+0.5,o=y*W+x;let best=null;const d=rayDir(cam,sx,sy);
+    P.forEach((e,i)=>{if(!e.pc.geo||!e.pc.geo.pencil||!e.box||sx<e.box[0]||sx>e.box[2]||sy<e.box[1]||sy>e.box[3])return;tests++;const h=hitPiece(e.pc,cam,d);if(h&&(!best||h.t<best.t))best={...h,i}});
+    if(best){pid[o]=best.i;pu[o]=best.u;pv[o]=best.v;owned++}}
+  return{pid,pu,pv,owned,twice:0,tests,rows:0,L:null}}
+
+// ---- cost model (Skylake float32, one core, throughput-bound): ALU ops 0.5 cycle, divider ops (DIV, SQRT) 3, compares 1 ----
+const OPN=['add','mul','fma','max','min','sqrt','div','cmp'];
+const addOps=(T,o,n=1)=>{for(const k in o)T[k]=(T[k]||0)+o[k]*n;return T};
+const cyc=T=>Math.max(((T.add||0)+(T.mul||0)+(T.fma||0)+(T.max||0)+(T.min||0))*0.5,((T.div||0)+(T.sqrt||0))*3,(T.cmp||0)*1);
+const flops=T=>OPN.reduce((s,k)=>s+(T[k]||0)*(k==='fma'?2:1),0);
+const opStr=T=>OPN.filter(k=>T[k]).map(k=>(+T[k].toFixed(1))+' '+k.toUpperCase()).join(', ');
+const PIX={0:{add:1},1:{add:4,max:1,sqrt:1},2:{add:2}};                       // per side, per pixel: step the differences, then K
+const PIXQ={add:2,div:2,min:3,cmp:1};                                          // per pixel: u, v, inside test
+const ROW={0:{fma:2},1:{fma:8,mul:3,add:1},2:{fma:10,mul:4,add:2}};             // per side, per row start
+const ROWQ={cmp:2};
+const PROJ={add:5,mul:3,fma:6,div:1};                                          // one point onto the screen
+const FRAME={0:{add:4,mul:2,div:1},1:{add:8,mul:8,fma:6,sqrt:1,div:2},2:{add:8,mul:8,fma:6,sqrt:1,div:2}};
+const CENTRE={fma:12,add:8,mul:4,sqrt:4,div:4};                                  // the 4 K at the projected centre, and their scales
+function costOf(R){const T={pix:{},row:{},frame:{}},F=R.F;if(!F.L)return null;
+  R.P.forEach((e,i)=>{const D=F.L[i];if(!D)return;const n=R.pixTests[i]||0,r=R.rowCount[i]||0;D.forEach(d=>{addOps(T.pix,PIX[d.t],n);addOps(T.row,ROW[d.t],r);addOps(T.frame,FRAME[d.t])});addOps(T.pix,PIXQ,n);addOps(T.row,ROWQ,r);
+    const curved=D.filter(d=>d.t).length;addOps(T.frame,PROJ,4+curved+1);addOps(T.frame,CENTRE)});
+  return T}
+
+function run(fast){try{const Q=quadInfo();if(!st.init)resetCams(Q);const W=st.res,tf0=performance.now();
+  const cam=makeCam(W,Q.T,st.cy,st.cp,Q.dist),EL=Q.C.EL;
   const P=Q.pcs.map(pc=>{const S=screenSetup(pc,cam);let box=null;if(S){let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;for(let j=0;j<=10;j++)for(let i=0;i<=10;i++){const X=pc.eval(i/10,j/10);if(!X)continue;const p=project(cam,X);if(p[2]<=0)continue;x0=Math.min(x0,p[0]);y0=Math.min(y0,p[1]);x1=Math.max(x1,p[0]);y1=Math.max(y1,p[1])}if(x1>=x0)box=[x0-2,y0-2,x1+2,y1+2]}return{pc,S,box}});
-  // pixel pass (pixel centres)
-  const W=RES,pid=new Int16Array(W*W).fill(-1),pu=new Float32Array(W*W),pv=new Float32Array(W*W);let twice=0,owned=0;
-  for(let y=0;y<W;y++)for(let x=0;x<W;x++){const sx=x+0.5,sy=y+0.5,o=y*W+x;
-    if(st.mode===0){let n=0;P.forEach((e,i)=>{if(!e.S||!e.box||sx<e.box[0]||sx>e.box[2]||sy<e.box[1]||sy>e.box[3])return;const r=suv(e.S,sx,sy);if(!r.inside)return;if(!n){pid[o]=i;pu[o]=r.u;pv[o]=r.v}n++});if(n)owned++;if(n>1)twice++}
-    else{let best=null;const d=rayDir(cam,sx,sy);P.forEach((e,i)=>{if(!e.pc.geo||!e.pc.geo.pencil)return;const h=hitPiece(e.pc,cam,d);if(h&&(!best||h.t<best.t))best={...h,i}});if(best){pid[o]=best.i;pu[o]=best.u;pv[o]=best.v;owned++}}}
+  const tp0=performance.now(),F=st.mode===0?pixelPass(P,W):rayPass(P,cam,W),tp1=performance.now();
+  // per piece: pixels tested and row starts (for the cost model; same loops as the pass, counting only)
+  const pixTests=[],rowCount=[];if(F.L)P.forEach((e,i)=>{if(!F.L[i])return;let n=0,r=0;for(let y=0;y<W;y++){const sy=y+0.5;if(sy<e.box[1]||sy>e.box[3])continue;const x0=Math.max(0,Math.ceil(e.box[0]-0.5)),x1=Math.min(W-1,Math.floor(e.box[2]-0.5));if(x1<x0)continue;r++;n+=x1-x0+1}pixTests[i]=n;rowCount[i]=r});
+  const {pid,pu,pv,twice,owned}=F;
   // slide over the quad
   let smax=0,ssum=0,sn=0,uvmax=0,back=0,tot=0;P.forEach(e=>{if(!e.S)return;for(let j=1;j<10;j++)for(let i=1;i<10;i++){const u=i/10,v=j/10,X=e.pc.eval(u,v);if(!X)continue;tot++;if(!faces(e.pc,u,v,cam)){back++;continue}const p=project(cam,X);const r=suv(e.S,p[0],p[1]);
     const X2=e.pc.eval(clamp01(r.u),clamp01(r.v));if(!X2)continue;const d=len(sub(X2,X))/EL;smax=Math.max(smax,d);ssum+=d;sn++;uvmax=Math.max(uvmax,Math.abs(clamp01(r.u)-u),Math.abs(clamp01(r.v)-v))}});
   // marker and its trail
   const mi=Q.pcs.indexOf(Q.mk),G=Q.mk.eval(st.mu,st.mv),Sm=P[mi].S,land=Sm&&faces(Q.mk,st.mu,st.mv,cam)?landing(Q.mk,Sm,cam,st.mu,st.mv):null;
-  const trail=[];for(let k=0;k<=24;k++){const yaw=Q.yaw0-1.2+2.4*k/24,c=makeCam(RES,Q.T,yaw,st.cp,Q.dist);if(!faces(Q.mk,st.mu,st.mv,c)){trail.push(null);continue}const S=screenSetup(Q.mk,c),l=S?landing(Q.mk,S,c,st.mu,st.mv):null;trail.push(l?l.X:null)}
+  const tkey=[st.mesh,st.quad,st.cp,st.mu,st.mv,st.form].join('|');let trail=TRAIL.key===tkey?TRAIL.trail:null;if(!trail){trail=[];for(let k=0;k<=24;k++){const yaw=Q.yaw0-1.2+2.4*k/24,c=makeCam(W,Q.T,yaw,st.cp,Q.dist);if(!faces(Q.mk,st.mu,st.mv,c)){trail.push(null);continue}const S=screenSetup(Q.mk,c),l=S?landing(Q.mk,S,c,st.mu,st.mv):null;trail.push(l?l.X:null)}TRAIL={key:tkey,trail}}
   let tlen=0,tspan=0;const tv=trail.filter(Boolean);for(let i=1;i<trail.length;i++)if(trail[i]&&trail[i-1])tlen+=len(sub(trail[i],trail[i-1]));tv.forEach(a=>tv.forEach(b=>tspan=Math.max(tspan,len(sub(a,b)))));
-  R={Q,cam,P,pid,pu,pv,twice,owned,smax,smean:sn?ssum/sn:0,uvmax,back,tot,G,land,trail,tspan,EL,noScreen:P.filter(e=>!e.S).length};
-  drawAll();checks()}catch(e){log('ERROR '+(e.stack||e),true)}}
+  R={Q,cam,W,F,pixTests,rowCount,passMs:tp1-tp0,P,pid,pu,pv,twice,owned,smax,smean:sn?ssum/sn:0,uvmax,back,tot,G,land,trail,tspan,EL,noScreen:P.filter(e=>!e.S).length};
+  drawAll();R.frameMs=performance.now()-tf0;tick();checks()}catch(e){log('ERROR '+(e.stack||e),true)}}
+let TRAIL={key:''};
+// FPS: frames actually drawn in the last second (they only happen while something moves: drag, auto orbit, sliders)
+const FT=[];function tick(){const t=performance.now();FT.push(t);while(FT.length&&t-FT[0]>1000)FT.shift();showFps()}
+function showFps(){if(!R)return;const t=performance.now(),live=FT.length>1&&t-FT[FT.length-1]<400,fps=live?(FT.length-1)*1000/(FT[FT.length-1]-FT[0]):null;
+  document.getElementById('fps').textContent=(fps?fps.toFixed(0)+' FPS':'— FPS (idle)')+'\npixel pass '+R.passMs.toFixed(2)+' ms ('+(1000/Math.max(R.passMs,1e-3)).toFixed(0)+'/s)\nwhole frame '+R.frameMs.toFixed(1)+' ms'}
+setInterval(showFps,500);
 
 // ---------------- drawing ----------------
 const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),ov=document.getElementById('ov'),otx=ov.getContext('2d'),off=document.createElement('canvas');let C={};
@@ -362,7 +417,7 @@ const mix=(a,b,t)=>a.map((x,i)=>Math.round(x*(1-t)+b[i]*t));
 function uvColour(kind,u,v){if(!(u>=-1e-6&&u<=1+1e-6&&v>=-1e-6&&v<=1+1e-6))return rgb(C.warn);const base=rgb([C.pin,C.pst,C.pco][kind]||C.pin),odd=(Math.floor(clamp01(u)*CHK-1e-9)+Math.floor(clamp01(v)*CHK-1e-9))&1;return odd?mix(base,rgb(C.fg),0.42):base}
 function sizeCanvas(c){const r=c.getBoundingClientRect(),d=Math.min(2,window.devicePixelRatio||1),w=Math.max(200,Math.round(r.width*d));if(c.width!==w){c.width=w;c.height=w}return w}
 function dot2(g,p,r,col,ring){g.beginPath();g.arc(p[0],p[1],r,0,7);g.fillStyle=col;g.fill();if(ring){g.lineWidth=2;g.strokeStyle=C.surface;g.stroke()}}
-function drawLeft(){const W=RES,D=sizeCanvas(cv),{pid,pu,pv,P}=R;off.width=W;off.height=W;const o=off.getContext('2d'),im=o.createImageData(W,W),d=im.data,bg=rgb(C.surface);
+function drawLeft(){const W=R.W,D=sizeCanvas(cv),{pid,pu,pv,P}=R;off.width=W;off.height=W;const o=off.getContext('2d'),im=o.createImageData(W,W),d=im.data,bg=rgb(C.surface);
   for(let i=0;i<W*W;i++){const c=pid[i]<0?bg:uvColour(P[pid[i]].pc.kind,pu[i],pv[i]);d[4*i]=c[0];d[4*i+1]=c[1];d[4*i+2]=c[2];d[4*i+3]=255}o.putImageData(im,0,0);
   ctx.imageSmoothingEnabled=false;ctx.clearRect(0,0,D,D);ctx.drawImage(off,0,0,D,D);const s=D/W,pr=X=>{const p=project(R.cam,X);return p[2]>0?[p[0]*s,p[1]*s]:null};
   const g=R.G&&pr(R.G),l=R.land&&pr(R.land.X);if(g&&l){ctx.beginPath();ctx.moveTo(g[0],g[1]);ctx.lineTo(l[0],l[1]);ctx.lineWidth=2;ctx.strokeStyle=C.fg;ctx.stroke()}
@@ -393,20 +448,35 @@ function checks(){const r=R,rows=[];const mk=r.land?len(sub(r.land.X,r.G))/r.EL:
   if(st.mode===0)rows.push(['Pixels claimed by two pieces (fold)',r.twice.toLocaleString('en-US')+' of '+r.owned.toLocaleString('en-US')]);
   if(r.noScreen)rows.push(['Pieces with no screen picture (behind the camera)',String(r.noScreen)]);
   rows.push(['Pieces in this quad',String(r.P.length)]);
+  costTable();
   document.getElementById('checks').innerHTML=rows.map(([a,b])=>'<tr><td>'+a+'</td><td class="n">'+b+'</td></tr>').join('');
   document.getElementById('lnote').textContent=st.mode===0?'Each pixel’s (u, v) is computed from the projected side arcs only. Drag to orbit.':'Each pixel’s (u, v) comes from the ray hitting the piece’s surface (step 11). Drag to orbit.'}
+
+function costTable(){const el=document.getElementById('cost'),r=R,f=x=>x.toLocaleString('en-US',{maximumFractionDigits:x<10?1:0}),row=(a,T,n)=>'<tr><td>'+a+'</td><td>'+opStr(T)+'</td><td class="n">'+f(flops(T)*(n||1))+'</td><td class="n">'+f(cyc(T)*(n||1))+'</td></tr>';
+  if(st.mode!==0){el.innerHTML='<tr><td colspan="4">Surface (u, v) is the step 11 ray pass: its cost model is on the step 11 page (about 15 cycles per piece tested). Measured here: '+r.passMs.toFixed(2)+' ms for '+f(r.F.tests)+' piece tests.</td></tr>';return}
+  const T=costOf(r);if(!T){el.innerHTML='';return}const one=t=>{const o={};[0,1,2,3].forEach(()=>addOps(o,PIX[t]));return addOps(o,PIXQ)},oneRow=t=>{const o={};[0,1,2,3].forEach(()=>addOps(o,ROW[t]));return addOps(o,ROWQ)},oneFrame=t=>{const o={};[0,1,2,3].forEach(()=>addOps(o,FRAME[t]));addOps(o,PROJ,t?9:5);return addOps(o,CENTRE)};
+  const ct=st.form===1?2:1,tot={};addOps(tot,T.pix);addOps(tot,T.row);addOps(tot,T.frame);const cycles=cyc(T.pix)+cyc(T.row)+cyc(T.frame),us=cycles/3000;
+  el.innerHTML=row('One pixel vs one piece, 4 curved sides',one(ct))+row('One pixel vs one piece, 4 straight sides',one(0))+row('Row start, per piece (4 curved sides)',oneRow(ct))+row('Frame setup, per piece (4 curved sides)',oneFrame(ct))
+    +'<tr><td colspan="4" style="color:var(--muted)">This frame: '+f(r.W*r.W)+' pixels, '+f(r.F.tests)+' pixel–piece tests ('+(r.F.tests/(r.W*r.W)).toFixed(2)+' per pixel), '+f(r.F.rows)+' row starts, '+(n=>n+(n===1?' piece':' pieces'))(r.P.filter(e=>e.S).length)+'</td></tr>'
+    +row('All pixel tests',T.pix)+row('All row starts',T.row)+row('All frame setup',T.frame)
+    +'<tr><td><b>Frame total</b></td><td>'+f(cycles/(r.W*r.W))+' cycles per pixel</td><td class="n">'+f(flops(tot))+'</td><td class="n">'+f(cycles)+'</td></tr>'
+    +'<tr><td>Model at 3 GHz, one core</td><td>'+us.toFixed(1)+' µs per frame</td><td class="n"></td><td class="n">'+f(1e6/us)+' FPS</td></tr>'
+    +'<tr><td>Measured here (JavaScript)</td><td>pixel pass '+r.passMs.toFixed(2)+' ms</td><td class="n"></td><td class="n">'+f(1000/Math.max(r.passMs,1e-3))+' /s</td></tr>'}
 
 // ---------------- controls ----------------
 function quadButtons(){const n=PIECES.source(st.mesh).length,g=document.getElementById('g-quad');if(st.quad>=n)st.quad=0;g.innerHTML=[...Array(n).keys()].map(i=>'<button data-v="'+i+'"'+(i===st.quad?' class="on"':'')+'>'+i+'</button>').join('');[...g.querySelectorAll('button')].forEach(b=>b.onclick=()=>{st.quad=+b.dataset.v;st.init=false;save();quadButtons();run()})}
 function seg(id,k,after){const g=document.getElementById(id),bs=[...g.querySelectorAll('button')],sync=()=>bs.forEach(b=>b.classList.toggle('on',String(st[k])===b.dataset.v));bs.forEach(b=>b.onclick=()=>{st[k]=+b.dataset.v;sync();if(after)after();save();run()});sync()}
-seg('g-mesh','mesh',()=>{st.quad=st.mesh===3?1:2;st.init=false;quadButtons()});seg('g-mode','mode');seg('g-form','form');quadButtons();
+seg('g-mesh','mesh',()=>{st.quad=st.mesh===3?1:2;st.init=false;quadButtons()});seg('g-mode','mode');seg('g-form','form');seg('g-res','res');quadButtons();
 [['mu','muo'],['mv','mvo']].forEach(([id,oid])=>{const i=document.getElementById(id),o=document.getElementById(oid);i.value=st[id];o.textContent=(+st[id]).toFixed(2);let t=0;i.addEventListener('input',()=>{st[id]=+i.value;o.textContent=st[id].toFixed(2);save();cancelAnimationFrame(t);t=requestAnimationFrame(run)})});
 document.getElementById('reset').onclick=()=>{st.init=false;save();run()};
 document.getElementById('face').onclick=()=>{const Q=quadInfo();st.cy=Q.yaw0;st.cp=Q.pitch0;save();run()};
 function orbit(el,ky,kp){let p=null,raf=0;el.addEventListener('pointerdown',e=>{p={x:e.clientX,y:e.clientY};el.setPointerCapture(e.pointerId)});
-  el.addEventListener('pointermove',e=>{if(!p)return;st[ky]+=(e.clientX-p.x)*0.01;st[kp]=Math.max(-1.3,Math.min(1.3,st[kp]+(e.clientY-p.y)*0.01));p={x:e.clientX,y:e.clientY};if(!raf)raf=requestAnimationFrame(()=>{raf=0;ky==='cy'?run():drawRight()})});
+  el.addEventListener('pointermove',e=>{if(!p)return;st[ky]-=(e.clientX-p.x)*0.01;st[kp]=Math.max(-1.3,Math.min(1.3,st[kp]+(e.clientY-p.y)*0.01));p={x:e.clientX,y:e.clientY};if(!raf)raf=requestAnimationFrame(()=>{raf=0;ky==='cy'?run():drawRight()})});
   const up=()=>{if(p){p=null;save()}};el.addEventListener('pointerup',up);el.addEventListener('pointercancel',up)}
 orbit(cv,'cy','cp');orbit(ov,'oy','op');
+// auto orbit: the left camera swings ±1 rad around straight on, so the FPS counter has continuous frames
+let spin=null;document.getElementById('spin').onclick=()=>{const b=document.getElementById('spin');if(spin){cancelAnimationFrame(spin.raf);spin=null;b.textContent='Auto orbit';save();return}
+  const Q=quadInfo(),t0=performance.now(),c0=Math.asin(Math.max(-1,Math.min(1,(st.cy-Q.yaw0)))),step=()=>{st.cy=Q.yaw0+Math.sin(c0+(performance.now()-t0)/1400);run(true);spin.raf=requestAnimationFrame(step)};spin={raf:requestAnimationFrame(step)};b.textContent='Stop orbit'};
 if(window.matchMedia)matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change',()=>{readC();drawAll()});
 new MutationObserver(()=>{readC();drawAll()}).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
 let rt=0;window.addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(drawAll,100)});

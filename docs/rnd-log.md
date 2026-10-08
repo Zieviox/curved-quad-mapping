@@ -405,6 +405,20 @@ Question: take (u, v) straight from the projected side arcs (option b), which is
 
 **Finding 3: folds.** When part of the quad turns away from the camera, a projected side arc runs back across the visible part. Those surface points get a screen (u, v) outside 0…1 (red in the page), even though the camera sees them.
 
+**13b. Cost and speed** (the page now runs the pass as the method would: per piece, per row, forward differences along the row; checked against direct evaluation: same owner on every pixel, (u, v) within 3·10⁻⁸)
+
+| Part (arc-only form) | Ops | Cycles (Skylake model) |
+|---|---|---|
+| One pixel vs one piece, 4 curved sides | 18 ADD, 4 MAX, 3 MIN, 4 SQRT, 2 DIV, 1 CMP (32 FLOPs) | 18, divider-bound (4 SQRT + 2 DIV) |
+| One pixel vs one piece, 4 straight sides | 6 ADD, 3 MIN, 2 DIV, 1 CMP | 6 |
+| Row start, per piece | 4 ADD, 12 MUL, 32 FMA, 2 CMP | 24 |
+| Frame setup, per piece | 85 ADD, 63 MUL, 90 FMA, 8 SQRT, 21 DIV | 119 |
+
+- Smooth cube quad at 200² (one piece), over the auto orbit: 0.56–0.69 piece tests per pixel, 10–13 cycles per pixel, 135–165 µs per frame at 3 GHz on one core.
+- The square roots make it divider-bound. RSQRT (4/1) + MUL instead of SQRT would move the bound back to the ALU ports. Not done.
+- The page shows a live FPS counter (frames drawn, plus the pixel pass time in JavaScript) and an auto orbit.
+- **Camera fix:** pages 01, 06 and 08 orbit the camera and turned the shape the wrong way on a sideways drag. Now dragging right turns the front to the right, as on the other pages.
+
 ## Prior art
 
 Collected from memory at first. Step 7 checked the shared-edge part against abstracts and citing papers.
