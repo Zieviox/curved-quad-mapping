@@ -71,4 +71,10 @@ Cracks, pieces with no surface inside, and far-side hits, each with a picture (t
 
 ![Open problems: a failing piece cut through its middle; the shape splits into two branches](docs/img/07-open-problems.png)
 
+### 13 · UV slides — [Preview](https://htmlpreview.github.io/?https://github.com/Zieviox/curved-quad-mapping/blob/main/examples/08-uv-slides.html) · [Source](examples/08-uv-slides.html)
+
+Option (b): (u, v) from the projected side arcs only, against the surface's own (u, v). Flat pieces are exact. Curved pieces slide when the camera moves (smooth cube: 17.6% of an edge at the marker). The full projected conic has to be cut down to the arc, and folds push (u, v) outside 0…1.
+
+![UV slides: the moving camera's screen (u, v) painted on the surface, seen from a fixed camera](docs/img/08-uv-slides.png)
+
 Details and numbers are in the [R&D log](docs/rnd-log.md).

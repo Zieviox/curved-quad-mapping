@@ -378,6 +378,33 @@ Three pictures, the first two computed live from the real pieces:
    - Current fix: run the forward map at the hit's (u, v) and compare. That's one extra line-vs-quadric per accepted hit.
    - Candidate cheap rule, not yet tested: the sign of ∇Q · (pencil line direction) at the hit, about 6 FMA.
 
+## 13. Option (b): (u, v) from the screen, and how it slides (example 08)
+
+Question: take (u, v) straight from the projected side arcs (option b), which is crack-free by construction. Does that (u, v) stay on the same surface point when the camera moves?
+
+- Each side arc {P0, A, P2, w} projects to a 2D rational quadratic with weight w' = w·zA / √(z0·z2). With barycentric coordinates b0, b1, b2 of the screen triangle (p0, a, p2):
+  - **full conic** K = b1² − 4w'²·b0·b2;
+  - **arc only** K = b1 − 2w'·√(b0·b2), which is 0 on the arc and not on the rest of the ellipse.
+- u = K3 / (K3 + K1), v = K0 / (K0 + K2). Each K is scaled to 1 at the piece's projected centre, so the centre gets (0.5, 0.5).
+- **Slide** = for a surface point the camera sees, its distance to the surface point that its screen (u, v) names, in % of the average edge length.
+
+**Finding 1:** the full conic doesn't work as written. Each projected arc is part of a whole ellipse, and on the smooth cube the ellipse's other half runs back across the face. There K3 = 0 again, and u falls to 0 in the wrong place: average slide 44%, worst 114%. The arc-only form avoids this but costs a square root per side per corner.
+
+**Finding 2:** with the arc-only form, the (u, v) slides on every curved piece. Flat pieces are exact. Quad 2 of each mesh, depth 0, default camera (0.75 rad yaw and 0.3 rad pitch away from straight on):
+
+| Mesh | Slide at marker (0.3, 0.65) | Average slide | Worst slide | Marker path over 25 camera angles |
+|---|---|---|---|---|
+| Smooth cube | 17.6% | 19.6% | 49.6% | 21.3% |
+| Smooth cube, straight on | 12.8% | 8.85% | 13.4% | |
+| Rounded box (flat inner piece) | 0% | 0.36% | 2.42% (fillets) | 0% |
+| Mixed cube | 6.16% | 6.60% | 18.3% | 19.0% |
+| Wave (quad 1) | 3.25% | 2.80% | 15.7% | 6.92% |
+
+- A flat piece is exact: on a plane, the screen-to-surface map is a projective map, and scaling each K at the centre fixes its one free ratio.
+- On curved pieces the screen spacing isn't the surface spacing (foreshortening), so even straight on, the smooth cube slides 12.8% at the marker.
+
+**Finding 3: folds.** When part of the quad turns away from the camera, a projected side arc runs back across the visible part. Those surface points get a screen (u, v) outside 0…1 (red in the page), even though the camera sees them.
+
 ## Prior art
 
 Collected from memory at first. Step 7 checked the shared-edge part against abstracts and citing papers.
