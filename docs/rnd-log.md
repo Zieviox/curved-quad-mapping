@@ -196,6 +196,29 @@ What this means here, counted on our own quads (triangle-based methods need each
   - Cracks: does each piece's quadric contain all its border arcs exactly? (Two-point rule.)
   - At a sharp vertex shared by 4 quads, the corner point depends on all 4 face normals, but a quad only shares an edge with 2 of them.
 
+## 9a. Border network: handles and arcs (example 04)
+
+Built from step 8's design. Each quad works alone and reads its neighbours' normals only so that shared borders agree.
+
+- **Arc between two handles:** a rational quadratic (conic) with end points P0, P2, apex A (where the end tangents meet) and weight `w = L·cos(φ/2)`, where L is the average handle length and φ is how far the tangent turns. With L = 1 and equal sides it is a circular arc. End tangents are the chord projected onto each handle's tangent plane.
+- **Split:** if the tangent lines don't meet in front of both ends (S-curve or twist), one artificial handle is placed on the handle cubic: at its inflection if it has one, otherwise halfway. Its tangent is `(T0 × (M−P0)) × (T2 × (P2−M))`, the only direction lying in both end planes, so each half is a flat conic and the halves meet smoothly.
+- **Sharp edges with blending:**
+  - Each vertex gets a rounding radius `r = blending × average incident edge length` and a centre c at distance r from every distinct tangent plane around it. Two planes have a closed form; three or more use a 3 × 3 least-squares solve.
+  - Points used by each quad: contact = c + r·n̂(this face); fillet middle = c + r·norm(n̂_A + n̂_B); corner point = c + r·norm(Σ n̂).
+  - Each quad then holds: an inner piece, a half edge strip per sharp edge, and a corner quarter per sharp vertex.
+
+Checks (all closed form, every mesh and setting tried):
+
+| Check | Result |
+|---|---|
+| Shared borders: gap between the two quads' curves | 0 on every edge (cube, hard cube, mixed cube, wave; blending 0 / 3% / 25%; length × 1 / × 2) |
+| Hard cube, length 1: distance from the exact rounded box | 0 at every blending |
+| Smooth cube, length 1: distance of the borders from the sphere of radius √3 | 0. This is the route back from the step-5 cube regression: the arcs give the sphere with no extra rule. |
+| Length × 2 | bulges more, as intended (smooth cube: 0.121 off the sphere) |
+| S and twist splits | mixed cube 8, wave 16, failures 0 |
+
+Next (9b): fill each piece with an ellipsoid that follows its border arcs, then measure the cracks.
+
 ## Prior art
 
 Collected from memory at first. Step 7 checked the shared-edge part against abstracts and citing papers.

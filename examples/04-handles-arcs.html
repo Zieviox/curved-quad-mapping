@@ -1,0 +1,198 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Handles and Arcs</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: phone-first. Steps, controls, 3D view + checks; side by side from 900px. Same tokens as the other examples. */
+:root{
+  --bg:#eef1f4;--surface:#ffffff;--fg:#151a21;--muted:#59626f;--line:#d6dce3;--accent:#2d56d2;--warn:#c8321f;--good:#1b7a52;
+  --border:#2d56d2;--fillet:#1f8a7a;--contact:#8a94a3;--cross:#d0721a;--corner:#a0459b;--handle:#151a21;--art:#c8321f;
+  --f-display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
+  --f-body:"IBM Plex Sans",ui-sans-serif,system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0e1115;--surface:#161a20;--fg:#e4e8ee;--muted:#98a1ae;--line:#2a313a;--accent:#7f9cff;--warn:#ff5f4a;--good:#5fd0a0;--border:#7f9cff;--fillet:#4fd1bb;--contact:#7d8794;--cross:#f0a050;--corner:#d68ad0;--handle:#e4e8ee;--art:#ff5f4a;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0e1115;--surface:#161a20;--fg:#e4e8ee;--muted:#98a1ae;--line:#2a313a;--accent:#7f9cff;--warn:#ff5f4a;--good:#5fd0a0;--border:#7f9cff;--fillet:#4fd1bb;--contact:#7d8794;--cross:#f0a050;--corner:#d68ad0;--handle:#e4e8ee;--art:#ff5f4a;color-scheme:dark}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:15px;line-height:1.55}
+.wrap{max-width:1100px;margin:0 auto;padding-inline:16px;padding-block:22px 56px;display:flex;flex-direction:column;gap:22px}
+h1{font-family:var(--f-display);font-weight:700;font-size:clamp(26px,5vw,34px);line-height:1.1;margin:0;text-wrap:balance}
+h2{font-family:var(--f-display);font-weight:600;font-size:18px;margin:0}
+p{margin:0;max-width:68ch}
+.eyebrow{font-family:var(--f-mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+ol.steps{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:6px;max-width:72ch}
+.ctrls{display:flex;flex-direction:column;gap:10px}
+.crow{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center}
+.clab{font-family:var(--f-mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);width:84px;flex:none}
+.seg{display:inline-flex;flex-wrap:wrap;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surface)}
+.seg button{font:500 13px var(--f-body);color:var(--muted);background:transparent;border:0;padding:8px 12px;min-height:36px;cursor:pointer}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button.on{color:var(--fg);background:var(--bg);box-shadow:inset 0 -2px 0 var(--accent)}
+button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.slider{display:flex;align-items:center;gap:10px;flex:1;min-width:200px}
+.slider input{flex:1;min-width:0;accent-color:var(--accent);height:30px}
+.slider output{font:500 13px var(--f-mono);font-variant-numeric:tabular-nums;width:64px}
+.main{display:grid;grid-template-columns:1fr;gap:18px}
+@media (min-width:900px){.main{grid-template-columns:minmax(0,1.3fr) minmax(0,1fr)}}
+.view{display:flex;flex-direction:column;gap:8px;min-width:0}
+canvas{width:100%;max-width:100%;aspect-ratio:1;display:block;border:1px solid var(--line);border-radius:10px;background:var(--surface);touch-action:none;cursor:grab}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12.5px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.ln{width:18px;height:3px;border-radius:2px;display:inline-block}
+.tw{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:13px;font-variant-numeric:tabular-nums}
+th,td{padding:7px 10px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-weight:500;color:var(--muted);font-size:12px}
+td.n{text-align:right;font-family:var(--f-mono);white-space:nowrap}
+td.ok{color:var(--good)}td.bad{color:var(--warn)}
+tr:last-child td{border-bottom:0}
+.note{font-size:13px;color:var(--muted)}
+.log div{font:12px/1.5 var(--f-mono)}.log .e{color:var(--warn)}
+</style>
+
+<div class="wrap">
+<a id="back" href="../index.html" hidden style="font:500 13px var(--f-body);color:var(--accent);text-decoration:none">← All steps</a>
+<script>(()=>{const h=location.hostname;if(location.protocol==="file:"||h.endsWith("github.io")||h==="localhost")document.getElementById("back").hidden=false})()</script>
+<header>
+  <div class="eyebrow">Curved quads · step 9a · border network</div>
+  <h1>Handles and Arcs</h1>
+</header>
+
+<ol class="steps">
+  <li>Every quad corner has a <b>handle</b>: its face-corner normal, not normalized. The direction sets the tangent, and the length sets how far the curve bulges.</li>
+  <li>Between two handles runs one <b>ellipse arc</b> (a conic). If the arc would curve back (S) or twist out of a plane, an <b>artificial handle</b> splits it into two arcs.</li>
+  <li><b>Sharp edges</b> (different normals on each side) get rounded inside each quad by the <b>blending distance</b>, like a bevel. Each quad computes its own pieces, reading its neighbours' normals only so that shared borders agree.</li>
+  <li>Only the borders are shown here. Filling the pieces comes next (step 9b).</li>
+</ol>
+
+<section class="ctrls" aria-label="Settings">
+  <div class="crow"><span class="clab">Mesh</span><div class="seg" id="g-mesh"><button data-v="0">Smooth cube</button><button data-v="1">Hard cube</button><button data-v="2">Mixed cube</button><button data-v="3">Wave</button></div></div>
+  <div class="crow"><span class="clab">Blending</span><div class="slider"><input id="blend" type="range" min="0" max="0.45" step="0.005" value="0.03" aria-label="Blending distance, fraction of edge length"><output id="blendo"></output></div></div>
+  <div class="crow"><span class="clab">Normal length</span><div class="seg" id="g-len"><button data-v="0.5">× 0.5</button><button data-v="1">× 1</button><button data-v="1.5">× 1.5</button><button data-v="2">× 2</button></div></div>
+  <div class="crow"><span class="clab">Show</span><div class="seg" id="g-show"><button data-k="handles">Handles</button><button data-k="cage">Cage</button></div></div>
+  <p class="note">Blending is a fraction of the average edge length at each vertex. Normal length multiplies every source normal, to see how the length changes the bulge.</p>
+</section>
+
+<div class="main">
+  <div class="view"><h2>Border network</h2><canvas id="cv" aria-label="3D view of the arcs between handles. Drag to orbit."></canvas>
+    <div class="legend"><span><span class="ln" style="background:var(--border)"></span>Border (smooth edge)</span><span><span class="ln" style="background:var(--fillet)"></span>Border (rounded sharp edge)</span><span><span class="ln" style="background:var(--contact)"></span>Where the face meets its fillet</span><span><span class="ln" style="background:var(--cross)"></span>Fillet cross-section</span><span><span class="ln" style="background:var(--corner)"></span>Corner piece</span><span><span class="ln" style="background:var(--art)"></span>Artificial handle</span></div>
+    <p class="note">Drag to orbit.</p></div>
+  <div class="view"><h2>Checks</h2>
+    <div class="tw"><table><tbody id="checks"></tbody></table></div>
+    <h2>Pieces per quad</h2>
+    <div class="tw"><table><thead><tr><th>Quad</th><th class="n">Inner</th><th class="n">Edge strip halves</th><th class="n">Corner quarters</th><th class="n">Arcs</th><th class="n">Splits</th></tr></thead><tbody id="qtab"></tbody></table></div>
+    <div class="log" id="log"></div>
+  </div>
+</div>
+</div>
+
+<script>
+const LOG=[];function log(m,e){LOG.push({m:String(m),e:!!e});const el=document.getElementById('log');if(el)el.innerHTML=LOG.slice(-8).map(x=>'<div'+(x.e?' class="e"':'')+'>'+x.m.replace(/</g,'&lt;')+'</div>').join('')}
+window.addEventListener('error',e=>log('ERROR '+e.message+' @'+e.lineno,true));
+const add=(a,b)=>[a[0]+b[0],a[1]+b[1],a[2]+b[2]],sub=(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]],mul=(a,s)=>[a[0]*s,a[1]*s,a[2]*s],dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2],cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]],len=a=>Math.hypot(a[0],a[1],a[2]),norm=a=>mul(a,1/(len(a)||1));
+const same=(a,b)=>Math.abs(a[0]-b[0])<1e-12&&Math.abs(a[1]-b[1])<1e-12&&Math.abs(a[2]-b[2])<1e-12;
+
+// ---------- source meshes: quads with corner positions and face-corner normals (raw, not normalized) ----------
+function cube(){return{v:[[-1,-1,-1],[1,-1,-1],[1,1,-1],[-1,1,-1],[-1,-1,1],[1,-1,1],[1,1,1],[-1,1,1]],f:[[0,3,2,1],[4,5,6,7],[0,1,5,4],[2,3,7,6],[0,4,7,3],[1,2,6,5]]}}
+function wave(){const v=[],f=[];for(let j=0;j<3;j++)for(let i=0;i<5;i++)v.push([(i-2)*0.9,(j-1)*0.9,i%2?-0.55:0.55]);for(let j=0;j<2;j++)for(let i=0;i<4;i++){const a=j*5+i;f.push([a,a+1,a+6,a+5])}return{v,f}}
+const faceN=(m,f)=>norm(cross(sub(m.v[f[2]],m.v[f[0]]),sub(m.v[f[3]],m.v[f[1]])));
+function vnorm(m){const n=m.v.map(()=>[0,0,0]);m.f.forEach(f=>{const fn=faceN(m,f);f.forEach(i=>n[i]=add(n[i],fn))});return n.map(norm)}
+function source(id){
+  if(id===0){const m=cube(),N=vnorm(m);return m.f.map(f=>({x:f.map(i=>m.v[i]),n:f.map(i=>N[i])}))}
+  if(id===1){const m=cube();return m.f.map(f=>{const fn=faceN(m,f);return{x:f.map(i=>m.v[i]),n:f.map(()=>fn)}})}
+  if(id===2){// top face sharp against the sides; sides smooth with each other; bottom smooth with everything
+    const m=cube(),N=vnorm(m),top=1;return m.f.map((f,fi)=>({x:f.map(i=>m.v[i]),n:f.map(i=>{if(fi===top)return faceN(m,f);if(m.v[i][2]>0){let s=[0,0,0];m.f.forEach((g,gi)=>{if(gi!==top&&g.includes(i))s=add(s,faceN(m,g))});return norm(s)}return N[i]})}))}
+  const m=wave(),N=vnorm(m);return m.f.map(f=>({x:f.map(i=>m.v[i]),n:f.map(i=>N[i])}))}
+
+// ---------- one ellipse arc between two handles ----------
+// Rational quadratic: end points P0, P2, apex A (where the end tangents meet), weight w.
+// w = L·cos(φ/2): L = average handle length, φ = how much the tangent turns. L = 1 with equal sides is a circular arc.
+// If the tangent lines don't meet in front of both ends (S-curve or twisted), split once at an artificial handle.
+let STATS;
+function arc(P0,n0,P2,n2){const d=sub(P2,P0);if(len(d)<1e-12)return[];const u0=norm(n0),u2=norm(n2),T0=sub(d,mul(u0,dot(d,u0))),T2=sub(d,mul(u2,dot(d,u2)));return arcT(P0,T0,len(n0),u0,P2,T2,len(n2),u2,0)}
+function arcT(P0,T0,L0,u0,P2,T2,L2,u2,depth){STATS.arcs++;const d=sub(P2,P0),D=len(d);
+  const D1=T0,D2=mul(T2,-1),w0=sub(P0,P2),a=dot(D1,D1),b=dot(D1,D2),c=dot(D2,D2),e1=dot(D1,w0),e2=dot(D2,w0),den=a*c-b*b;
+  if(len(cross(norm(T0),norm(d)))<1e-9&&len(cross(norm(T2),norm(d)))<1e-9)return[{P0,P2,straight:true}];
+  if(Math.abs(den)>1e-14*a*c){const s=(b*e2-c*e1)/den,t=(a*e2-b*e1)/den,A1=add(P0,mul(D1,s)),A2=add(P2,mul(D2,t));
+    if(len(sub(A1,A2))<1e-7*D&&s>1e-9&&t>1e-9){const ph=Math.acos(Math.max(-1,Math.min(1,dot(norm(T0),norm(T2))))),w=(L0+L2)/2*Math.cos(ph/2);return[{P0,P2,A:mul(add(A1,A2),0.5),w}]}}
+  if(depth>0){STATS.fail++;return[{P0,P2,straight:true,fail:true}]}
+  // artificial handle: on the handle cubic (handles scaled by length), at its inflection if it has one, else halfway
+  STATS.splits++;const C1=add(P0,mul(T0,L0/3)),C2=sub(P2,mul(T2,L2/3)),m=add(u0,u2),ia=dot(m,add(sub(C2,mul(C1,2)),P0)),ib=dot(m,add(sub(P2,mul(C2,2)),C1)),tm=ia*ib<0?ia/(ia-ib):0.5,r=1-tm;
+  const M=add(add(mul(P0,r*r*r),mul(C1,3*r*r*tm)),add(mul(C2,3*r*tm*tm),mul(P2,tm*tm*tm)));
+  // its tangent lies in both end planes (P0, T0, M) and (M, T2, P2), so each half is a flat curve and the two halves meet smoothly
+  let TM=cross(cross(T0,sub(M,P0)),cross(T2,sub(P2,M)));if(len(TM)<1e-12*D*D*D*D)TM=add(add(mul(sub(C1,P0),r*r),mul(sub(C2,C1),2*r*tm)),mul(sub(P2,C2),tm*tm));if(dot(TM,d)<0)TM=mul(TM,-1);
+  const uM=norm(add(mul(u0,r),mul(u2,tm))),LM=L0*r+L2*tm;STATS.art.push({p:M,n:mul(norm(sub(uM,mul(norm(TM),dot(uM,norm(TM))))),LM)});
+  return arcT(P0,T0,L0,u0,M,TM,LM,uM,1).concat(arcT(M,TM,LM,uM,P2,T2,L2,u2,1))}
+function evalArc(g,t){if(g.straight)return add(mul(g.P0,1-t),mul(g.P2,t));const r=1-t,b0=r*r,b1=2*g.w*r*t,b2=t*t,s=b0+b1+b2;return mul(add(add(mul(g.P0,b0),mul(g.A,b1)),mul(g.P2,b2)),1/s)}
+const sampleArcs=(segs,n)=>{const out=[];segs.forEach((g,i)=>{for(let k=i?1:0;k<=n;k++)out.push(evalArc(g,k/n))});return out};
+
+// ---------- the per-quad network ----------
+const key=p=>p.map(x=>Math.round(x*1e6)).join(',');
+function build(Q,beta){STATS={arcs:0,splits:0,fail:0,art:[]};
+  const vtx=new Map(),edges=new Map();
+  Q.forEach((q,qi)=>{for(let i=0;i<4;i++){const k=key(q.x[i]);if(!vtx.has(k))vtx.set(k,{X:q.x[i],corners:[],nbr:new Set()});vtx.get(k).corners.push({qi,i});const j=(i+1)%4,ka=key(q.x[i]),kb=key(q.x[j]);vtx.get(k).nbr.add(kb);const ek=ka<kb?ka+'|'+kb:kb+'|'+ka;if(!edges.has(ek))edges.set(ek,[]);edges.get(ek).push({qi,i})}});
+  Q.forEach(q=>{for(let i=0;i<4;i++){const j=(i+3)%4;vtx.get(key(q.x[i])).nbr.add(key(q.x[j]))}});
+  // vertex: distinct normal directions around it, rounding radius, fillet centre (distance r from every distinct tangent plane)
+  vtx.forEach(V=>{const dirs=[];V.corners.forEach(({qi,i})=>{const n=Q[qi].n[i];if(!dirs.some(d=>same(d.raw,n)))dirs.push({raw:n,u:norm(n),L:len(n)})});
+    const el=[...V.nbr].map(k=>len(sub(vtx.get(k).X,V.X)));V.r=beta*el.reduce((a,b)=>a+b,0)/el.length;V.k=dirs.length;V.dirs=dirs;
+    if(V.k<=1){V.c=V.X;return}
+    if(V.k===2){const a=dirs[0].u,b=dirs[1].u;V.c=sub(V.X,mul(add(a,b),V.r/(1+dot(a,b))))}
+    else{const M=[[0,0,0],[0,0,0],[0,0,0]];let rhs=[0,0,0];dirs.forEach(({u})=>{for(let p=0;p<3;p++)for(let s=0;s<3;s++)M[p][s]+=u[p]*u[s];rhs=add(rhs,mul(u,-V.r))});
+      const det=dot(M[0],cross(M[1],M[2])),inv=[cross(M[1],M[2]),cross(M[2],M[0]),cross(M[0],M[1])];const sol=[dot(inv[0],rhs)/det,dot(inv[1],rhs)/det,dot(inv[2],rhs)/det];
+      // inv rows are columns of the adjugate; M is symmetric so this is M⁻¹·rhs
+      V.c=add(V.X,sol)}
+    const s=dirs.reduce((a,d)=>add(a,d.u),[0,0,0]);V.corner=add(V.c,mul(norm(s),V.r));V.cornerN=mul(norm(s),dirs.reduce((a,d)=>a+d.L,0)/dirs.length)});
+  const nbAt=(qi,i,j,atI)=>{const ka=key(Q[qi].x[i]),kb=key(Q[qi].x[j]),ek=ka<kb?ka+'|'+kb:kb+'|'+ka,o=edges.get(ek).find(e=>e.qi!==qi);if(!o)return null;const q=Q[o.qi],at=key(atI?Q[qi].x[i]:Q[qi].x[j]);for(let k=0;k<4;k++)if(key(q.x[k])===at)return q.n[k];return null};
+  // end of edge (i -> j) at vertex i: border point and border handle. Sharp: fillet middle between the two faces. Smooth: this face's corner point.
+  const endInfo=(qi,i,j,atI)=>{const q=Q[qi],c=atI?i:j,V=vtx.get(key(q.x[c])),nA=q.n[c],nB=nbAt(qi,i,j,atI),uA=norm(nA),contact=V.k<=1?q.x[c]:add(V.c,mul(uA,V.r));
+    if(nB&&!same(nA,nB)){const uB=norm(nB),m=norm(add(uA,uB));return{sharp:true,p:add(V.c,mul(m,V.r)),n:mul(m,(len(nA)+len(nB))/2),contact,nA,V}}
+    return{sharp:false,p:contact,n:nA,contact,nA,V}};
+  const out=Q.map((q,qi)=>{const P={qi,border:[],contact:[],cross:[],corner:[],inner:1,strips:0,corners:0};
+    for(let i=0;i<4;i++){const j=(i+1)%4,a=endInfo(qi,i,j,true),b=endInfo(qi,i,j,false);
+      P.border.push({segs:arc(a.p,a.n,b.p,b.n),sharp:a.sharp||b.sharp,i});
+      if(a.sharp||b.sharp){P.strips++;P.contact.push(arc(a.contact,a.nA,b.contact,b.nA));if(a.sharp)P.cross.push(arc(a.contact,a.nA,a.p,a.n));if(b.sharp)P.cross.push(arc(b.contact,b.nA,b.p,b.n))}}
+    // corner quarters: from each sharp edge end at this corner to the vertex's corner point
+    for(let i=0;i<4;i++){const j=(i+1)%4,h=(i+3)%4,a=endInfo(qi,i,j,true),z=endInfo(qi,h,i,false);if(a.V.k<3)continue;let any=false;
+      [a,z].forEach(e=>{if(e.sharp&&len(sub(e.p,e.V.corner))>1e-12){P.corner.push(arc(e.p,e.n,e.V.corner,e.V.cornerN));any=true}});if(any)P.corners++}
+    return P});
+  // check: both quads on an edge must produce the same border curve
+  let mis=0;edges.forEach(l=>{if(l.length!==2)return;const[A,B]=l,pa=sampleArcs(out[A.qi].border[A.i].segs,16),pb=sampleArcs(out[B.qi].border[B.i].segs,16).reverse();if(pa.length!==pb.length){mis=Math.max(mis,Infinity);return}pa.forEach((p,k)=>mis=Math.max(mis,len(sub(p,pb[k]))))});
+  return{out,vtx,mis,stats:STATS}}
+
+// rounded-box check for the hard cube: every network point should lie on the exact rounded box
+function roundedBoxDist(p,r){const h=1-r,q=p.map(x=>Math.abs(x)-h),o=Math.hypot(Math.max(q[0],0),Math.max(q[1],0),Math.max(q[2],0));return o+Math.min(Math.max(q[0],q[1],q[2]),0)-r}
+
+// ---------- view ----------
+let st={mesh:1,beta:0.03,lm:1,handles:true,cage:true,yaw:0.7,pitch:0.55},R=null;
+try{const s=JSON.parse(localStorage.getItem('ha')||'null');if(s)Object.assign(st,s)}catch(e){}
+const save=()=>{try{localStorage.setItem('ha',JSON.stringify(st))}catch(e){}};
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d');let C={};
+function readC(){const g=getComputedStyle(document.documentElement);['fg','muted','line','border','fillet','contact','cross','corner','handle','art','surface'].forEach(k=>C[k]=g.getPropertyValue('--'+k).trim())}
+function run(){try{const Q=source(st.mesh).map(q=>({x:q.x,n:q.n.map(n=>mul(n,st.lm))}));R=build(Q,st.beta);R.Q=Q;draw();checks()}catch(e){log('ERROR '+(e.stack||e),true)}}
+function draw(){const dp=window.devicePixelRatio||1,W=Math.round(cv.clientWidth*dp);if(!W)return;if(cv.width!==W){cv.width=W;cv.height=W}ctx.clearRect(0,0,W,W);
+  const cy=Math.cos(st.yaw),sy=Math.sin(st.yaw),cp=Math.cos(st.pitch),sp=Math.sin(st.pitch),s=W/(st.mesh===3?5.2:4.4);
+  const P=p=>{const x=p[0]*cy-p[1]*sy,y1=p[0]*sy+p[1]*cy,z=p[2];return[W/2+x*s,W/2-(y1*sp+z*cp)*s]};
+  const poly=(pts,col,lw,alpha=1)=>{if(pts.length<2)return;ctx.globalAlpha=alpha;ctx.strokeStyle=col;ctx.lineWidth=lw*dp;ctx.beginPath();pts.forEach((p,i)=>{const q=P(p);i?ctx.lineTo(q[0],q[1]):ctx.moveTo(q[0],q[1])});ctx.stroke();ctx.globalAlpha=1};
+  if(st.cage){ctx.setLineDash([4*dp,4*dp]);R.Q.forEach(q=>poly(q.x.concat([q.x[0]]),C.muted,1,0.45));ctx.setLineDash([])}
+  R.out.forEach(o=>{o.contact.forEach(sg=>poly(sampleArcs(sg,24),C.contact,1.4));o.cross.forEach(sg=>poly(sampleArcs(sg,16),C.cross,1.6));o.corner.forEach(sg=>poly(sampleArcs(sg,16),C.corner,1.6));o.border.forEach(b=>poly(sampleArcs(b.segs,32),b.sharp?C.fillet:C.border,2.2))});
+  if(st.handles){R.Q.forEach(q=>q.x.forEach((x,i)=>{const t=add(x,mul(q.n[i],0.35));poly([x,t],C.handle,1.3,0.8);const e=P(t);ctx.fillStyle=C.handle;ctx.beginPath();ctx.arc(e[0],e[1],2.2*dp,0,7);ctx.fill()}));
+    R.stats.art.forEach(a=>{const p=P(a.p),t=add(a.p,mul(a.n,0.35));poly([a.p,t],C.art,1.3);ctx.fillStyle=C.art;ctx.beginPath();ctx.moveTo(p[0],p[1]-4*dp);ctx.lineTo(p[0]+4*dp,p[1]);ctx.lineTo(p[0],p[1]+4*dp);ctx.lineTo(p[0]-4*dp,p[1]);ctx.closePath();ctx.fill()})}}
+function checks(){const rows=[],fmt=x=>x===Infinity?'shape mismatch':x<1e-12?'0':x.toExponential(2),S=R.stats;
+  rows.push(['Shared borders: largest gap between the two quads\' curves',fmt(R.mis),R.mis<1e-9]);
+  rows.push(['Arcs built',S.arcs,true]);rows.push(['Artificial handles (S or twist splits)',S.splits,true]);rows.push(['Arcs that still could not be one flat ellipse arc',S.fail,S.fail===0]);
+  if(st.mesh===1){let mx=0;const r=2*st.beta;R.out.forEach(o=>[...o.border.map(b=>b.segs),...o.contact,...o.cross,...o.corner].forEach(sg=>sampleArcs(sg,24).forEach(p=>mx=Math.max(mx,Math.abs(roundedBoxDist(p,r))))));rows.push(['Hard cube: largest distance from the exact rounded box (radius '+r.toFixed(3)+')',fmt(mx),mx<1e-9])}
+  if(st.mesh===0){let mx=0;R.out.forEach(o=>o.border.forEach(b=>sampleArcs(b.segs,24).forEach(p=>mx=Math.max(mx,Math.abs(len(p)-Math.sqrt(3))))));rows.push(['Smooth cube: largest distance of the borders from the sphere of radius √3',fmt(mx),mx<1e-9])}
+  document.getElementById('checks').innerHTML=rows.map(r=>'<tr><td>'+r[0]+'</td><td class="n '+(r[2]?'ok':'bad')+'">'+r[1]+'</td></tr>').join('');
+  document.getElementById('qtab').innerHTML=R.out.map(o=>'<tr><td>Q'+o.qi+'</td><td class="n">'+o.inner+'</td><td class="n">'+o.strips+'</td><td class="n">'+o.corners+'</td><td class="n">'+[...o.border.map(b=>b.segs),...o.contact,...o.cross,...o.corner].reduce((a,sg)=>a+sg.length,0)+'</td><td class="n">'+o.border.reduce((a,b)=>a+Math.max(0,b.segs.length-1),0)+'</td></tr>').join('')}
+
+// controls
+function seg(id,k){const g=document.getElementById(id),bs=[...g.querySelectorAll('button')],sync=()=>bs.forEach(b=>b.classList.toggle('on',String(st[k])===b.dataset.v));bs.forEach(b=>b.onclick=()=>{st[k]=+b.dataset.v;sync();save();run()});sync()}
+seg('g-mesh','mesh');seg('g-len','lm');
+(()=>{const bs=[...document.querySelectorAll('#g-show button')],sync=()=>bs.forEach(b=>b.classList.toggle('on',!!st[b.dataset.k]));bs.forEach(b=>b.onclick=()=>{st[b.dataset.k]=!st[b.dataset.k];sync();save();draw()});sync()})();
+const bi=document.getElementById('blend'),bo=document.getElementById('blendo');bi.value=st.beta;bo.textContent=(st.beta*100).toFixed(1)+'%';bi.addEventListener('input',()=>{st.beta=+bi.value;bo.textContent=(st.beta*100).toFixed(1)+'%';save();run()});
+let drag=null;cv.addEventListener('pointerdown',e=>{drag=[e.clientX,e.clientY];cv.setPointerCapture(e.pointerId)});cv.addEventListener('pointermove',e=>{if(!drag)return;st.yaw+=(e.clientX-drag[0])*0.01;st.pitch=Math.max(-1.4,Math.min(1.4,st.pitch+(e.clientY-drag[1])*0.01));drag=[e.clientX,e.clientY];draw()});cv.addEventListener('pointerup',()=>{drag=null;save()});cv.addEventListener('pointercancel',()=>drag=null);
+if(window.matchMedia)matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change',()=>{readC();draw()});
+new MutationObserver(()=>{readC();draw()}).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+window.addEventListener('resize',draw);readC();run();
+</script>

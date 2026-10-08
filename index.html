@@ -85,7 +85,7 @@ code{font-family:var(--f-mono);font-size:.92em}
     <div class="links"><a class="btn" href="examples/00-curved-quad-lab.html">Open the lab (Ellipsoid view)</a></div></div></li>
 
   <li><span class="num">5</span><div class="body">
-    <h2>S-curves by splitting <span class="tag current">current</span></h2>
+    <h2>S-curves by splitting</h2>
     <p class="q">How do we get S-bends from quadrics, which can't inflect?</p>
     <ul class="find"><li>Add an artificial point where an edge's cubic inflects, split there, and give each side its own quadric. The wave gets a real S with every normal exact.</li><li>Pixel corner: 29 cycles, or 39 if latency-bound, per piece.</li><li>Open: pieces crease where they meet. Next: share data with neighbours.</li></ul>
     <div class="links"><a class="btn" href="examples/00-curved-quad-lab.html">Open the lab (S-split view)</a></div></div></li>
@@ -95,6 +95,17 @@ code{font-family:var(--f-mono);font-size:.92em}
     <p class="q">Can neighbouring pieces end exactly where their shapes cross?</p>
     <ul class="find"><li>Exact in theory, but neighbours that match the shared normals touch at the corners instead of crossing, so there's no crossing line along the edge. Holes and ribbons.</li><li>Kept: a neighbour's shape only counts inside the neighbour's own patch area.</li><li>Next: shared edge curves, which need more pieces per quad.</li></ul>
     <div class="links"><a class="btn" href="examples/00-curved-quad-lab.html">Open the lab (trim view)</a></div></div></li>
+
+  <li><span class="num">7</span><div class="body">
+    <h2>Literature: shared edge curves</h2>
+    <p class="q">How does published work make quadric pieces meet exactly?</p>
+    <ul class="find"><li>Two conics share one quadric only if they meet twice (Cayley), so one quadric per quad can't hold 4 edge curves.</li><li>Known methods split faces into many pieces. Set aside in favour of our own handle design.</li></ul></div></li>
+
+  <li><span class="num">8–9</span><div class="body">
+    <h2>Handles and arcs <span class="tag current">current</span></h2>
+    <p class="q">Normals as handles (direction = tangent, length = bulge), one ellipse arc between every two handles, sharp edges rounded inside each quad.</p>
+    <ul class="find"><li>Shared borders match exactly on every edge.</li><li>Hard cube → an exact rounded box. Smooth cube → arcs exactly on the sphere.</li><li>S-curves and twists split at an artificial handle, with 0 failures.</li><li>Next: fill each piece with an ellipsoid that follows its arcs.</li></ul>
+    <div class="links"><a class="btn" href="examples/04-handles-arcs.html">Open handles and arcs</a></div></div></li>
 </ol>
 
 <p class="note">The cost model throughout is Intel Skylake, float32 scalar: ADD, MUL and FMA have latency 4 and throughput 0.5 cycles; SQRT 12/3; DIV 11/3. Pages compute in JavaScript float64.</p>

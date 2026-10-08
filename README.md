@@ -43,4 +43,14 @@ Each pixel edge slices the patch. A pixel corner on the patch has a closed form 
 - **5:** S-bends from an artificial point where an edge inverts, with one quadric per side. Pixel corner: 29 cycles per piece.
 - **6:** trimming at the neighbour's crossing. Failed: neighbours that share normals touch at the corners instead of crossing.
 
+### 7 · Literature check — in the [R&D log](docs/rnd-log.md)
+
+Two conics share one quadric only if they meet twice, so one quadric per quad can't hold 4 edge curves.
+
+### 8–9 · Handles and arcs — [Preview](https://htmlpreview.github.io/?https://github.com/Zieviox/curved-quad-mapping/blob/main/examples/04-handles-arcs.html) · [Source](examples/04-handles-arcs.html)
+
+Face-corner normals as handles (direction = tangent, length = bulge), one ellipse arc between every two handles, and sharp edges rounded inside each quad by a blending distance. Shared borders match exactly. The hard cube becomes an exact rounded box, and the smooth cube's arcs lie exactly on the sphere.
+
+![Handles and arcs: mixed cube with a rounded top edge](docs/img/04-handles-arcs.png)
+
 Details and numbers are in the [R&D log](docs/rnd-log.md).
