@@ -582,6 +582,22 @@ Every method we have, measured on real pieces and a real camera (200²). Each me
 | B′: spans → ray + forward-map check | 953 ms | 953 ns |
 | C, step 11: boxes → ray + check | 1,459 ms | 1,459 ns |
 
+**16b. Packed (cache layout).**
+- All pieces' numbers go in one flat array. Each piece's block is ordered by how often a number is used: per pixel (ray, quadric, side planes: 43 numbers = 172 bytes = 3 cache lines in float32) → per span (edge K) → per row (crossings) → per frame (box) → P(u, v). That's 240 numbers per piece.
+- At a span's first pixel, the values that change along the row are set up once; every further pixel only adds fixed steps. Nothing is read from the array inside a span.
+- Output is separate arrays: depth float32, piece 16-bit, u and v 16-bit fixed point. That's 10 bytes per pixel.
+
+| Pipeline (smooth cube, oblique, 400²) | Objects → packed, ns per pixel walked | Model cycles per pixel, packed | Same result |
+|---|---|---|---|
+| A (now): edge u, v → P(u, v) | 803 → 179 (4.5×) | 132 | yes |
+| B: ray, sign rule | 300 → 71 (4.2×) | 16 | yes |
+| B′: ray + forward-map check | 1,227 → 220 (5.6×) | 141 | yes |
+
+- "Same result" means the same piece on every pixel, depth within 10⁻⁵ %, and u, v within 7.7·10⁻⁶ (the 16-bit step).
+- Whole frames at 1000²: B packed takes 44 ms (44 ns per pixel); unpacked B takes 294 ms.
+- The output row: nearest depth at write with the packed output takes 1.65 ms per frame at 10 bytes per pixel, against 3.06 ms at 14 bytes.
+- Lists packed by count, then running sum, then contiguous blocks are written down as a backup only, not implemented.
+
 ## Prior art
 
 Collected from memory at first. Step 7 checked the shared-edge part against abstracts and citing papers.

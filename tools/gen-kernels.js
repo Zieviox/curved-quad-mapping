@@ -9,7 +9,8 @@ const tally=(k,node)=>({type:'SequenceExpression',expressions:[{type:'UpdateExpr
 function markFma(n){if(!n||typeof n!=='object')return;for(const k in n)if(k!=='_fused')markFma(n[k]);
   if(n.type==='BinaryExpression'&&(n.operator==='+'||n.operator==='-')){const m=[n.left,n.right].find(c=>c.type==='BinaryExpression'&&c.operator==='*'&&!c._fused);if(m){m._fused=true;n._fma=true}}}
 function transform(n,mode){if(!n||typeof n!=='object')return n;if(Array.isArray(n))return n.map(c=>transform(c,mode));
-  const out={...n};for(const k in n)if(k!=='_fused'&&k!=='_fma'&&n[k]&&typeof n[k]==='object')out[k]=k==='left'&&n.type==='AssignmentExpression'||k==='id'||k==='params'?n[k]:transform(n[k],mode);
+  // array indices (B[b + 12]) are address arithmetic, free on x86: not rounded, not counted
+  const out={...n};for(const k in n)if(k!=='_fused'&&k!=='_fma'&&n[k]&&typeof n[k]==='object')out[k]=k==='left'&&n.type==='AssignmentExpression'||k==='id'||k==='params'||k==='property'&&n.type==='MemberExpression'&&n.computed?n[k]:transform(n[k],mode);
   if(mode==='f32'){
     if(n.type==='Literal'&&typeof n.value==='number'&&Math.fround(n.value)!==n.value)return{type:'Literal',value:Math.fround(n.value),raw:String(Math.fround(n.value))};
     if(n.type==='BinaryExpression'&&ARITH.has(n.operator)&&!n._fused)return call('fround',out);
