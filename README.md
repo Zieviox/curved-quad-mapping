@@ -53,4 +53,10 @@ Face-corner normals as handles (direction = tangent, length = bulge), one ellips
 
 ![Handles and arcs: hard cube filled as a rounded box](docs/img/04-handles-arcs.png)
 
+### 10 · Clean-slate conversion — [Preview](https://htmlpreview.github.io/?https://github.com/Zieviox/curved-quad-mapping/blob/main/examples/05-quad-pieces.html) · [Source](examples/05-quad-pieces.html)
+
+Same math as step 9, with the conversion rewritten: lookups, vertex rounding, a shared arc cache, pieces, splits ("split further" with a depth limit) and measurement (cracks, holes, spikes). Compatible borders close. Incompatible ones get smaller with one split, but not exact.
+
+![Quad pieces: mixed cube at split depth 1, coloured by crack](docs/img/05-quad-pieces.png)
+
 Details and numbers are in the [R&D log](docs/rnd-log.md).
