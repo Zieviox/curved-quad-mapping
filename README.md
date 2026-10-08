@@ -83,4 +83,8 @@ Pass 1: each piece walks only its own spans (each edge's crossing with a pixel r
 
 ![Two-pass map: resolved pixels and the numbers of a selected pixel](docs/img/09-two-pass-map.png)
 
+### 15 · Closed-form depth only — [Preview](https://htmlpreview.github.io/?https://github.com/Zieviox/curved-quad-mapping/blob/main/examples/10-closed-form-depth.html) · [Source](examples/10-closed-form-depth.html)
+
+Only the closed form, written as plain arithmetic, storing the nearest depth per pixel and printing the depth array. Same depth as step 14; 5.4 ms instead of 43 ms per 200² frame in the browser.
+
 Details and numbers are in the [R&D log](docs/rnd-log.md).
