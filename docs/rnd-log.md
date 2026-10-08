@@ -598,6 +598,25 @@ Every method we have, measured on real pieces and a real camera (200²). Each me
 - The output row: nearest depth at write with the packed output takes 1.65 ms per frame at 10 bytes per pixel, against 3.06 ms at 14 bytes.
 - Lists packed by count, then running sum, then contiguous blocks are written down as a backup only, not implemented.
 
+**16c. Per-pixel facing rule, and pictures.** Of the ray's two hits, take the one where the surface faces the camera: t = (−b − σ·√D)/2a.
+- σ is the quadric's orientation, fixed per piece. There is no per-piece facing flag, so this is the sign rule without f.
+- Cost: 23 model cycles direct, 14 packed and stepped. That's the cheapest of the four rules.
+
+Which hit counts (wrong / no hit, float64; float32 gives the same numbers for this rule):
+
+| Case | Nearest inside planes | Forward-map check | Sign rule | Per-pixel facing |
+|---|---|---|---|---|
+| Smooth cube, straight on | 0 / 0 | 0 / 0 | 3,960 / 0 | 0 / 0 |
+| Smooth cube, oblique | 0 / 0 | 0 / 0 | 148 / 0 | 0 / 0 |
+| Smooth cube, glancing | 0 / 0 | 0 / 0 | 4,147 / 941 | 0 / 0 |
+| Hard cube, straight on | 0 / 0 | 0 / 95 (float32: all) | 0 / 0 | 0 / 0 |
+| Mixed cube, oblique | 52 / 0 | 52 / 0 | 1,822 / 10 | 0 / 430 |
+| Wave, oblique | 569 / 0 | 0 / 0 (float32: 4,772 no hit) | 0 / 0 | 0 / 0 |
+
+- **Pictures** (each rule's whole frame next to the answer key; red = wrong piece or depth) show what's left. Smooth cube, oblique: every rule has the same 3,379 red pixels. Wave: the same 527 across the three non-nearest rules.
+- **That remainder comes from coverage, not the hit choice.** The pixels a piece walks come from its edges' row crossings. Where a piece bulges past its edges (folds at the outline, seams), those pixels are never walked.
+- **Detection note:** per-pixel facing reports pieces hidden behind others as not covering (16,478 "wrongly out" on the smooth cube). Only visible coverage matters for the depth map.
+
 ## Prior art
 
 Collected from memory at first. Step 7 checked the shared-edge part against abstracts and citing papers.
