@@ -107,3 +107,70 @@ function crossEdge(e,Y,xs,n){var yc=Y-e.h,h0=e.f*e.d0-yc*e.z0,A=0,B=0,t1=0,t2=0,
     if(z>0){var X=e.h+e.f*r/z,j=n;n++;while(j>0&&xs[j-1]>X){xs[j]=xs[j-1];j--}xs[j]=X}}
   return n}
 function crossRow(c,Y,xs){var n=crossEdge(c.ce0,Y,xs,0);n=crossEdge(c.ce1,Y,xs,n);n=crossEdge(c.ce2,Y,xs,n);return crossEdge(c.ce3,Y,xs,n)}
+
+// ---------- packed: every piece's numbers in one flat Float64Array, PSTRIDE numbers per piece, ordered by how often they are used ----------
+// per pixel (ray) → per span (edge K) → per row (crossings) → per frame (box) → P(u, v). Inside a span nothing is read from it:
+// the values that change along the row are set up once at the span's first pixel and stepped in local variables.
+var PSTRIDE=240,O_D0=0,O_DX=3,O_DY=6,O_A=9,O_BO=15,O_CQ=18,O_SGN=19,O_PL=20,O_O=36,O_C0=39,O_SC=42,O_K=48,O_R=96,O_BOX=144,O_M=152;
+// O_A: A00 A01 A02 A11 A12 A22 · O_PL: per plane n_x n_y n_z so (4 × 4) · O_K: per edge t b1x b1y b10 b0x b0y b00 b2x b2y b20 c sg (4 × 12)
+// O_R: per edge straight w r0 d0 z0 r1 d1 z1 r2 d2 z2 – (4 × 12) · O_BOX: bx0 bx1 by0 by1 · O_M (P(u, v)): n (4 × 3) h (4) A (6) g (3) k sc c0 (3) corners (4 × 3) arcs (4 × 10: p0 a p2 w)
+function packLayout(){return{PSTRIDE:PSTRIDE,O_D0:O_D0,O_DX:O_DX,O_DY:O_DY,O_A:O_A,O_BO:O_BO,O_CQ:O_CQ,O_SGN:O_SGN,O_PL:O_PL,O_O:O_O,O_C0:O_C0,O_SC:O_SC,O_K:O_K,O_R:O_R,O_BOX:O_BOX,O_M:O_M}}
+function arcAtP(B,o,t,ar){var r=1-t,b0=r*r,b1=2*B[o+9]*r*t,b2=t*t,s=1/(b0+b1+b2);ar[0]=(B[o]*b0+B[o+3]*b1+B[o+6]*b2)*s;ar[1]=(B[o+1]*b0+B[o+4]*b1+B[o+7]*b2)*s;ar[2]=(B[o+2]*b0+B[o+5]*b1+B[o+8]*b2)*s}
+// P(u, v) from the packed block (same formulas as pointAt)
+function pointAtP(B,m,u,v,out,ar){var iu=1-u,iv=1-v;
+  var ux=B[m+9]*iu+B[m+3]*u,uy=B[m+10]*iu+B[m+4]*u,uz=B[m+11]*iu+B[m+5]*u,uh=B[m+15]*iu+B[m+13]*u;
+  var vx=B[m]*iv+B[m+6]*v,vy=B[m+1]*iv+B[m+7]*v,vz=B[m+2]*iv+B[m+8]*v,vh=B[m+12]*iv+B[m+14]*v;
+  var dx=uy*vz-uz*vy,dy=uz*vx-ux*vz,dz=ux*vy-uy*vx,DD=dx*dx+dy*dy+dz*dz;if(!(DD>1e-20))return false;
+  var x0=((vy*dz-vz*dy)*uh+(dy*uz-dz*uy)*vh)/DD,y0=((vz*dx-vx*dz)*uh+(dz*ux-dx*uz)*vh)/DD,z0=((vx*dy-vy*dx)*uh+(dx*uy-dy*ux)*vh)/DD;
+  var il=1/Math.sqrt(DD),ex=dx*il,ey=dy*il,ez=dz*il,A00=B[m+16],A01=B[m+17],A02=B[m+18],A11=B[m+19],A12=B[m+20],A22=B[m+21],gx=B[m+22],gy=B[m+23],gz=B[m+24];
+  var Aex=A00*ex+A01*ey+A02*ez,Aey=A01*ex+A11*ey+A12*ez,Aez=A02*ex+A12*ey+A22*ez,Axx=A00*x0+A01*y0+A02*z0,Axy=A01*x0+A11*y0+A12*z0,Axz=A02*x0+A12*y0+A22*z0;
+  var a=ex*Aex+ey*Aey+ez*Aez,b=(2*Axx+gx)*ex+(2*Axy+gy)*ey+(2*Axz+gz)*ez,cq=x0*Axx+y0*Axy+z0*Axz+gx*x0+gy*y0+gz*z0+B[m+25];
+  var w00=iu*iv,w10=u*iv,w11=u*v,w01=iu*v;
+  arcAtP(B,m+42,u,ar);var bx=ar[0]*iv,by=ar[1]*iv,bz=ar[2]*iv;
+  arcAtP(B,m+62,iu,ar);bx=bx+ar[0]*v;by=by+ar[1]*v;bz=bz+ar[2]*v;
+  arcAtP(B,m+72,iv,ar);bx=bx+ar[0]*iu;by=by+ar[1]*iu;bz=bz+ar[2]*iu;
+  arcAtP(B,m+52,v,ar);bx=bx+ar[0]*u;by=by+ar[1]*u;bz=bz+ar[2]*u;
+  bx=bx-(B[m+30]*w00+B[m+33]*w10+B[m+36]*w11+B[m+39]*w01);by=by-(B[m+31]*w00+B[m+34]*w10+B[m+37]*w11+B[m+40]*w01);bz=bz-(B[m+32]*w00+B[m+35]*w10+B[m+38]*w11+B[m+41]*w01);
+  var sc=B[m+26],tr=((bx-B[m+27])*sc-x0)*ex+((by-B[m+28])*sc-y0)*ey+((bz-B[m+29])*sc-z0)*ez,t=0;
+  if(Math.abs(a)<1e-12){if(!(Math.abs(b)>1e-15))return false;t=-cq/b}
+  else{var D=b*b-4*a*cq;if(D<0&&D>-1e-9*(b*b+Math.abs(4*a*cq)+1e-30))D=0;if(!(D>=0))return false;var s=Math.sqrt(D),r1=(-b+s)/(2*a),r2=(-b-s)/(2*a);t=Math.abs(r1-tr)<Math.abs(r2-tr)?r1:r2}
+  var is=1/sc;out[0]=B[m+27]+(x0+ex*t)*is;out[1]=B[m+28]+(y0+ey*t)*is;out[2]=B[m+29]+(z0+ez*t)*is;return true}
+// one pixel row against the piece's 4 edges (same formulas as crossRow); crossings sorted into xs
+function crossRowP(B,b,Y,xs,f,h){var n=0;for(var k=0;k<4;k++){var o=b+O_R+12*k,yc=Y-h,h0=f*B[o+3]-yc*B[o+4],A=0,Bq=0,t1=0,t2=0,m=0;
+    if(B[o]===1){Bq=(f*B[o+9]-yc*B[o+10])-h0}else{var hb=B[o+1]*(f*B[o+6]-yc*B[o+7]),hd=f*B[o+9]-yc*B[o+10];A=h0-2*hb+hd;Bq=2*(hb-h0)}
+    if(Math.abs(A)<=1e-12*(Math.abs(Bq)+Math.abs(h0))){if(Bq===0)continue;t1=-h0/Bq;m=1}
+    else{var D=Bq*Bq-4*A*h0;if(D<0)continue;var s=Math.sqrt(D),q=-0.5*(Bq+(Bq<0?-s:s));if(q!==0){t1=q/A;t2=h0/q}m=2}
+    for(var i=0;i<m;i++){var t=i===0?t1:t2;if(!(t>=0&&t<1))continue;var r=0,z=0;
+      if(B[o]===1){r=B[o+2]+(B[o+8]-B[o+2])*t;z=B[o+4]+(B[o+10]-B[o+4])*t}else{var w=1-t,b0=w*w,b1=2*B[o+1]*t*w,b2=t*t;r=b0*B[o+2]+b1*B[o+5]+b2*B[o+8];z=b0*B[o+4]+b1*B[o+7]+b2*B[o+10]}
+      if(z>0){var X=h+f*r/z,j=n;n++;while(j>0&&xs[j-1]>X){xs[j]=xs[j-1];j--}xs[j]=X}}}
+  return n}
+// a span, pipeline A (now): u, v from the edges (K stepped along the row), then P(u, v), then depth; nearest kept, packed output (u, v as 16-bit fixed point)
+function spanEdgeP(B,b,Y,x0,x1,W,cp,z,pid,uq,vq,id,S,out,ar){var X=x0+0.5,w=0;
+  for(var k=0;k<4;k++){var o=b+O_K+12*k,s=7*k;S[s]=B[o+1]*X+B[o+2]*Y+B[o+3];S[s+1]=B[o+1];S[s+5]=B[o];S[s+6]=B[o+11];
+    if(B[o]!==0){var e0=B[o+4]*X+B[o+5]*Y+B[o+6],e2=B[o+7]*X+B[o+8]*Y+B[o+9],q0=B[o+10]*e0*e2,q1=B[o+10]*(e0+B[o+4])*(e2+B[o+7]),q2=B[o+10]*(e0+2*B[o+4])*(e2+2*B[o+7]);S[s+2]=q0;S[s+3]=q1-q0;S[s+4]=q2-2*q1+q0}}
+  for(var x=x0;x<=x1;x++){
+    var K0=S[5]===0?S[0]:S[0]-S[6]*Math.sqrt(Math.max(0,S[2])),K1=S[12]===0?S[7]:S[7]-S[13]*Math.sqrt(Math.max(0,S[9])),K2=S[19]===0?S[14]:S[14]-S[20]*Math.sqrt(Math.max(0,S[16])),K3=S[26]===0?S[21]:S[21]-S[27]*Math.sqrt(Math.max(0,S[23]));
+    S[0]=S[0]+S[1];S[2]=S[2]+S[3];S[3]=S[3]+S[4];S[7]=S[7]+S[8];S[9]=S[9]+S[10];S[10]=S[10]+S[11];S[14]=S[14]+S[15];S[16]=S[16]+S[17];S[17]=S[17]+S[18];S[21]=S[21]+S[22];S[23]=S[23]+S[24];S[24]=S[24]+S[25];
+    var u=Math.min(1,Math.max(0,K3/(K3+K1))),v=Math.min(1,Math.max(0,K0/(K0+K2)));
+    if(!pointAtP(B,b+O_M,u,v,out,ar))continue;var d=(out[0]-cp[0])*cp[3]+(out[1]-cp[1])*cp[4]+(out[2]-cp[2])*cp[5],o2=(Y-0.5)*W+x;
+    if(z[o2]===0||d<z[o2]){z[o2]=d;pid[o2]=id;uq[o2]=Math.round(u*65535);vq[o2]=Math.round(v*65535);w++}}
+  return w}
+// a span, pipelines B / B′: the pixel's ray against the piece's quadric, everything stepped along the row:
+// d (3 adds), a = d·A·d (quadratic: 2 adds), b = bo·d (1 add), the 4 planes' n·d (4 adds). mode 0: nearest hit inside the planes · 1: sign rule · 2: nearest + forward-map check
+function spanRay(B,b,Y,x0,x1,W,mode,z,pid,uq,vq,id,out,ar,p){var X=x0+0.5,w=0,A00=B[b+O_A],A01=B[b+O_A+1],A02=B[b+O_A+2],A11=B[b+O_A+3],A12=B[b+O_A+4],A22=B[b+O_A+5],cq=B[b+O_CQ];
+  var sx=B[b+O_DX],sy=B[b+O_DX+1],sz=B[b+O_DX+2],dx=B[b+O_D0]+X*sx+Y*B[b+O_DY],dy=B[b+O_D0+1]+X*sy+Y*B[b+O_DY+1],dz=B[b+O_D0+2]+X*sz+Y*B[b+O_DY+2];
+  var Asx=A00*sx+A01*sy+A02*sz,Asy=A01*sx+A11*sy+A12*sz,Asz=A02*sx+A12*sy+A22*sz,Adx=A00*dx+A01*dy+A02*dz,Ady=A01*dx+A11*dy+A12*dz,Adz=A02*dx+A12*dy+A22*dz;
+  var a=dx*Adx+dy*Ady+dz*Adz,dd=2*(sx*Adx+sy*Ady+sz*Adz),sAs=sx*Asx+sy*Asy+sz*Asz,da=dd+sAs,dda=2*sAs,bb=B[b+O_BO]*dx+B[b+O_BO+1]*dy+B[b+O_BO+2]*dz,db=B[b+O_BO]*sx+B[b+O_BO+1]*sy+B[b+O_BO+2]*sz;
+  var P=b+O_PL,n0=B[P]*dx+B[P+1]*dy+B[P+2]*dz,s0=B[P]*sx+B[P+1]*sy+B[P+2]*sz,n1=B[P+4]*dx+B[P+5]*dy+B[P+6]*dz,s1=B[P+4]*sx+B[P+5]*sy+B[P+6]*sz,n2=B[P+8]*dx+B[P+9]*dy+B[P+10]*dz,s2=B[P+8]*sx+B[P+9]*sy+B[P+10]*sz,n3=B[P+12]*dx+B[P+13]*dy+B[P+14]*dz,s3=B[P+12]*sx+B[P+13]*sy+B[P+14]*sz;
+  var o0=B[P+3],o1=B[P+7],o2=B[P+11],o3=B[P+15],sgn=B[b+O_SGN];
+  for(var x=x0;x<=x1;x++){var t=-1,u=0,v=0,ok=false;
+    if(mode===1){var D=bb*bb-4*a*cq;if(D<0&&D>-1e-9*(bb*bb+Math.abs(4*a*cq)+1e-30))D=0;if(D>=0){t=Math.abs(a)<1e-14?-cq/bb:(-bb-sgn*Math.sqrt(D))/(2*a);
+        if(t>1e-9){var q0=o0+t*n0,q1=o1+t*n1,q2=o2+t*n2,q3=o3+t*n3;if(!(q3<-1e-9||q1>1e-9||q0<-1e-9||q2>1e-9)){u=q3/(q3-q1);v=q0/(q0-q2);ok=true}}}}
+    else{var t1=0,t2=0,has=true;if(Math.abs(a)<1e-14){if(Math.abs(bb)<1e-14)has=false;else{t1=-cq/bb;t2=t1}}else{var D2=bb*bb-4*a*cq;if(D2<0)has=false;else{var s=Math.sqrt(D2),q=-0.5*(bb+(bb<0?-s:s));t1=q/a;t2=cq/q;if(t2<t1){var tt=t1;t1=t2;t2=tt}}}
+      for(var r=0;r<2&&has&&!ok;r++){t=r===0?t1:t2;if(!(t>1e-9))continue;var p0=o0+t*n0,p1=o1+t*n1,p2=o2+t*n2,p3=o3+t*n3;if(p3<-1e-9||p1>1e-9||p0<-1e-9||p2>1e-9)continue;u=p3/(p3-p1);v=p0/(p0-p2);
+        if(mode===2){if(!pointAtP(B,b+O_M,Math.min(1,Math.max(0,u)),Math.min(1,Math.max(0,v)),p,ar))continue;var is=1/B[b+O_SC],WX=B[b+O_C0]+(B[b+O_O]+t*dx)*is,WY=B[b+O_C0+1]+(B[b+O_O+1]+t*dy)*is,WZ=B[b+O_C0+2]+(B[b+O_O+2]+t*dz)*is,ex=p[0]-WX,ey=p[1]-WY,ez=p[2]-WZ;
+          if(!(Math.sqrt(ex*ex+ey*ey+ez*ez)<=1e-6*(1+Math.sqrt(WX*WX+WY*WY+WZ*WZ))))continue}
+        ok=true}}
+    if(ok){var o=(Y-0.5)*W+x;if(z[o]===0||t<z[o]){z[o]=t;pid[o]=id;uq[o]=Math.round(Math.min(1,Math.max(0,u))*65535);vq[o]=Math.round(Math.min(1,Math.max(0,v))*65535);w++}}
+    dx=dx+sx;dy=dy+sy;dz=dz+sz;a=a+da;da=da+dda;bb=bb+db;n0=n0+s0;n1=n1+s1;n2=n2+s2;n3=n3+s3}
+  return w}
