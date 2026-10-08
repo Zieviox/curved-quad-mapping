@@ -9,3 +9,4 @@ R&D for a CPU-only, closed-form mapping between curved quad patches and screen p
 |---|---|
 | [`01-pixel-walk-test.html`](examples/01-pixel-walk-test.html) | First test: walks patches in derivative-sized one-pixel steps and measures gaps against a dense reference. Tap-to-inspect zoom, gap causes, copyable report. |
 | [`02-row-explainer.html`](examples/02-row-explainer.html) | One patch on a 14 × 14 pixel grid. One row (fixed v) solved exactly against every pixel edge, and the pixel cells drawn in the patch's (u, v) square. |
+| [`03-pixel-slices.html`](examples/03-pixel-slices.html) | Pixel grid lines as planes (knives) through the camera, cutting the patch. Shows each pixel's row strip and pixel piece in (u, v), and its corners: closed form (quadratic) for an ellipsoid piece and a bilinear quad, degree 8 for Phong. |

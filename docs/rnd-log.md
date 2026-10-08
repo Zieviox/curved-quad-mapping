@@ -61,4 +61,11 @@ Where a horizontal slice meets a vertical slice is a pixel corner on the patch. 
 | Nagata, Phong | (2, 2) | 8 | no |
 | PN-quad, B-spline | (3, 3) | 18 | no |
 
+Example 03 shows this for Phong, an ellipsoid piece and a twisted bilinear quad, with all three in the same camera:
+
+- **Ellipsoid piece:** a corner is a ray vs ellipsoid. Stretch space so the ellipsoid is a unit sphere, solve the quadratic in t, then get (u, v) back from the hit point's angles.
+- **Bilinear quad:** a corner is two knife planes, each giving `A + B·u + C·v + D·uv = 0`. Eliminating u leaves a quadratic in v.
+- **Phong:** corners are found with Newton's method, only for drawing.
+- **Check:** for the ellipsoid and bilinear patches, every closed-form corner of every covered pixel lands within 1e-14 px of the true pixel corner when reprojected (124 and 100 corners).
+
 Open question: is the target exact pixel corners (needs a quadric or bilinear patch), or exact slices without corners?

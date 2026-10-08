@@ -1,0 +1,212 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Pixel Slices</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: phone-first. Steps, controls, then three views (screen, knives in 3D, uv square) stacked; 2 columns from 820px. Same tokens as the other examples. */
+:root{
+  --bg:#eef1f4;--surface:#ffffff;--fg:#151a21;--muted:#59626f;--line:#d6dce3;--accent:#2d56d2;--warn:#c8321f;--good:#1b7a52;
+  --row:#2d56d2;--col:#d0721a;--rowT:#c9d6fb;--pix:#1f3b9a;
+  --chkA:#f3f5f8;--chkB:#e1e6ec;--patch:#b9c3cf;
+  --f-display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
+  --f-body:"IBM Plex Sans",ui-sans-serif,system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0e1115;--surface:#161a20;--fg:#e4e8ee;--muted:#98a1ae;--line:#2a313a;--accent:#7f9cff;--warn:#ff5f4a;--good:#5fd0a0;--row:#7f9cff;--col:#f0a050;--rowT:#26355f;--pix:#9db4ff;--chkA:#1d222a;--chkB:#262d37;--patch:#55606e;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0e1115;--surface:#161a20;--fg:#e4e8ee;--muted:#98a1ae;--line:#2a313a;--accent:#7f9cff;--warn:#ff5f4a;--good:#5fd0a0;--row:#7f9cff;--col:#f0a050;--rowT:#26355f;--pix:#9db4ff;--chkA:#1d222a;--chkB:#262d37;--patch:#55606e;color-scheme:dark}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:15px;line-height:1.55}
+.wrap{max-width:1040px;margin:0 auto;padding-inline:16px;padding-block:22px 56px;display:flex;flex-direction:column;gap:22px}
+h1{font-family:var(--f-display);font-weight:700;font-size:clamp(26px,5vw,34px);line-height:1.1;margin:0;text-wrap:balance}
+h2{font-family:var(--f-display);font-weight:600;font-size:18px;margin:0}
+p{margin:0;max-width:68ch}
+.eyebrow{font-family:var(--f-mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+ol.steps{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:6px;max-width:68ch}
+.ctrls{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.seg{display:inline-flex;flex-wrap:wrap;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surface)}
+.seg button{font:500 14px var(--f-body);color:var(--muted);background:transparent;border:0;padding:8px 14px;min-height:38px;cursor:pointer}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button.on{color:var(--fg);background:var(--bg);box-shadow:inset 0 -2px 0 var(--accent)}
+button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.views{display:grid;grid-template-columns:1fr;gap:18px}
+@media (min-width:820px){.views{grid-template-columns:1fr 1fr}}
+.view{display:flex;flex-direction:column;gap:8px;min-width:0}
+canvas{width:100%;max-width:100%;aspect-ratio:1;display:block;border:1px solid var(--line);border-radius:10px;background:var(--surface);touch-action:none}
+.cap{font-size:13px;color:var(--muted)}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12.5px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.sw{width:12px;height:12px;border-radius:2px;display:inline-block}
+.ln{width:16px;height:3px;border-radius:2px;display:inline-block}
+.tw{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font:12.5px var(--f-mono);font-variant-numeric:tabular-nums}
+th,td{padding:6px 10px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+th{font-family:var(--f-body);font-weight:500;color:var(--muted);font-size:12px}
+tr:last-child td{border-bottom:0}
+tr.on td{background:var(--bg);font-weight:500}
+td.yes{color:var(--good)}td.no{color:var(--warn)}
+.verdict{font:500 14px var(--f-body);padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--surface)}
+.verdict.yes{border-color:var(--good)}.verdict.no{border-color:var(--warn)}
+</style>
+
+<div class="wrap">
+<header>
+  <div class="eyebrow">Curved quads · pixel grid as knives</div>
+  <h1>Pixel Slices</h1>
+</header>
+
+<ol class="steps">
+  <li>Every pixel edge on the screen is a straight line. Seen from the camera, a straight line is a flat plane: a <b>knife</b>.</li>
+  <li><b>Knives (3D)</b>: the selected pixel's four knives cut the patch. Blue knives are the pixel's top and bottom edges, orange knives its left and right edges. The colored curves are the cuts.</li>
+  <li><b>Patch (u, v) square</b>: every knife's cut drawn on the patch. The light strip is everything the selected pixel's <b>row</b> owns. The dark piece is what the <b>pixel</b> owns.</li>
+  <li><b>Dots</b>: where a blue cut meets an orange cut. That's a pixel corner on the patch. Switch the surface to see where finding that corner has a closed form.</li>
+</ol>
+
+<div class="ctrls">
+  <div class="seg" role="group" aria-label="Surface"><button data-s="0" class="on">Phong</button><button data-s="1">Ellipsoid piece</button><button data-s="2">Bilinear (twisted)</button></div>
+</div>
+<div class="verdict" id="verdict"></div>
+
+<div class="views">
+  <div class="view"><h2>Screen</h2><canvas id="cs" aria-label="10 by 10 pixel screen with the patch. Tap a pixel to select it."></canvas>
+    <p class="cap">Tap a pixel to select it.</p></div>
+  <div class="view"><h2>Knives (3D)</h2><canvas id="c3" aria-label="3D view: camera, screen, the selected pixel's four knife planes and their cuts through the patch. Drag to orbit."></canvas>
+    <p class="cap">Drag to orbit. The dot is the camera; the small grid is the screen.</p></div>
+  <div class="view"><h2>Patch (u, v) square</h2><canvas id="cu" aria-label="The patch's uv square with all knife cuts. Tap to select the pixel at that point."></canvas>
+    <div class="legend"><span><span class="ln" style="background:var(--row)"></span>Pixel-row edge cut</span><span><span class="ln" style="background:var(--col)"></span>Pixel-column edge cut</span><span><span class="sw" style="background:var(--rowT)"></span>Selected pixel's row</span><span><span class="sw" style="background:var(--pix)"></span>Selected pixel</span></div>
+    <p class="cap">u goes right, v goes up. Tap to select the pixel at that point.</p></div>
+  <div class="view"><h2>Corners of the selected pixel</h2>
+    <div class="tw"><table><thead><tr><th>Corner (x, y)</th><th>u</th><th>v</th><th>Solved by</th></tr></thead><tbody id="ctab"></tbody></table></div>
+    <h2>Corner = ray vs patch</h2>
+    <div class="tw"><table><thead><tr><th>Patch</th><th>Each cut</th><th>Corner equation</th><th>Closed form</th></tr></thead><tbody id="dtab"></tbody></table></div>
+    <p class="cap">Phong corners on this page are found with Newton's method, only so they can be drawn. There is no closed form for them.</p></div>
+</div>
+</div>
+
+<script>
+const add=(a,b)=>[a[0]+b[0],a[1]+b[1],a[2]+b[2]],sub=(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]],mul=(a,s)=>[a[0]*s,a[1]*s,a[2]*s],dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2],cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]],len=a=>Math.hypot(a[0],a[1],a[2]),norm=a=>mul(a,1/(len(a)||1));
+function phong(X,N){return(u,v)=>{const w=[(1-u)*(1-v),u*(1-v),u*v,(1-u)*v];let p=[0,0,0];for(let i=0;i<4;i++)p=add(p,mul(X[i],w[i]));let s=[0,0,0];for(let i=0;i<4;i++){const q=sub(p,mul(N[i],dot(sub(p,X[i]),N[i])));s=add(s,mul(q,w[i]))}return add(mul(p,0.25),mul(s,0.75))}}
+
+// ---------- scene in camera (view) space: camera at origin, X right, Y down, Z forward ----------
+const NPX=10;
+const rot=(()=>{const rx=(a,p)=>[p[0],p[1]*Math.cos(a)-p[2]*Math.sin(a),p[1]*Math.sin(a)+p[2]*Math.cos(a)],ry=(a,p)=>[p[0]*Math.cos(a)+p[2]*Math.sin(a),p[1],-p[0]*Math.sin(a)+p[2]*Math.cos(a)],rz=(a,p)=>[p[0]*Math.cos(a)-p[1]*Math.sin(a),p[0]*Math.sin(a)+p[1]*Math.cos(a),p[2]];return p=>ry(0.45,rx(Math.PI-0.8,rz(0.3,p)))})();
+const TR=[0.1,0.05,4.2],place=p=>add(rot(p),TR),placeDir=p=>rot(p);
+const LX=[[-1,-1,0],[1,-1,0],[1,1,0],[-1,1,0]];
+// R^T for the ellipsoid ray transform: columns of rot are images of the unit axes
+const RC=[placeDir([1,0,0]),placeDir([0,1,0]),placeDir([0,0,1])],toLocal=p=>[dot(p,RC[0]),dot(p,RC[1]),dot(p,RC[2])];
+
+// three surfaces, each: eval(u,v) -> view-space point, corner(dir) -> {u,v} or null
+function makePhong(){const ev=phong(LX.map(place),LX.map(x=>placeDir(norm([x[0]*0.7,x[1]*0.7,1]))));return{eval:ev,cut:'degree 2 in u, 2 in v',eq:'degree 8',closed:false,how:'Newton (numeric)'}}
+function makeBilinear(){const X=[[-1,-1,0.35],[1,-1,-0.35],[1,1,0.35],[-1,1,-0.35]].map(place),a=X[0],b=sub(X[1],X[0]),c=sub(X[3],X[0]),d=add(sub(X[2],X[1]),sub(X[0],X[3]));
+  const ev=(u,v)=>add(add(a,mul(b,u)),add(mul(c,v),mul(d,u*v)));
+  // ray through the origin = two knife planes n1, n2; each gives A + B u + C v + D uv = 0
+  const corner=(n1,n2)=>{const k=n=>[dot(n,a),dot(n,b),dot(n,c),dot(n,d)],[A1,B1,C1,D1]=k(n1),[A2,B2,C2,D2]=k(n2);
+    // u = -(A1 + C1 v)/(B1 + D1 v) into the second: quadratic in v
+    const qa=C2*D1-D2*C1,qb=A2*D1+C2*B1-B2*C1-D2*A1,qc=A2*B1-B2*A1,out=[];
+    const roots=Math.abs(qa)<1e-12?(Math.abs(qb)<1e-12?[]:[-qc/qb]):(()=>{const h=qb/2,D=h*h-qa*qc;if(D<0)return[];const q=-(h+(h<0?-1:1)*Math.sqrt(D));return q===0?[0]:[q/qa,qc/q]})();
+    for(const v of roots){const den=B1+D1*v;if(Math.abs(den)<1e-12)continue;const u=-(A1+C1*v)/den;out.push({u,v})}
+    return pickIn(out)};
+  return{eval:ev,corner,cut:'hyperbola in uv, degree (1, 1)',eq:'degree 2',closed:true,how:'quadratic'}}
+function makeEllipsoid(){const R=[1.9,1.6,1.15],C0=[0,0,-0.7],T0=-0.72,T1=0.72,P0=-0.68,P1=0.68;
+  const loc=(u,v)=>{const t=T0+(T1-T0)*u,p=P0+(P1-P0)*v;return[R[0]*Math.cos(p)*Math.sin(t),R[1]*Math.sin(p),R[2]*Math.cos(p)*Math.cos(t)]};
+  const ev=(u,v)=>place(add(loc(u,v),C0));
+  // ray o + t d: stretch space so the ellipsoid is a unit sphere, then a quadratic in t
+  const corner=(n1,n2,d)=>{const o=sub(toLocal(sub([0,0,0],TR)),C0),dl=toLocal(d),os=[o[0]/R[0],o[1]/R[1],o[2]/R[2]],ds=[dl[0]/R[0],dl[1]/R[1],dl[2]/R[2]];
+    const A=dot(ds,ds),B=dot(os,ds),Cc=dot(os,os)-1,D=B*B-A*Cc;if(D<0)return null;const t=(-B-Math.sqrt(D))/A;if(t<=0)return null;
+    const q=add(o,mul(dl,t)),th=Math.atan2(q[0]/R[0],q[2]/R[2]),ph=Math.asin(Math.max(-1,Math.min(1,q[1]/R[1])));return pickIn([{u:(th-T0)/(T1-T0),v:(ph-P0)/(P1-P0)}])};
+  return{eval:ev,corner,cut:'ellipse (a conic)',eq:'degree 2',closed:true,how:'quadratic'}}
+const pickIn=l=>l.find(c=>c.u>=-1e-9&&c.u<=1+1e-9&&c.v>=-1e-9&&c.v<=1+1e-9)||null;
+
+// screen projection, fitted once from the Phong patch so all three share one camera
+const FIT=(()=>{const ev=makePhong().eval;let a=1e9,b=-1e9,c=1e9,d=-1e9;for(let j=0;j<=30;j++)for(let i=0;i<=30;i++){const p=ev(i/30,j/30),x=p[0]/p[2],y=p[1]/p[2];a=Math.min(a,x);b=Math.max(b,x);c=Math.min(c,y);d=Math.max(d,y)}const f=7.4/Math.max(b-a,d-c);return{f,cx:NPX/2-f*(a+b)/2+0.31,cy:NPX/2-f*(c+d)/2+0.17}})();
+const scr=p=>[FIT.cx+FIT.f*p[0]/p[2],FIT.cy+FIT.f*p[1]/p[2]];
+// knife planes through the camera: x = k  ->  n = (f, 0, cx - k);  y = k  ->  n = (0, f, cy - k)
+const knifeX=k=>[FIT.f,0,FIT.cx-k],knifeY=k=>[0,FIT.f,FIT.cy-k],rayDir=(x,y)=>[(x-FIT.cx)/FIT.f,(y-FIT.cy)/FIT.f,1];
+
+// ---------- precompute per surface ----------
+let SID=0,S=null,G=null,SEL={x:5,y:5},yaw=0.95,pitch=0.42;
+const RG=200,MG=96;
+function build(){S=[makePhong,makeEllipsoid,makeBilinear][SID]();
+  // pixel id per uv texel (raster) and the node grid for cuts
+  const id=new Int16Array(RG*RG);for(let j=0;j<RG;j++)for(let i=0;i<RG;i++){const p=scr(S.eval((i+0.5)/RG,(j+0.5)/RG)),x=Math.floor(p[0]),y=Math.floor(p[1]);id[j*RG+i]=x>=0&&y>=0&&x<NPX&&y<NPX?y*NPX+x:-1}
+  const P=[];for(let j=0;j<=MG;j++)for(let i=0;i<=MG;i++)P.push(S.eval(i/MG,j/MG));
+  const cuts=[];for(let k=0;k<=NPX;k++){cuts.push({dir:'y',k,seg:march(P,knifeY(k))});cuts.push({dir:'x',k,seg:march(P,knifeX(k))})}
+  const cover=new Uint8Array(NPX*NPX);id.forEach(v=>{if(v>=0)cover[v]=1});
+  G={id,P,cuts,cover};if(!cover[SEL.y*NPX+SEL.x]){const c=[...cover.keys()].filter(i=>cover[i]).sort((a,b)=>Math.hypot(a%NPX-4.5,(a/NPX|0)-4.5)-Math.hypot(b%NPX-4.5,(b/NPX|0)-4.5))[0];SEL={x:c%NPX,y:c/NPX|0}}}
+// marching squares on n·P(u,v) = 0 over the uv node grid -> segments in uv
+function march(P,n){const g=P.map(p=>dot(n,p)),segs=[],at=(i,j)=>g[j*(MG+1)+i];
+  for(let j=0;j<MG;j++)for(let i=0;i<MG;i++){const c=[[i,j],[i+1,j],[i+1,j+1],[i,j+1]],val=c.map(([a,b])=>at(a,b)),pts=[];
+    for(let e=0;e<4;e++){const a=val[e],b=val[(e+1)%4];if((a<0)!==(b<0)){const t=a/(a-b),p=c[e],q=c[(e+1)%4];pts.push([(p[0]+(q[0]-p[0])*t)/MG,(p[1]+(q[1]-p[1])*t)/MG])}}
+    if(pts.length>=2)segs.push([pts[0],pts[1]]);if(pts.length===4)segs.push([pts[2],pts[3]])}
+  return segs}
+// pixel corners on the patch: closed form for ellipsoid and bilinear, Newton for Phong
+function corners(){const out=[];for(const[dx,dy]of[[0,0],[1,0],[1,1],[0,1]]){const x=SEL.x+dx,y=SEL.y+dy;let c=null;
+    if(S.corner)c=S.corner(knifeX(x),knifeY(y),rayDir(x,y));else c=newton(x,y);out.push({x,y,c})}return out}
+function newton(x,y){let best=null,bd=1e9;for(let j=0;j<RG;j+=4)for(let i=0;i<RG;i+=4){const p=scr(S.eval((i+0.5)/RG,(j+0.5)/RG)),d=Math.hypot(p[0]-x,p[1]-y);if(d<bd){bd=d;best=[(i+0.5)/RG,(j+0.5)/RG]}}
+  let[u,v]=best;for(let it=0;it<30;it++){const h=1e-6,F=(a,b)=>{const p=scr(S.eval(a,b));return[p[0]-x,p[1]-y]},f0=F(u,v),fu=F(u+h,v),fv=F(u,v+h),J=[(fu[0]-f0[0])/h,(fv[0]-f0[0])/h,(fu[1]-f0[1])/h,(fv[1]-f0[1])/h],det=J[0]*J[3]-J[1]*J[2];if(Math.abs(det)<1e-14)break;u-=(J[3]*f0[0]-J[1]*f0[1])/det;v-=(-J[2]*f0[0]+J[0]*f0[1])/det;if(Math.hypot(f0[0],f0[1])<1e-10)break}
+  return u>=-1e-6&&u<=1+1e-6&&v>=-1e-6&&v<=1+1e-6?{u,v}:null}
+
+// ---------- drawing ----------
+let C={};function readC(){const g=getComputedStyle(document.documentElement);['surface','fg','muted','line','accent','row','col','rowT','pix','chkA','chkB','patch','warn','good'].forEach(k=>C[k]=g.getPropertyValue('--'+k).trim())}
+const rgb=s=>{s=s.replace('#','');if(s.length===3)s=s.split('').map(c=>c+c).join('');return[0,2,4].map(i=>parseInt(s.slice(i,i+2),16))};
+const cs=document.getElementById('cs'),c3=document.getElementById('c3'),cu=document.getElementById('cu');
+function size(c){const dp=window.devicePixelRatio||1,w=Math.round(c.clientWidth*dp);if(w&&c.width!==w){c.width=w;c.height=w}return c.width}
+const selId=()=>SEL.y*NPX+SEL.x,inRow=id=>id>=0&&Math.floor(id/NPX)===SEL.y;
+function cellFill(id){if(id<0)return null;if(id===selId())return C.pix;if(inRow(id))return C.rowT;return((id%NPX)+(id/NPX|0))%2?C.chkB:C.chkA}
+
+function drawScreen(){const W=size(cs);if(!W)return;const x=cs.getContext('2d'),k=W/NPX;x.clearRect(0,0,W,W);
+  for(let j=0;j<NPX;j++)for(let i=0;i<NPX;i++){const id=j*NPX+i;x.fillStyle=G.cover[id]?(cellFill(id)):C.surface;x.fillRect(i*k,j*k,k,k)}
+  x.strokeStyle=C.line;x.lineWidth=1;x.beginPath();for(let i=0;i<=NPX;i++){x.moveTo(i*k,0);x.lineTo(i*k,W);x.moveTo(0,i*k);x.lineTo(W,i*k)}x.stroke();
+  // patch outline
+  x.strokeStyle=C.fg;x.lineWidth=Math.max(1.5,W/300);x.beginPath();for(let t=0;t<=200;t++){const s=t/50,e=s<1?[s,0]:s<2?[1,s-1]:s<3?[3-s,1]:[0,4-s],p=scr(S.eval(e[0],e[1]));t?x.lineTo(p[0]*k,p[1]*k):x.moveTo(p[0]*k,p[1]*k)}x.stroke();
+  // selected pixel edges in knife colors
+  const lw=Math.max(3,W/110);x.lineWidth=lw;x.strokeStyle=C.row;x.beginPath();x.moveTo(SEL.x*k,SEL.y*k);x.lineTo((SEL.x+1)*k,SEL.y*k);x.moveTo(SEL.x*k,(SEL.y+1)*k);x.lineTo((SEL.x+1)*k,(SEL.y+1)*k);x.stroke();
+  x.strokeStyle=C.col;x.beginPath();x.moveTo(SEL.x*k,SEL.y*k);x.lineTo(SEL.x*k,(SEL.y+1)*k);x.moveTo((SEL.x+1)*k,SEL.y*k);x.lineTo((SEL.x+1)*k,(SEL.y+1)*k);x.stroke()}
+
+function drawUV(cr){const W=size(cu);if(!W)return;const x=cu.getContext('2d'),n=RG,im=x.createImageData(n,n),d=im.data,cache={};
+  for(let j=0;j<n;j++)for(let i=0;i<n;i++){const id=G.id[(n-1-j)*n+i],col=cellFill(id)||C.surface,c=cache[col]||(cache[col]=rgb(col)),o=(j*n+i)*4;d[o]=c[0];d[o+1]=c[1];d[o+2]=c[2];d[o+3]=255}
+  const t=document.createElement('canvas');t.width=n;t.height=n;t.getContext('2d').putImageData(im,0,0);x.imageSmoothingEnabled=false;x.clearRect(0,0,W,W);x.drawImage(t,0,0,W,W);
+  const P=p=>[p[0]*W,(1-p[1])*W];
+  G.cuts.forEach(c=>{const sel=c.dir==='y'?(c.k===SEL.y||c.k===SEL.y+1):(c.k===SEL.x||c.k===SEL.x+1);x.strokeStyle=c.dir==='y'?C.row:C.col;x.globalAlpha=sel?1:0.55;x.lineWidth=sel?Math.max(3,W/120):Math.max(1,W/400);x.beginPath();c.seg.forEach(s=>{const a=P(s[0]),b=P(s[1]);x.moveTo(a[0],a[1]);x.lineTo(b[0],b[1])});x.stroke()});x.globalAlpha=1;
+  const r=Math.max(5,W/60);cr.forEach(o=>{if(!o.c)return;const p=P([o.c.u,o.c.v]);x.beginPath();x.arc(p[0],p[1],r,0,7);x.fillStyle=S.closed?C.good:C.surface;x.fill();x.lineWidth=Math.max(2,W/200);x.strokeStyle=S.closed?C.surface:C.warn;x.stroke()})}
+
+function draw3D(){const W=size(c3);if(!W)return;const x=c3.getContext('2d');x.clearRect(0,0,W,W);
+  const ctr=[0,0,2.3],dist=8.6,cp=Math.cos(pitch),eye=add(ctr,[dist*cp*Math.sin(yaw),-dist*Math.sin(pitch),-dist*cp*Math.cos(yaw)]),fw=norm(sub(ctr,eye)),rt=norm(cross([0,-1,0],fw)),up=cross(fw,rt),F=W*1.55;
+  const pr=p=>{const q=sub(p,eye),z=dot(q,fw);return[W/2+F*dot(q,rt)/z,W/2-F*dot(q,up)/z,z]};
+  const tris=[];
+  // patch mesh, coloured by which pixel each face lands in
+  const M=30,pts=[];for(let j=0;j<=M;j++)for(let i=0;i<=M;i++)pts.push(S.eval(i/M,j/M));const L=norm([0.3,-0.8,-0.5]);
+  for(let j=0;j<M;j++)for(let i=0;i<M;i++){const a=pts[j*(M+1)+i],b=pts[j*(M+1)+i+1],c=pts[(j+1)*(M+1)+i+1],dd=pts[(j+1)*(M+1)+i],ctrp=mul(add(add(a,b),add(c,dd)),0.25),sp=scr(ctrp),px=Math.floor(sp[0]),py=Math.floor(sp[1]),id=px>=0&&py>=0&&px<NPX&&py<NPX?py*NPX+px:-1;
+    const base=id===selId()?C.pix:inRow(id)?C.rowT:C.patch,nn=norm(cross(sub(c,a),sub(dd,b))),sh=0.55+0.45*Math.abs(dot(nn,L)),col=rgb(base).map(v=>Math.round(v*sh));tris.push({p:[a,b,c,dd],fill:'rgb('+col+')',a:1})}
+  // the four knives: fans from the camera through the pixel's edges, cut into strips so painter sorting works
+  const far=6.2,knife=(s0,s1,col)=>{const d0=rayDir(s0[0],s0[1]),d1=rayDir(s1[0],s1[1]),NS=10,NT=8;for(let a=0;a<NT;a++)for(let b=0;b<NS;b++){const t0=far*a/NT,t1=far*(a+1)/NT,w0=b/NS,w1=(b+1)/NS,dir=w=>add(mul(d0,1-w),mul(d1,w));tris.push({p:[mul(dir(w0),t0),mul(dir(w1),t0),mul(dir(w1),t1),mul(dir(w0),t1)],fill:col,a:0.16})}};
+  const X0=SEL.x,Y0=SEL.y;knife([X0,Y0],[X0+1,Y0],C.row);knife([X0,Y0+1],[X0+1,Y0+1],C.row);knife([X0,Y0],[X0,Y0+1],C.col);knife([X0+1,Y0],[X0+1,Y0+1],C.col);
+  tris.forEach(t=>{t.q=t.p.map(pr);t.z=t.q.reduce((s,q)=>s+q[2],0)/t.q.length});tris.sort((a,b)=>b.z-a.z);
+  tris.forEach(t=>{x.globalAlpha=t.a;x.fillStyle=t.fill;x.beginPath();t.q.forEach((q,i)=>i?x.lineTo(q[0],q[1]):x.moveTo(q[0],q[1]));x.closePath();x.fill();if(t.a===1){x.strokeStyle=t.fill;x.lineWidth=0.6;x.stroke()}});x.globalAlpha=1;
+  // screen grid at Z = 1
+  const sp=(a,b)=>pr([(a-FIT.cx)/FIT.f,(b-FIT.cy)/FIT.f,1]);x.strokeStyle=C.muted;x.lineWidth=Math.max(0.8,W/700);x.beginPath();for(let k=0;k<=NPX;k++){let a=sp(k,0),b=sp(k,NPX);x.moveTo(a[0],a[1]);x.lineTo(b[0],b[1]);a=sp(0,k);b=sp(NPX,k);x.moveTo(a[0],a[1]);x.lineTo(b[0],b[1])}x.stroke();
+  const q=[sp(X0,Y0),sp(X0+1,Y0),sp(X0+1,Y0+1),sp(X0,Y0+1)];x.fillStyle=C.pix;x.beginPath();q.forEach((p,i)=>i?x.lineTo(p[0],p[1]):x.moveTo(p[0],p[1]));x.closePath();x.fill();
+  // cuts of the four knives, on top
+  G.cuts.forEach(c=>{const sel=c.dir==='y'?(c.k===Y0||c.k===Y0+1):(c.k===X0||c.k===X0+1);if(!sel)return;x.strokeStyle=c.dir==='y'?C.row:C.col;x.lineWidth=Math.max(2.5,W/150);x.beginPath();c.seg.forEach(s=>{const a=pr(S.eval(s[0][0],s[0][1])),b=pr(S.eval(s[1][0],s[1][1]));x.moveTo(a[0],a[1]);x.lineTo(b[0],b[1])});x.stroke()});
+  const o=pr([0,0,0]);x.fillStyle=C.fg;x.beginPath();x.arc(o[0],o[1],Math.max(4,W/80),0,7);x.fill();x.font=(Math.max(11,W/32)|0)+'px '+getComputedStyle(document.body).fontFamily;const lbl='camera',tw=x.measureText(lbl).width;x.fillText(lbl,o[0]+W/50+tw>W-4?o[0]-W/50-tw:o[0]+W/50,o[1]+W/80)}
+
+function tables(cr){const names=['Phong','Ellipsoid piece','Bilinear (twisted)'];
+  document.getElementById('ctab').innerHTML=cr.map(o=>'<tr><td>('+o.x+', '+o.y+')</td><td>'+(o.c?o.c.u.toFixed(4):'—')+'</td><td>'+(o.c?o.c.v.toFixed(4):'—')+'</td><td>'+(o.c?S.how:'ray misses the patch')+'</td></tr>').join('');
+  const rows=[['Phong','degree (2, 2) curve','degree 8','no'],['Ellipsoid piece','ellipse','degree 2','yes'],['Bilinear (twisted)','degree (1, 1) curve','degree 2','yes'],['Nagata','degree (2, 2) curve','degree 8','no'],['PN-quad','degree (3, 3) curve','degree 18','no']];
+  document.getElementById('dtab').innerHTML=rows.map(r=>'<tr'+(r[0]===names[SID]?' class="on"':'')+'><td>'+r[0]+'</td><td>'+r[1]+'</td><td>'+r[2]+'</td><td class="'+r[3]+'">'+r[3]+'</td></tr>').join('');
+  const v=document.getElementById('verdict');v.className='verdict '+(S.closed?'yes':'no');v.textContent=S.closed?names[SID]+': each cut is '+(SID===1?'an ellipse':'a degree (1, 1) curve')+', and a pixel corner is a quadratic. Closed form all the way.':'Phong: each cut is closed form, but a pixel corner is a degree-8 equation. No closed form.'}
+
+function drawAll(){const cr=corners();drawScreen();drawUV(cr);draw3D();tables(cr)}
+
+// ---------- interaction ----------
+document.querySelectorAll('[data-s]').forEach(b=>b.onclick=()=>{SID=+b.dataset.s;document.querySelectorAll('[data-s]').forEach(x=>x.classList.toggle('on',x===b));build();drawAll()});
+cs.addEventListener('pointerup',e=>{const b=cs.getBoundingClientRect(),x=Math.floor((e.clientX-b.left)/b.width*NPX),y=Math.floor((e.clientY-b.top)/b.height*NPX);if(x>=0&&y>=0&&x<NPX&&y<NPX&&G.cover[y*NPX+x]){SEL={x,y};drawAll()}});
+cu.addEventListener('pointerup',e=>{const b=cu.getBoundingClientRect(),i=Math.floor((e.clientX-b.left)/b.width*RG),j=RG-1-Math.floor((e.clientY-b.top)/b.height*RG);const id=G.id[Math.max(0,Math.min(RG-1,j))*RG+Math.max(0,Math.min(RG-1,i))];if(id>=0){SEL={x:id%NPX,y:id/NPX|0};drawAll()}});
+let drag=null;c3.addEventListener('pointerdown',e=>{drag=[e.clientX,e.clientY];c3.setPointerCapture(e.pointerId)});
+c3.addEventListener('pointermove',e=>{if(!drag)return;yaw+=(e.clientX-drag[0])*0.01;pitch=Math.max(-1.3,Math.min(1.3,pitch+(e.clientY-drag[1])*0.01));drag=[e.clientX,e.clientY];draw3D()});
+c3.addEventListener('pointerup',()=>drag=null);c3.addEventListener('pointercancel',()=>drag=null);
+if(window.matchMedia)matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change',()=>{readC();drawAll()});
+new MutationObserver(()=>{readC();drawAll()}).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+window.addEventListener('resize',drawAll);
+readC();build();drawAll();
+</script>
