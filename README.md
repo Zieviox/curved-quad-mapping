@@ -5,6 +5,7 @@ R&D for a CPU-only, closed-form mapping between curved quad patches and screen p
 **Live pages:** https://zieviox.github.io/curved-quad-mapping/ (needs GitHub Pages: Settings → Pages → deploy from `main`, folder `/`).
 GitHub itself shows HTML files as source code, so each example below also has a **Preview** link through [htmlpreview.github.io](https://htmlpreview.github.io), which runs it straight from the repo (public repo only).
 
+- [`docs/method-guide.md`](docs/method-guide.md): the exact methods in one place, in order, with what is checked and what is not.
 - [`docs/rnd-log.md`](docs/rnd-log.md): every step in order: what was tried, the numbers, what was decided.
 - [`examples/`](examples): one standalone HTML page per step. Works in any browser, phone or desktop.
 - [`index.html`](index.html): the same steps as a gallery page.

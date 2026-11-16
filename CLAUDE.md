@@ -16,7 +16,7 @@ An earlier session drifted from the intent and reported results that didn't hold
 
 ## Rules
 
-1. Read `docs/rnd-log.md` step 18 first. It has the confirmed intent, what went wrong before, and the next thing to build with its recipe.
+1. Read `docs/method-guide.md` (the exact methods, in order, with what is checked and what is not) and `docs/rnd-log.md` step 18 first. It has the confirmed intent, what went wrong before, and the next thing to build with its recipe.
 2. If a result pushes against the intent, stop and ask the owner. Never switch direction on your own, and never call a switch a "revert" or an "optimization".
 3. The owner cannot review code. Ask about concepts in plain words, one question at a time, with a concrete example. Report in plain words too.
 4. Say only what you measured in this session. Give the number. If you didn't run it, say "not tested". Never fill a gap with a guess.
@@ -36,7 +36,7 @@ An earlier session drifted from the intent and reported results that didn't hold
 
 ## Next step
 
-Build one visual page for the mixed cube using the step 18e recipe. Show the surface with a u, v checker, let the owner orbit, and show three numbers: crack on every edge, how far u, v slides when the camera moves, and how far each pixel corner lands from its pixel. Then ask the owner what they see.
+Build one visual page for the mixed cube using parts 6–9 of `docs/method-guide.md`. Show the surface with a u, v checker, let the owner orbit, and show three numbers: crack on every edge, how far u, v slides when the camera moves, and how far each pixel corner lands from its pixel. Then ask the owner what they see.
 
 ## Questions still open with the owner
 
