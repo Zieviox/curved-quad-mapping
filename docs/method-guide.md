@@ -278,6 +278,7 @@ A pixel has 4 corners. The test pages average the `u, v` of the corners on the n
 |---|---|---|
 | Example 15 (step 20) | Marks only, straight lines in the `u, v` square, nothing in the middle | Flat faces exact. A ball is cut off at each face's edges (no bulge). 10–73 ms |
 | Example 16 (step 21) | C3 to C5, one ellipse cut by a flat knife | Ball exact to 0.0005% of the radius; flat exact; 5–25 ms per knife direction. Needs both directions; they disagree on `u, v` |
+| Example 17 (step 23) | C6 as a blend of the row ellipse and the column ellipse, each counting most near its own marks | Ball and flat: the two meet exactly. Mixed cube and wave: they pass more than 2% of the radius apart over large areas, so the blend averages two different shapes. 55–166 ms |
 
 Everything in Part C is quadratics. Times are JavaScript in a browser, not the target; see 6.1 to 6.4 for what cost numbers mean.
 

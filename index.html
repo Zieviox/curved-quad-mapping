@@ -155,7 +155,7 @@ code{font-family:var(--f-mono);font-size:.92em}
     <ul class="find"><li>Wanted: surface as the source, pixel corners, the quad's own u, v, edge-based u, v. Steps 13–17 drifted on all four.</li><li>Step 17 over 48 camera angles: smooth cube and rounded box clean; wave wrong in 10 views; mixed cube in all 48.</li><li>Arithmetic: 16.7–19.7 cycles per pixel measured against the model's 12. Memory adds 1–9 more; the simple calc is 5–9× too low on short rows.</li><li>Next surface to test: curved triangles spanned by the arcs (a quartic per pixel corner, no fitting, no cracks). Details in the <a href="docs/rnd-log.md">log, step 18</a>.</li></ul>
     <div class="links"><a class="btn" href="examples/13-memory-fetches.html">Open memory fetches</a></div></div></li>
   <li><span class="num">19</span><div class="body">
-    <h2>Curved triangles, built from zero <span class="tag current">current</span></h2>
+    <h2>Curved triangles, built from zero</h2>
     <p class="q">Arcs from the normals, a centre point per quad, curved triangles defined by their three arcs, every pixel corner solved in closed form to the quad's own u, v.</p>
     <ul class="find"><li>Nothing is fitted: a triangle's surface matches its arcs to 5e-16.</li><li>The mixed cube draws closed. Solved points land within 1e-6 px of their pixel corners.</li><li>Open: more camera angles, 16 centre arcs that fail on the wave, exact spans, cost.</li></ul>
     <div class="links"><a class="btn" href="examples/14-curved-triangles.html">Open curved triangles</a></div></div></li>
@@ -169,6 +169,11 @@ code{font-family:var(--f-mono);font-size:.92em}
     <p class="q">A knife marks two edges; each mark inherits a normal; the two marks and their normals give a new ellipse across the quad; crossing knives cut it at the pixel corners.</p>
     <ul class="find"><li>Smooth cube: every point lies on the exact ball to 0.0005% of the radius. Flat faces exact. All quadratics, 5–25 ms per knife direction in the browser.</li><li>Rows alone miss the bulge above and below the edges; columns alone miss it at the sides. Both together close the outline but disagree on u, v (speckle).</li></ul>
     <div class="links"><a class="btn" href="examples/16-knife-ellipses.html">Open knife ellipses</a></div></div></li>
+  <li><span class="num">23</span><div class="body">
+    <h2>Test: two ellipses meet <span class="tag current">current</span></h2>
+    <p class="q">Each pixel corner gets a row ellipse and a column ellipse; the corner is a blend of the two, each counting most near its own marks.</p>
+    <ul class="find"><li>Smooth cube and hard cube: the two meet exactly; ball exact to 0.0005% of the radius.</li><li>Mixed cube and wave: the two pass more than 2% of the radius apart over large areas (painted red). The blend there averages two different shapes.</li></ul>
+    <div class="links"><a class="btn" href="examples/17-two-ellipses-meet.html">Open two ellipses meet</a></div></div></li>
 </ol>
 
 <p class="note">The cost model throughout is Intel Skylake, float32 scalar: ADD, MUL and FMA have latency 4 and throughput 0.5 cycles; SQRT 12/3; DIV 11/3. Pages compute in JavaScript float64.</p>

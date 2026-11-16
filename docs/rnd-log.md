@@ -888,6 +888,34 @@ The owner's rule, confirmed in talk: a new point on an edge **inherits a normal*
 3. **Where the row ellipse and the column ellipse pass with a gap (owner).** The corner must never come from only one of them. Which math combines them accurately is open; the assistant is to propose it.
 4. **Occlusion (owner).** The real system needs the XYZ of the pixel corner on the surface. Not now: it has a lot of optimisation behind it. For now, just cull back faces.
 
+## 23. Test: the corner as a blend of the row ellipse and the column ellipse (example 17)
+
+Agreed with the owner: a pixel corner is where the row knife's ellipse and the column knife's ellipse meet, and it must never come from only one of them. The owner asked the assistant to propose the math; the proposal tested here:
+
+- Both ellipses pass through the corner's line of sight (one quadratic each).
+- The corner is a blend of the two points. Each ellipse is exactly right at its own two marks, so it counts most near them: the row ellipse's weight is `sc·(1 − sc)` and the column ellipse's is `sr·(1 − sr)`, where `sr`, `sc` say how far along each ellipse the corner is (0 and 1 at the marks). The same weights blend `u, v`.
+- Where only one ellipse exists (a face bulging past its own edges), that one is used.
+- A point whose inherited normal faces away from the camera is dropped (back-face culling per point, as the owner asked for now).
+- Also changed, from the owner's answer in step 22: a curve that goes the long way round its ellipse is one ellipse (weight with the other sign), not two. None occurred in these four views.
+
+**Measured (one run, default view, 240², JavaScript)**
+
+| Mesh | Blended corners | From one ellipse only | Largest gap between the two | Blended corners more than 2% of the radius apart | Pairs over a quarter radius apart (not blended) | Frame |
+|---|---|---|---|---|---|---|
+| Smooth cube | 19,925 | 8,979 | 0.000% | 0 | 0 | 79–166 ms |
+| Mixed cube | 21,468 | 4,376 | 25% (the cut-off) | 9,130 | 1,317 | 118–132 ms |
+| Wave | 5,359 | 2,616 | 24% | 1,399 | 20 | 55–68 ms |
+| Hard cube | 19,097 | 0 | 0.000% | 0 | 0 | 71–77 ms |
+
+- **Smooth cube:** the two ellipses meet exactly; every kept point is on the exact ball to 0.0005% of the radius; the speckle of step 21 is gone.
+- **Hard cube:** exact (3.3e-16).
+- **Mixed cube and wave: the two ellipses do not meet.** Over most of the lower half of the mixed cube's side faces they pass the line of sight more than 2% of the mesh radius apart (the page paints those corners red). The blend still gives one answer per corner, but there it is an average of two different shapes.
+- **Wave:** a hole appears in one quad in this view. Cause not yet found.
+
+**What this says.** An ellipse built in a knife knows how the surface faces at its two marks, but not how the surface bends between them. On a ball and on a flat face every flat cut really is the ellipse its two end normals give, so rows and columns agree. On other shapes the row cuts and the column cuts describe different surfaces.
+
+**Not measured:** whether the blended shape and its `u, v` stay put when the camera moves (the knives turn with the camera).
+
 ## Prior art
 
 Collected from memory at first. Step 7 checked the shared-edge part against abstracts and citing papers.
