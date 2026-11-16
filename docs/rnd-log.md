@@ -851,6 +851,34 @@ Asked for by the owner after talking the method through. The owner's picture, co
 - **Seen in that one view:** the hard cube and mixed cube look right. The smooth cube is not round: each face is cut off at its own edges, so the ball shows three lobes. A face on the side of a ball is bigger on screen than the outline of its edges, and edge marks alone cannot know that.
 - **Not measured:** whether the checker swims on curved faces when the camera moves. With no surface defined in the middle there is no exact answer to compare with; it has to be judged by orbiting.
 
+## 21. Test: ellipses inside the knives, with inherited normals (example 16)
+
+The owner's rule, confirmed in talk: a new point on an edge **inherits a normal** (the blend of that edge's two end normals there), and two such points with their normals give a new ellipse by the same rule as an edge. So the middle of a quad is made only of ellipses that come off the edge ellipses.
+
+**What the test does.** The knife through a row of pixel corners crosses the quad's edge arcs at two marks (one quadratic each). Each mark inherits its normal, kept at a right angle to the edge. Between the two marks an ellipse is built in the knife's own plane (two joined if the normals form an S). Each crossing knife cuts that ellipse with one quadratic: that is the pixel corner's point, depth and u, v (the marks' u, v blended along the ellipse). Nearest point wins. The same can be done with column knives cut by rows; "Both" runs the two and keeps the nearest.
+
+**Choices made by the assistant:** keeping the inherited normal at a right angle to the edge; blending u, v along the ellipse by its own parameter; pairing a knife's marks in screen order; the edge arcs are step 19's.
+
+**Measured (one run, default view, 240², JavaScript)**
+
+| Mesh | Mode | Ellipses built (two joined) | Could not be built | Frame |
+|---|---|---|---|---|
+| Smooth cube | rows / columns / both | 681 (0) / 677 (0) / 1,358 (0) | 0 | 25 / 11 / 59 ms |
+| Mixed cube | rows / columns / both | 651 (0) / 659 (30) / 1,310 (30) | 0 | 18 / 9 / 91 ms |
+| Wave | rows / columns / both | 475 (63) / 454 (116) / 929 (179) | 0 | 10 / 5 / 23 ms |
+| Hard cube | rows / columns / both | 643 / 617 / 1,260 | 0 | 17 / 9 / 17 ms |
+
+- **Smooth cube:** every point found lies on the exact ball to within 0.0005% of the radius, in all three modes.
+- **Hard cube:** u, v and position match the exact flat answer to 3.0e-8 (the rounding of the stored 32-bit u, v).
+- No knife had an odd number of marks.
+
+**Seen in that one view**
+- Rows only: the ball is round on its left and right, where faces bulge sideways past their edges. Above its top edges the top face is missing and broken pieces of far-side quads show through. Columns only: the same, turned a quarter.
+- Both: the ball's outline is a complete circle. But on its side faces the checker is speckled: the row-built and column-built ellipses agree on where the surface is and disagree on its u, v, and corners alternate between the two.
+- Mixed cube, wave and hard cube look right in that view.
+
+**Open after this test:** one u, v rule that row-built and column-built ellipses agree on; whether the checker stays put when the camera moves (not measured); more views.
+
 ## Prior art
 
 Collected from memory at first. Step 7 checked the shared-edge part against abstracts and citing papers.

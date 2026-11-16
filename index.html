@@ -164,6 +164,11 @@ code{font-family:var(--f-mono);font-size:.92em}
     <p class="q">Only the edge ellipses exist. Can a pixel corner's u, v in the middle of a quad be worked out from where its two knives cross the edges?</p>
     <ul class="find"><li>Flat faces: exact. All quadratics, 10–73 ms per frame in the browser.</li><li>A ball is cut off at each face's edges: edge marks alone can't know how far a face bulges past them.</li></ul>
     <div class="links"><a class="btn" href="examples/15-edge-marks.html">Open edge marks</a></div></div></li>
+  <li><span class="num">21</span><div class="body">
+    <h2>Test: ellipses inside the knives</h2>
+    <p class="q">A knife marks two edges; each mark inherits a normal; the two marks and their normals give a new ellipse across the quad; crossing knives cut it at the pixel corners.</p>
+    <ul class="find"><li>Smooth cube: every point lies on the exact ball to 0.0005% of the radius. Flat faces exact. All quadratics, 5–25 ms per knife direction in the browser.</li><li>Rows alone miss the bulge above and below the edges; columns alone miss it at the sides. Both together close the outline but disagree on u, v (speckle).</li></ul>
+    <div class="links"><a class="btn" href="examples/16-knife-ellipses.html">Open knife ellipses</a></div></div></li>
 </ol>
 
 <p class="note">The cost model throughout is Intel Skylake, float32 scalar: ADD, MUL and FMA have latency 4 and throughput 0.5 cycles; SQRT 12/3; DIV 11/3. Pages compute in JavaScript float64.</p>
