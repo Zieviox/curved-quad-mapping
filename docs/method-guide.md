@@ -1,94 +1,427 @@
-# Method guide
+# Curved quads: the method, the concepts, and how we got here
 
-One place for the exact methods, in the order the data flows. Each part says what it does in plain words, the exact rule, and its status:
-**checked** (built and measured), **replaced** (built, failed, don't use), or **not built** (worked out on paper only).
-**Built so far:** example 14 (log step 19) builds parts 2, 3, 6, 8 and 9 from zero. It differs from this guide in three places, and the page is what was built: the arc's plane (through the edge and the average end normal, not the projected chord), sharp ends (cross product of the two normals, no rounding), and a centre point with a fan of 4–8 triangles instead of one diagonal. Parts 4, 5, 7 and 10 are not in it.
+This is the one document for the whole project. It is written for a person learning the method as much as for an assistant continuing it.
 
-History and numbers are in [`rnd-log.md`](rnd-log.md); the intent and rules are in [`../CLAUDE.md`](../CLAUDE.md).
+- **Part A** says what we are building and why.
+- **Part B** is a learning path: the concepts in the order to learn them, each with its equation and where it is used.
+- **Part C** is the current method, step by step, with every equation (built in `examples/14-curved-triangles.html`).
+- **Part D** explains every older method, what it found, and why it was kept or dropped.
+- **Part E** lists what is decided, what is open, and a glossary.
+
+Status words: **checked** = built and measured. **built** = runs, measured in one view only. **not built** = worked out on paper. **dropped** = tried, failed, do not reuse.
+Notation: `·` dot product, `×` cross product, `|a|` length, `norm(a) = a / |a|`. Equations are written in plain text so they read the same everywhere.
+
+---
+
+# Part A. What we are building
+
+A quad mesh comes in. Every quad corner has a position and a normal. The normals act as **handles**: they bend the straight edges into arcs and the flat quads into curved surfaces. That curved surface is drawn **directly**, on the CPU, without ever being turned into flat polygons.
+
+For every **pixel corner** on screen we want to know: which quad is there, and where on that quad (its own `u, v`, each from 0 to 1). With `u, v` at the 4 corners of a pixel we know exactly which piece of the quad the pixel covers. That is what texturing and anti-aliasing need.
+
+The requirements, as set by the owner:
+
+1. Edges are ellipse arcs shaped by the normals; an edge may be two arcs joined at its middle.
+2. The surface is the source: each quad finds its own pixels. It does not test pixels it doesn't touch.
+3. Pixel corners, not pixel centres.
+4. The quad's own `u, v`, fixed to the surface.
+5. CPU only. No GPU.
+6. A formula is preferred over iteration ("closed form": a fixed, known number of operations).
+7. Cost: about 500 processor cycles per pixel, 1,000 at most, memory fetches included.
+8. Occlusion is only a small placeholder for the engine's own system.
+
+---
+
+# Part B. Learning path
+
+Learn these in order. Each level only needs the ones before it. "Used in" points to Part C or D.
+
+## Level 1. Points, directions and the camera
+
+**1.1 Dot and cross product.** `a · b` tells how much two directions agree (0 = at right angles). `a × b` is a direction at right angles to both.
+Used everywhere.
+
+**1.2 A plane.** All points `x` with `n · x = h`. `n` is the plane's normal. The value `n · x − h` is positive on one side, negative on the other, zero on the plane.
+Used in: pixel grid lines (1.5), the arc's plane (C2), side planes (D9).
+
+**1.3 Normal and tangent plane.** At a point of a surface, the normal sticks straight out. The tangent plane is the flat sheet touching the surface there: all directions `t` with `t · n = 0`. A curve lying on the surface must leave the point along such a `t`.
+Used in: how normals shape the arcs (C2).
+
+**1.4 The camera.** The camera has a position and three directions at right angles: `right`, `down`, `forward`. A point `p` becomes camera coordinates
+`r = (p − pos) · right`, `d = (p − pos) · down`, `z = (p − pos) · forward`.
+It lands on the screen at
+`x = cx + f · r / z`, `y = cy + f · d / z`
+where `(cx, cy)` is the screen centre and `f = (width / 2) / tan(field of view / 2)`.
+Used in: everything that touches pixels.
+
+**1.5 A pixel grid line is a plane through the camera.** The screen column `x = k` is all points with `f · r − (k − cx) · z = 0`. That is a plane through the camera (a "knife"). Same for a row: `f · d − (k − cy) · z = 0`.
+A **pixel corner** is where one column knife and one row knife meet: a line of sight. So "which surface point is at this pixel corner" and "where does this line of sight hit the surface" are the same question.
+Used in: C6, and the reason for most of Part D.
+
+## Level 2. Solving equations with a formula
+
+**2.1 Quadratic.** `a·x² + b·x + c = 0` has `x = (−b ± √(b² − 4ac)) / 2a`. The stable way to compute both roots: `q = −(b + sign(b)·√(b² − 4ac)) / 2`, then `x1 = q / a`, `x2 = c / q`.
+
+**2.2 Cubic.** Has a formula too (Cardano; a version with cosines when there are three real roots). Costs a cube root or a cosine.
+
+**2.3 Quartic.** Degree 4 still has a formula (Ferrari). It is long and touchy with rounding.
+
+**2.4 Degree 5 and above: no formula exists.** This is a theorem, not a gap in our knowledge. Only iteration (repeat until close enough) works there.
+
+**2.5 Counting the degree before building anything.** If the surface point is described by two parameters and each knife gives an equation of degree `(a, b)` in them, two such equations meet in up to `a·d + b·c` points, and that number is the degree of the equation to solve. **This single count decides whether a surface can be used at all.**
+
+| Surface | Degree for a pixel corner | Formula? |
+|---|---|---|
+| Flat quad with straight sides (bilinear) | 2 | yes |
+| Quadric (sphere, ellipsoid, cylinder…) | 2 | yes |
+| Curved triangle from 3 arcs (C4) | 4 | yes |
+| Straight lines between two opposite arcs | 4 | yes |
+| A quad curved both ways with 4 free curved edges | 8 | **no** |
+| Smoother classic patches (PN, B-spline) | 18 | no |
+
+Used in: the whole direction of the project (D3, D7, C4).
+
+## Level 3. Arcs
+
+**3.1 The arc we use.** An ellipse arc (in general a conic arc) is given by 4 things: start `P0`, end `P2`, **apex** `A`, and a **weight** `w`.
+The apex is where the two end tangent lines meet: the arc leaves `P0` heading for `A` and arrives at `P2` coming from `A`.
+The point at `t` (0 at the start, 1 at the end):
 
 ```
-quads + normals → 1 handles → 2 arcs → 3 S-split → 4 rounded sharp edges → 5 pieces
-               → 6 curved triangles → 7 which pixels → 8 pixel corner → 9 quad u, v → 10 coverage and depth
+b0 = (1−t)²      b1 = 2·w·(1−t)·t      b2 = t²
+point = (b0·P0 + b1·A + b2·P2) / (b0 + b1 + b2)
 ```
 
-## 1. Input and handles — checked (step 8)
+**3.2 The weight is the fullness.** `w = 0`: the straight line. Small `w`: hugs the straight line. Large `w`: pushed out toward the apex. `w < 1` ellipse, `w = 1` parabola, `w > 1` hyperbola. With equal distances `|A − P0| = |A − P2|` and `w = cos(turn / 2)` (turn = the angle the direction turns through), the arc is exactly a **circle** arc.
 
-- **Plain:** a mesh of quads. Each quad corner has a position and a normal. The normal is a handle: its direction sets which way the surface faces there, its length sets how much the curve bulges.
-- **Exact:** 4 positions + 4 face-corner normals per quad, taken as given, not normalized. Smooth vertex = the same normal on every face around it. Sharp edge = different normals on its two faces. A quad may read its neighbours' normals across a shared edge; nothing is solved mesh-wide.
+**3.3 An arc is flat.** `P0`, `A`, `P2` span one plane and the whole arc stays in it. Consequence: an arc exists only if the two end directions and the edge lie in one plane. If they don't, one arc cannot do it.
 
-## 2. Arc between two handles — checked (step 9a: gap 0 on every shared edge)
+**3.4 Two facts used later.** At `t = 0.5` the arc's direction is parallel to `P2 − P0`. Reversing an arc (swap `P0` and `P2`) gives the same curve with `t` turned into `1 − t`.
 
-- **Plain:** one ellipse arc from corner to corner, leaving each corner at a right angle to that corner's normal.
-- **Exact:** end points P0, P2. End tangent at each end = the chord (P2 − P0) projected onto the plane across that end's normal. Apex A = where the two tangent lines meet. Weight w = L·cos(φ/2), with L the average handle length and φ the angle the tangent turns through.
-  Point at t in 0…1: b0 = (1−t)², b1 = 2·w·(1−t)·t, b2 = t², point = (b0·P0 + b1·A + b2·P2) / (b0 + b1 + b2).
-- An arc depends only on its own two corners and their normals, so both quads on an edge compute the same arc. Compute it once and share it (arc cache, step 10).
-- **Known limit:** handle length × 2 gives w > 1 (hyperbola arcs). The arcs are still valid; the old fill (part 6-old) broke on them.
+**3.5 The helper cubic.** A cubic curve can leave `P0` along `T0` and arrive at `P2` along `T2` for any directions, flat or not. With `L = |P2 − P0|`, its middle point and direction there are
 
-## 3. S-curves and twists — checked (step 9a: 0 failures)
+```
+M  = (P0 + P2)/2 + (T0 − T2) · L/8
+ct = norm( (P2 − P0) − (T0 + T2) · L/3 )
+```
 
-- **Plain:** if one arc can't do it (the curve has to bend back), put an extra handle in the middle and use two arcs.
-- **Exact:** needed when the two tangent lines don't meet in front of both ends. Build the cubic through the two handles (control points P0…P3 from corners and normals). With m = n0 + n1, a = m·(P2 − 2·P1 + P0), b = m·(P3 − 2·P2 + P1): there is an inflection when a·b < 0, at t* = a / (a − b). Put the new point M on the cubic at t* (or at 0.5 if there is no inflection). Its tangent is (T0 × (M − P0)) × (T2 × (P2 − M)), which makes both halves flat arcs that join smoothly. Then part 2 on each half.
+We never draw the cubic. We only use it to place the middle point when an edge needs two arcs (C2).
 
-## 4. Sharp edges, rounded inside the quad — checked (step 9a: hard cube = exact rounded box)
+## Level 4. Surfaces
 
-- **Plain:** a blending distance turns each sharp edge into a small fillet and each sharp corner into a small rounded cap, all inside the quad's own border.
-- **Exact:** per vertex, radius r = blending × average length of its edges, and a centre c at distance r from each distinct face plane around it (2 planes: direct; 3 or more: a 3 × 3 least-squares solve). Points used: contact = c + r·n̂(face); fillet middle = c + r·norm(n̂A + n̂B); corner point = c + r·norm(sum of n̂). Arcs between these points by part 2.
+**4.1 Two ways to describe a surface.** *By parameters:* a rule that turns `(u, v)` into a point. Easy to walk along, hard to hit with a line of sight. *By an equation:* all points where some `Q(x) = 0`. Easy to hit with a line of sight, but has no built-in `u, v` and no edges.
 
-## 5. Pieces — checked (step 10)
+**4.2 Quadric.** `Q(x) = x·A·x + g·x + k = 0` (sphere, ellipsoid, cylinder, cone, saddle…). It has 9 free numbers. A line of sight hits it in a quadratic. It was the heart of the old method (D4–D17).
 
-- **Plain:** after part 4 a quad is cut into an inner piece, half a strip along each sharp edge, and a quarter cap at each sharp corner. A piece whose side got an extra handle (part 3) is cut there too.
-- **Exact:** every piece is 4-sided with one arc per side. Each piece covers a known rectangle of the quad's u, v (inner piece: the middle; strips and caps: the margins of width = blending). Keep that rectangle with the piece; part 9 needs it.
+**4.3 The two-point rule.** Two arcs in different planes can lie on one quadric only if they meet the line where their planes cross at the same two points. Two edges of a quad meet at one corner only. So **one quadric cannot hold four independent edge arcs.** (D7)
 
-## 6-old. One fitted quadric per piece — replaced (steps 9b–17)
+**4.4 Barycentric coordinates.** A position inside a triangle is three numbers `b = (b0, b1, b2)` with `b0 + b1 + b2 = 1`, all ≥ 0. `(1,0,0)` is corner 0. `b2 = 0` is the side from corner 0 to corner 1.
 
-Cannot hold 4 arbitrary arcs (two-point rule, step 7). Cracks on general meshes, pieces with no surface inside, per-piece u, v. Still exact and cheap **only** where the four arcs agree with one quadric (sphere, rounded box, extrusions); it may be kept for those pieces as a shortcut.
+**4.5 The curved triangle.** Three corners and three arcs define a surface with no other input (C4). On each side it *is* that side's arc. A line of sight meets it in a degree-4 problem, which has a formula.
 
-## 6. Surface inside a piece: curved triangles — not built (step 18e)
+## Level 5. Curves in a plane as 3 × 3 matrices
 
-- **Plain:** cut the piece along one diagonal arc into two triangles. A triangle's surface is defined by its three arcs alone. Nothing is fitted, so edges always match.
-- **Exact:** diagonal arc by part 2 from the two corner handles. For a triangle with corners V0, V1, V2 and arcs {A01, w01}, {A12, w12}, {A20, w20}, and b = (b0, b1, b2) with b0 + b1 + b2 = 1:
-  - N(b) = b0²·V0 + b1²·V1 + b2²·V2 + 2·b0·b1·w01·A01 + 2·b1·b2·w12·A12 + 2·b2·b0·w20·A20
-  - D(b) = b0² + b1² + b2² + 2·b0·b1·w01 + 2·b1·b2·w12 + 2·b2·b0·w20
-  - point = N(b) / D(b). On b2 = 0 this is exactly the arc V0 → V1 with t = b1.
-- **Option, 4 triangles:** add a centre point and four arcs from the corners to it. Sits closer to a sphere (about 1% low instead of 3.8% on the smooth cube). How to choose the centre point and its normal is open.
-- **Not guaranteed:** smoothness across an edge or the diagonal (only at corners). Not measured.
+Needed only for the pixel-corner solve (C6).
 
-## 7. Which pixels a triangle touches — crossing rule checked (step 14), use with triangles not built
+**5.1 A conic as a matrix.** With `b` a triple of numbers, `bᵀ·G·b = 0` (G a symmetric 3 × 3 matrix) is a conic in the plane of `b`. Only the direction of `b` matters, not its size.
 
-- **Plain:** the triangle finds its own pixel rows and, on each row, where its arcs cross the row. Pixels between crossings are its span.
-- **Exact:** work in camera coordinates (right r, down d, forward z); f = focal length in pixels, (cx, cy) = screen centre. Rows: from the smallest to the largest screen y of the 6 projected control points (the surface lies inside their hull when weights are positive). One arc against the row at screen y, with yc = y − cy:
-  h0 = f·d0 − yc·z0, hb = w·(f·d1 − yc·z1), h2 = f·d2 − yc·z2; solve (h0 − 2·hb + h2)·t² + 2·(hb − h0)·t + h0 = 0; keep t in 0…1 (a straight side is linear). Screen x there = cx + f·r(t)/z(t). Sort the crossings; pairs are spans.
-- **Open:** where the triangle turns edge-on inside (its outline), the span ends at the outline, not at an arc. No exact rule yet; corners past the outline just have no solution in part 8.
+**5.2 The adjugate.** For a symmetric `M = [[m00,m01,m02],[m01,m11,m12],[m02,m12,m22]]`:
 
-## 8. Pixel corner → point on the triangle — not built (step 18e)
+```
+adj(M) = [[ m11·m22−m12² , m02·m12−m01·m22 , m01·m12−m02·m11 ],
+          [      ·       , m00·m22−m02²    , m01·m02−m00·m12 ],
+          [      ·       ,       ·         , m00·m11−m01²    ]]
+det(M) = m00·adj00 + m01·adj01 + m02·adj02
+```
 
-- **Plain:** the vertical grid line through a pixel corner cuts the triangle along one curve, the horizontal grid line along another. Where the two curves meet is the surface point at that corner.
-- **Exact:** for each camera coordinate k build the symmetric 3 × 3 matrix M_k: M_k[i][i] = coordinate k of V_i, M_k[i][j] = w_ij × coordinate k of A_ij.
-  1. G = f·M_r − (x − cx)·M_z and H = f·M_d − (y − cy)·M_z. Wanted: b with bᵀ·G·b = 0 and bᵀ·H·b = 0.
-  2. Cubic in λ: det(H)·λ³ + tr(G·adj(H))·λ² + tr(adj(G)·H)·λ + det(G) = 0. Take a real root (Cardano).
-  3. K = G + λ·H is two straight lines. Let Q = −adj(K). If its diagonal is negative: no hit. Else take the largest diagonal entry Q[i][i], p = (column i of Q) / √Q[i][i]. Then K + cross-matrix(p) has rank 1: any non-zero row is one line, any non-zero column is the other.
-  4. For each line l: pick two points on it, p1 = l × (the axis l is least aligned with), p2 = l × p1. Put b = p1 + s·p2 into bᵀ·G·b = 0: (p2ᵀGp2)·s² + 2·(p1ᵀGp2)·s + p1ᵀGp1 = 0. Up to 4 points in all.
-  5. Keep points whose three b have the same sign (inside the triangle); scale so they sum to 1. Depth = bᵀ·M_z·b / D(b), must be positive. Keep the one facing the camera; if several, the nearest.
-- Along a row only x changes: G changes by −M_z per pixel, so the cubic's four coefficients are polynomials in x and can be stepped by additions.
-- Neighbouring pixels share corners: one corner solved per pixel.
+**5.3 A conic that is really two straight lines.** Happens exactly when `det = 0`. Then `−adj(K) = p·pᵀ`, where `p` is the point the two lines share. Adding the cross-product matrix of `p` to `K` leaves a matrix of rank 1 whose rows all describe one line and whose columns all describe the other.
 
-## 9. The quad's own u, v — not built
+**5.4 Where two conics meet.** Take conics `G` and `H`. Every mix `G + λ·H` passes through the same (up to 4) common points. For the right `λ` the mix is two straight lines (5.3), and those lines pass through the common points. Finding `λ` is a cubic:
 
-- **Plain:** the answer of part 8 is a position inside a triangle; turn it into the piece's u, v, then into the quad's.
-- **Exact:** lower triangle (piece corners (0,0), (1,0), (1,1)): u′ = b1 + b2, v′ = b2. Upper triangle ((0,0), (1,1), (0,1)): u′ = b1, v′ = b1 + b2. Quad u, v = the piece's rectangle (part 5) stretched by (u′, v′). Along every arc both sides use the arc's own t, so u, v is continuous across diagonals, pieces and quads, and it is attached to the surface: it cannot slide when the camera moves.
-- The screen-drawn edge u, v of steps 13–15 is **replaced**: it slides on anything not flat.
+```
+det(H)·λ³ + tr(G·adj(H))·λ² + tr(adj(G)·H)·λ + det(G) = 0
+```
 
-## 10. Coverage and depth — not built for triangles
+Then each line against one conic is a quadratic. So: one cubic, one square root, two quadratics. This is the closed form behind C6.
 
-- **Plain:** a pixel has 4 corners. All 4 on the same quad: fully covered, and the 4 u, v values are its exact footprint in the texture. Some corners off: partly covered; the arc crossings on the pixel's sides (part 7's quadratic, also for vertical sides) say how much.
-- **Depth:** keep the nearest per corner. This is the whole occlusion placeholder; nothing else should depend on it.
+## Level 6. Cost
 
-## Cost, so far
+**6.1 Operation model.** Count the additions, multiplications, divisions and square roots per pixel and price them (the log uses an Intel Skylake table). It is a **best case**: it assumes the processor overlaps everything perfectly.
 
-- Model cycles are best case; native measurement of the old pipeline was 1.5–2.3× the model (step 18f).
-- Part 8 is one cubic, one square root, two quadratics per corner. Not measured. The only comparable measured method was 146 model cycles.
-- Budget: 500 cycles per pixel, memory fetches included. Keep the pixels solved close to the pixels covered: every solved corner pays the full price.
+**6.2 Measured against the model.** For the old pixel pass, natively: model 12 cycles per pixel, measured 17–20 with everything in cache, 18–28 with real screen buffers. So multiply any model number by 1.5–2.3.
 
-## What to check first when part 6–9 is built
+**6.3 Memory.** A 64-byte block already in the nearest cache is free. A block the processor's read-ahead has ready is nearly free; that needs a long run of consecutive blocks. Any other block costs on the order of 100 cycles. Short rows pay the most. Texture reads at scattered positions cost 115–545 cycles each: they must be kept close together.
 
-On the mixed cube, 12+ camera angles: gap on every edge and diagonal (expect 0), distance of each solved corner from its pixel, u, v slide under camera motion (expect 0), angle between neighbours' surfaces along edges, float32 against float64, native cycles per corner.
+**6.4 Solved versus covered.** Every pixel corner a quad *tries* pays the full price, hit or miss. The old pipeline tried 2.3–4.2 for each one it covered. This ratio matters more than memory.
+
+---
+
+# Part C. The current method (example 14, log step 19)
+
+Status of the whole part: **built**. It runs on four meshes with no errors and was looked at in one camera view. It has not been checked over many views.
+
+```
+quads + normals → C1 ends → C2 edge arcs → C3 quad into triangles → C4 triangle surface
+               → C5 which corners → C6 pixel corner solve → C7 u, v → C8 pixel
+```
+
+## C1. The two ends of an edge
+
+Each end of an edge has the normals of the (up to two) faces on that edge.
+
+- **Smooth end:** both faces have the same normal `n` there. The arc may leave in any direction at right angles to `n`.
+- **Sharp end:** the normals `nA`, `nB` differ. The edge lies on both faces, so its direction must be at right angles to both: `T = ± norm(nA × nB)`. No choice is left.
+
+The sign is always taken so the direction points along the edge (`T · (P2 − P0) ≥ 0`).
+
+## C2. The edge arc
+
+Let `d = P2 − P0`.
+
+**The plane (both ends smooth).** Stand a sheet on the edge, leaning the way the two normals lean on average:
+
+```
+m  = norm( d × (n0 + n2) )            the sheet's normal
+T0 = ± norm( m × n0 )                 direction leaving P0
+T2 = ± norm( m × n2 )                 direction arriving at P2
+```
+
+Both directions lie in the sheet and are at right angles to their normals. With one sharp end the sheet is instead the one through `d` and the forced direction: `m = norm(d × T_sharp)`. With two sharp ends both directions are forced.
+
+**One arc.** Find where the two tangent lines meet: `P0 + s·T0 = P2 − r·T2`. With `a = T0·T0`, `b = T0·T2`, `c = T2·T2`, `p = T0·d`, `q = T2·d`:
+
+```
+s = (p·c − q·b) / (a·c − b²)        r = (a·q − b·p) / (a·c − b²)
+A = P0 + s·T0                       the apex
+w = cos(turn / 2) = √( (1 + T0·T2) / 2 )
+```
+
+Accepted when the lines really meet and `s` and `r` are both at least 2% of `|d|` (the apex is in front of both ends). If both directions run along the edge, the edge is straight: `A` = the midpoint, `w = 1`.
+
+**Two arcs joined at the middle.** When one arc is not accepted (an S-shape, or directions not in one plane), use the helper cubic (3.5) for the middle point `M`, and
+
+```
+Tm = norm( (T0 × (M − P0)) × (T2 × (P2 − M)) )
+```
+
+the one direction lying in both halves' planes (if that is zero because everything is already in one plane, use the cubic's direction `ct`). Then one arc from `P0, T0` to `M, Tm`, and one from `M, Tm` to `P2, T2`. The halves join without a kink.
+
+An arc uses only its own edge's data, so both quads on an edge get the identical arc. It is computed once and shared.
+
+**Not yet in:** handle length. The plan is `w = L · cos(turn / 2)` with `L` from the normals' lengths. Open question: an arc has one fullness number but an edge has two handles; either average the two lengths, or use two arcs with one length each.
+
+## C3. Cutting a quad into curved triangles
+
+The quad's border is its 4 corners plus the middle point of every edge that became two arcs: 4 to 8 **border points**, joined by single arcs.
+
+Each border point needs a normal. A corner uses the quad's normal there. A middle point uses the average of the edge's two end normals, straightened to be at right angles to the curve: `nM = norm( n̄ − (n̄ · Tm)·Tm )` with `n̄ = n0 + n2`.
+
+**Arc between two points that each have one normal** (used for everything inside the quad): the same sheet rule as C2. Sheet through the chord and the average of the two normals; end directions where the sheet meets each tangent plane; then one arc.
+
+**The centre point.** Take the middle of each of the 4 edges (for a single arc: its point at `t = 0.5`). Build one arc from the bottom middle to the top middle and one from the right middle to the left middle. Then
+
+```
+C  = halfway between the middle points of those two arcs
+nC = norm( direction of the first at its middle × direction of the second at its middle )
+```
+
+turned to point the same way as the corner normals.
+
+**The spokes.** One arc from every border point to `C`. Border point `i`, border point `i+1` and `C` make one curved triangle with three single arcs as sides.
+
+**Known gap:** a spoke can be S-shaped and need its own middle point. That is not built; such a spoke is drawn straight and counted (16 on the wave).
+
+## C4. The surface of a curved triangle
+
+Corners `V0, V1, V2`; arcs `{A01, w01}`, `{A12, w12}`, `{A20, w20}`. For `b = (b0, b1, b2)`:
+
+```
+N(b) = b0²·V0 + b1²·V1 + b2²·V2 + 2·b0·b1·w01·A01 + 2·b1·b2·w12·A12 + 2·b2·b0·w20·A20
+D(b) = b0² + b1² + b2²         + 2·b0·b1·w01     + 2·b1·b2·w12     + 2·b2·b0·w20
+point = N(b) / D(b)
+```
+
+Put `b2 = 0` and this is exactly the arc of 3.1 from `V0` to `V1` with `t = b1`. So the surface contains its three arcs by construction. Nothing is fitted; neighbours cannot crack apart. **Checked:** the largest gap between a triangle's surface and its arcs is 5e-16 on all four meshes.
+
+What it does not promise: neighbours meet along an arc, but they need not be equally steep there. They agree at the corners only. A faint crease along an arc is possible; not measured.
+
+## C5. Which pixel corners a triangle tries
+
+With positive weights the surface lies inside the hull of its 6 control points (3 corners, 3 apexes). So their positions on screen bound it. Example 14 tries every pixel corner in the screen box around those 6 points.
+This is simple and safe but tries too many (2.5 for each hit on the mixed cube). Narrowing it to the triangle's exact spans, using where its arcs cross each pixel row (D2's quadratic), is **not built**.
+
+## C6. Pixel corner → point on the triangle
+
+In camera coordinates, write each coordinate `k` (right, down, forward) of `N` as a symmetric matrix, and `D` as one more:
+
+```
+M_k = [[ V0k      , w01·A01k , w20·A20k ],
+       [ w01·A01k , V1k      , w12·A12k ],
+       [ w20·A20k , w12·A12k , V2k      ]]
+
+M_1 = [[1, w01, w20], [w01, 1, w12], [w20, w12, 1]]
+```
+
+so that coordinate `k` of the point is `bᵀ·M_k·b / bᵀ·M_1·b`.
+
+For the pixel corner `(x, y)`, the column knife and the row knife (1.5) become two conics in `b`:
+
+```
+G = f·M_right − (x − cx)·M_forward        column knife
+H = f·M_down  − (y − cy)·M_forward        row knife
+wanted: b with  bᵀ·G·b = 0  and  bᵀ·H·b = 0
+```
+
+Solve with 5.4:
+
+1. Cubic in `λ` (coefficients in 5.4). Try each real root.
+2. `K = G + λ·H`. Take `−adj(K)`; if its largest diagonal entry is not positive, this root gives no real lines. Else `p` = that column divided by the square root of that entry.
+3. `K + crossmatrix(p)`: its largest entry's row is one line `l`, its column the other.
+4. For each line: two points on it, `q1 = l × e` (e = the axis `l` is least along) and `q2 = l × q1`. Put `b = τ·q1 + s·q2` into the other conic `O` (use `G` if `|λ| > 1`, else `H`): with `a = q2ᵀOq2`, `h = q1ᵀOq2`, `c = q1ᵀOq1`, `q = −(h + sign(h)·√(h² − a·c))`, the two answers are `b = a·q1 + q·q2` and `b = q·q1 + c·q2`.
+5. Scale each `b` to sum 1. Keep it if all three are ≥ 0 (inside the triangle), `D(b) > 0`, and the depth `z = bᵀ·M_forward·b / D(b)` is positive.
+6. **Safety check:** project the point back to the screen. Keep it only if it lands within 0.001 px of the pixel corner. Nothing unverified is ever written.
+7. Of everything kept, across all triangles, the nearest wins. There is no facing rule.
+
+**Measured:** kept points land within 8e-7 px of their corner on every mesh.
+
+## C7. The quad's own u, v
+
+Every border point has a `u, v`: corners `(0,0) (1,0) (1,1) (0,1)`, an edge's middle point halfway between its corners, the centre `(0.5, 0.5)`. Inside a triangle:
+
+```
+(u, v) = b0·uv0 + b1·uv1 + b2·uv2
+```
+
+Along an arc both neighbours use the arc's own `t`, so `u, v` is continuous across triangles and across quads. It is a fixed map on the surface: it cannot slide when the camera moves.
+
+## C8. From corners to a pixel
+
+A pixel has 4 corners. Example 14 takes the quad of the nearest corner, averages the `u, v` of the corners on that quad, and fades the pixel by the share of corners that hit. Exact coverage (how much of the pixel the quad's edge cuts off) is **not built**.
+
+## Measured so far (one run, default view, 240 × 240)
+
+| Mesh | Triangles | Edges: one arc / two | Arcs not built | Corners tried / hit | Frame |
+|---|---|---|---|---|---|
+| Smooth cube | 24 | 12 / 0 | 0 | 143,705 / 55,960 | 92 ms |
+| Mixed cube | 32 | 8 / 4 | 0 | 116,537 / 46,461 | 76 ms |
+| Wave | 48 | 10 / 12 | 16 spokes | 34,112 / 9,055 | 74 ms |
+| Hard cube | 24 | 12 / 0 | 0 | 91,304 / 38,194 | 105 ms |
+
+The mixed cube, which every older method cracked on, draws closed in that view. Times are JavaScript in a browser, not the target.
+
+---
+
+# Part D. The older methods, in order
+
+Each entry: the idea, its equation, what was found, and the verdict. Numbers are from `rnd-log.md`.
+
+**D0. The starting surfaces (lab, example 00).** Classic patches built from 4 corners and 4 normals: Nagata, Phong, PN-quad. All are polynomials in `(u, v)`.
+Verdict: fine to walk along, but a pixel corner on them is degree 8 or 18 (2.5). **Dropped** as the surface.
+
+**D1. Walking the surface one pixel at a time (example 01).** Step `u` by `du = 1 / speed`, where the speed on screen is `f · |(Xu·Z − X·Zu, Yu·Z − Y·Zu)| / Z²` pixels per unit `u`.
+Found: steps of one pixel in `u` and in `v` still skip pixels diagonally (2.54% gaps); shrinking the step to 0.7 fixes the inside but doubles the work and still leaves slivers at the outline.
+Verdict: **dropped**. A local guess, not exact.
+
+**D2. Exact crossings along a row (example 02).** Fix `v`. The patch row is a curve in `u`, and where it crosses the screen column `x = k` solves `f·X(u) − (k − cx)·Z(u) = 0`, a quadratic for Nagata and Phong.
+The same idea gives where an **arc** crosses a pixel row, with `yc = y − cy` and the arc's control points in camera coordinates `(r, d, z)`:
+
+```
+h0 = f·d0 − yc·z0     hb = w·(f·d1 − yc·z1)     h2 = f·d2 − yc·z2
+(h0 − 2·hb + h2)·t² + 2·(hb − h0)·t + h0 = 0
+```
+
+Verdict: exact but one-dimensional. **Kept as a tool**: it is how a triangle should find its spans (C5).
+
+**D3. The pixel grid as knives (example 03).** Turn it around: every grid line is a plane through the camera and cuts the patch along a curve; a pixel corner is where two cuts meet. Counting degrees (2.5) gave the table that steers everything.
+Verdict: the central idea. **Kept**.
+
+**D4. One quadric per quad (lab).** Fit `Q(x) = x·A·x + g·x + k` through the 4 corners with the normals as targets: one 15 × 15 linear solve.
+Found: 9 free numbers against 12 conditions, so the normals are only matched when they happen to agree with one quadric. Neighbouring quads get different quadrics and crack.
+Verdict: **dropped** as a general fill.
+
+**D5. S-curves by splitting (lab).** A quadric cannot bend back. Find where an edge's cubic changes its bend: with `m = n0 + n1`, `a = m·(P2 − 2·P1 + P0)`, `b = m·(P3 − 2·P2 + P1)`, there is such a point when `a·b < 0`, at `t* = a / (a − b)`. Split there.
+Verdict: the idea of a middle point **kept** (C2 now places it at the cubic's middle); the per-side quadrics dropped.
+
+**D6. Trimming at the neighbour (lab).** Let each quad's surface end where it crosses its neighbour's.
+Found: neighbours that share normals touch at the corners instead of crossing. Holes and ribbons.
+Verdict: **dropped**.
+
+**D7. Literature check.** Confirmed the two-point rule (4.3). Published methods that use quadrics split every face into many small pieces.
+Verdict: the rule is **kept as a law**; it is why quadric fills fail.
+
+**D8. Handles and arcs (example 04).** The owner's design: normals as handles, an arc between every two handles, sharp edges rounded by a blending distance.
+Old arc rule: each end's direction = the edge flattened onto that end's tangent plane; `w = L·cos(turn/2)`, `L` = average handle length. Works when the two directions fall in one plane, else two arcs.
+Rounding: per vertex a radius `r = blending × average edge length` and a centre `c` at distance `r` from each face plane around it; contact point `c + r·n̂`, fillet middle `c + r·norm(n̂A + n̂B)`, corner point `c + r·norm(sum of n̂)`.
+Found: shared edges match exactly on every mesh; the hard cube becomes an exact rounded box; the smooth cube's arcs lie exactly on a sphere.
+Verdict: the idea is **the foundation**. C2 changed the direction rule (the sheet); the rounding and handle length are **not yet in** the new build.
+
+**D9. One quadric per piece, and the plane-pencil u, v (examples 04, 05).** Fill each piece with a quadric fitted to its four arcs. For `u, v`: each side arc lies in a plane; with `s0…s3` the signed distances of a point from the four side planes,
+`u = s3 / (s3 − s1)`, `v = s0 / (s0 − s2)`.
+Found: closes on sphere, rounded box and wave (their arcs agree with one quadric). The mixed cube misses by 8% of an edge, 3.4% after one more split, and further splits open holes. Handle length × 2 leaves pieces with no surface inside.
+Verdict: **dropped** as the general fill (two-point rule). The plane-pencil `u, v` was per piece, not per quad.
+
+**D10. Pixel corners by line of sight against the quadric (example 06).** One quadratic for the hit, the four side planes for inside/outside and `u, v`. Added a per-pixel depth ("occlusion map").
+Found: clean where D9 closes; holes where it cracks. A bug where depths were in each piece's own units was found and fixed.
+Verdict: the solve was right, the surface under it was not.
+
+**D11. `u, v` from the edges as drawn on screen (examples 08–10).** For each projected side arc a value `K = b1 − 2·w'·√(b0·b2)` that is zero on the arc (`w' = w·zA / √(z0·z2)`); then `u = K3 / (K3 + K1)`, `v = K0 / (K0 + K2)`. Cheap, and crack-free by construction.
+Found: exact on flat pieces only. On curved ones the `u, v` slides when the camera moves (smooth cube: 17.6% of an edge), and pieces that turn past the outline fail completely.
+Why: a pixel is a line of sight; which surface point it sees depends on depth, and a flat drawing of the edges has no depth.
+Verdict: **dropped**. What the owner wanted from it (u, v from the edges alone) is delivered by C4–C7, where the edges define the surface in 3D.
+
+**D12. Which hit counts (example 11).** A line of sight meets a quadric twice. Rules tried: nearest hit inside the side planes (takes the far side on the wave); re-running the forward map and comparing (fails in float32); one facing sign per piece (fails on pieces that turn away partway); **per-pixel facing**, `t = (−b − σ·√D) / 2a`, which was the best.
+Verdict: no longer needed. C6 keeps every verified hit and the nearest wins.
+
+**D13. Bulge box and the packed layout (examples 11, 12).** The screen box of a quadric piece from its outline: planes through the camera that touch the quadric satisfy `πᵀ·C·π = 0`, with `C` the adjugate of the quadric's 4 × 4 matrix. All of a piece's numbers in one flat array; nothing read inside a row.
+Verdict: the box is exact but belongs to quadrics. The layout idea (**no memory read per pixel inside a row**) is **kept** for any future pixel pass.
+
+**D14. The step 17 pipeline and its review (example 12, log step 18).** Box + line of sight per pixel centre + per-pixel facing. Reported "0 wrong pixels" on three meshes.
+Review over 48 camera angles: smooth cube and rounded box clean; wave wrong in 10 views; mixed cube wrong in all 48, with 5% holes. float32 broke flat pieces. And it had drifted from the requirements: pixel centres, pixels as the source, per-piece `u, v`.
+Verdict: **replaced** by Part C.
+
+**D15. Memory fetches (example 13, log step 18f).** See 6.2–6.4. **Kept** as the way to judge cost.
+
+---
+
+# Part E. Where things stand
+
+## Decided
+
+- The requirements in Part A (owner).
+- Edges as arcs from the normals; an edge may be two arcs (owner).
+- A whole quad with four free arcs has no formula; the surface is made of curved triangles (shown by the degree count; triangles accepted by the owner).
+
+## Waiting for the owner
+
+1. **The sheet rule** for an arc's plane (C2), instead of flattening the edge onto each end.
+2. **A centre point with spokes** (C3), instead of one diagonal.
+3. **Handle length:** average the two ends on one arc, or two arcs with one length each?
+4. **Rounding of sharp edges:** bring it back, or keep sharp edges truly sharp?
+5. Is a faint crease along an arc acceptable?
+6. What does the engine's real occlusion system need from this?
+
+## Not done yet, in order
+
+1. Check example 14 over 12 or more camera angles, counting seam and outline pixels.
+2. Spokes that are S-shaped (wave).
+3. Handle length; rounding, if wanted.
+4. Exact spans instead of the control-point box (C5).
+5. Exact coverage of partly covered pixels (C8).
+6. float32, then native cost against the 500-cycle budget.
+
+## Glossary
+
+- **Apex:** the point where an arc's two end tangent lines meet.
+- **Arc:** a piece of an ellipse (or other conic) between two points; always flat.
+- **Barycentric coordinates:** three numbers adding to 1 that say where you are in a triangle.
+- **Closed form:** a fixed recipe with a known number of operations; no "repeat until close enough".
+- **Conic:** ellipse, parabola or hyperbola: the curves of degree 2.
+- **Handle:** a corner's normal, used to shape the curves that leave that corner.
+- **Knife:** a pixel grid line seen as a plane through the camera.
+- **Normal:** the direction sticking straight out of a surface at a point.
+- **Pixel corner:** a point where four pixels meet; on the surface it is where a line of sight lands.
+- **Quadric:** a surface of degree 2 (sphere, ellipsoid, cylinder…).
+- **Spoke:** an arc from a quad's border to its centre point.
+- **Tangent plane:** the flat sheet touching a surface at a point.
+- **u, v:** a quad's own two coordinates, each 0 to 1.
+- **Weight:** the one number that says how full an arc is.
