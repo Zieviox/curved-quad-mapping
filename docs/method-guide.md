@@ -503,12 +503,18 @@ Verdict: the marks are **kept** (C3); going straight between them is **dropped**
 4. Keeping an inherited normal at a right angle to its edge (C4).
 5. Pairing a knife's marks in order along the knife (C3).
 
+## Answered by the owner (log step 22)
+
+- **The ellipse's size:** it may be positioned, scaled and squashed however needed and may be far bigger than the edge. Only an S needs two. (The pages still split curves that go the long way round an ellipse; to fix.)
+- **Sharp edges:** a bevel-like strip between the two faces' handles, rounded along the normals; one user value sets how far it spreads inwards.
+- **Row and column ellipses with a gap:** the corner never comes from only one of them. The combining rule is to be proposed.
+- **Occlusion:** the real system needs the XYZ of each pixel corner on the surface; not now. For now, cull back faces.
+
 ## Open questions for the owner
 
-1. Handle length: when the two ends of one edge have different lengths, average them on one ellipse, or two ellipses with one length each?
-2. Sharp edges: how should two faces with different normals share an edge? Bring back the rounding?
-3. Where the row ellipse and the column ellipse pass with a small gap, which point is the corner's?
-4. What does the engine's real occlusion system need from this?
+1. An ellipse has one free number left after its two points and two directions. When the two handle lengths on an edge disagree, what sets it?
+2. How the row ellipse and the column ellipse are combined (proposal pending).
+3. How bevel strips meet at a corner where several sharp edges come together.
 
 ## Not done yet, in order
 

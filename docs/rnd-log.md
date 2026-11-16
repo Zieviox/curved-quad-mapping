@@ -879,6 +879,15 @@ The owner's rule, confirmed in talk: a new point on an edge **inherits a normal*
 
 **Open after this test:** one u, v rule that row-built and column-built ellipses agree on; whether the checker stays put when the camera moves (not measured); more views.
 
+## 22. Owner's answers to the four open questions (talk, no build)
+
+1. **Handle length / the ellipse's size (owner).** The ellipse is for the curve only. It may be positioned, scaled and squashed however needed to match the handles, and it may be much bigger than the edge: the edge is just the part of it between the two points. The only thing one ellipse cannot cover is an S.
+   - Consequence for the pages: example 14–16 split an edge in two whenever the two tangent lines do not meet in front of both ends. That wrongly treats a curve that turns more than half-way round (the long way round an ellipse) like an S. To fix when next built.
+   - Still to settle: an ellipse has 5 free numbers in its plane; two points and two directions use 4; one is left. Two independent handle lengths are two numbers. What sets the one that is left when the two lengths disagree is not yet agreed.
+2. **Sharp edges (owner).** Rounding along the normals, with margins: between the two faces' handles there is a strip, like a bevel, and the user controls with one value how far it spreads inwards into each face.
+3. **Where the row ellipse and the column ellipse pass with a gap (owner).** The corner must never come from only one of them. Which math combines them accurately is open; the assistant is to propose it.
+4. **Occlusion (owner).** The real system needs the XYZ of the pixel corner on the surface. Not now: it has a lot of optimisation behind it. For now, just cull back faces.
+
 ## Prior art
 
 Collected from memory at first. Step 7 checked the shared-edge part against abstracts and citing papers.
