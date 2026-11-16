@@ -100,4 +100,8 @@ The working pipeline, interactive: bulge box + outline margin, ray × quadric wi
 
 The intent confirmed with the owner, where steps 13–17 drifted from it, checks of step 17 over 48 camera angles, and the next surface to test (curved triangles spanned by the arcs). The page times the pixel pass on your device with and without real screen buffers and compares the memory cost with a calc. Natively: arithmetic 16.7–19.7 cycles per pixel against the model's 12; memory 1–9 more.
 
+### 19 · Curved triangles, built from zero — [Preview](https://htmlpreview.github.io/?https://github.com/Zieviox/curved-quad-mapping/blob/main/examples/14-curved-triangles.html) · [Source](examples/14-curved-triangles.html)
+
+A clean build of the discussed method, sharing no code with the earlier pages: arcs from the normals, a centre point per quad, curved triangles defined by their three arcs, and each pixel corner solved in closed form to the quad's own u, v. The mixed cube draws closed.
+
 Details and numbers are in the [R&D log](docs/rnd-log.md).

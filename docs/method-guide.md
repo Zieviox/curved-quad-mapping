@@ -2,6 +2,8 @@
 
 One place for the exact methods, in the order the data flows. Each part says what it does in plain words, the exact rule, and its status:
 **checked** (built and measured), **replaced** (built, failed, don't use), or **not built** (worked out on paper only).
+**Built so far:** example 14 (log step 19) builds parts 2, 3, 6, 8 and 9 from zero. It differs from this guide in three places, and the page is what was built: the arc's plane (through the edge and the average end normal, not the projected chord), sharp ends (cross product of the two normals, no rounding), and a centre point with a fan of 4–8 triangles instead of one diagonal. Parts 4, 5, 7 and 10 are not in it.
+
 History and numbers are in [`rnd-log.md`](rnd-log.md); the intent and rules are in [`../CLAUDE.md`](../CLAUDE.md).
 
 ```

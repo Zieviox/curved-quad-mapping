@@ -32,11 +32,12 @@ An earlier session drifted from the intent and reported results that didn't hold
 - Solid: the edge arcs (steps 8–9a). Shared edges match exactly.
 - Broken: filling a quad with one fitted shape. It cracks on general meshes (mixed cube: holes at every angle).
 - Proven: a whole quad with four free arc edges has no formula for a pixel corner (degree 8).
-- Next to test: two (or four) curved triangles per quad, each spanned by three arcs. No fitting, edges exact, one formula per pixel corner, u, v attached to the surface. Recipe: log step 18e. Not tested yet.
+- Next to test: two (or four) curved triangles per quad, each spanned by three arcs. No fitting, edges exact, one formula per pixel corner, u, v attached to the surface. Built in example 14 (log step 19): closed on the mixed cube in one view; not yet checked over many angles.
 
 ## Next step
 
-Build one visual page for the mixed cube using parts 6–9 of `docs/method-guide.md`. Show the surface with a u, v checker, let the owner orbit, and show three numbers: crack on every edge, how far u, v slides when the camera moves, and how far each pixel corner lands from its pixel. Then ask the owner what they see.
+Example 14 (log step 19) is the clean build of the curved-triangle method, made from zero. Work from it, not from examples 00–12.
+First ask the owner what they see in it and whether they accept the three decisions listed in step 19. Then, in this order: check it over 12+ camera angles with seam and outline pixels counted; fix the centre arcs that fail on the wave; replace the control-point box with exact spans.
 
 ## Questions still open with the owner
 

@@ -796,6 +796,36 @@ The cycle model of steps 1–17 has no memory term. The step 17 pixel pass was c
 2. If curved triangles fail, is a fixed number of correction steps allowed?
 3. What does the engine's real occlusion system need from this (depth only, or also which quad and u, v)?
 
+## 19. Curved triangles, built from zero (example 14)
+
+Asked for by the owner: forget the earlier code (page style and camera controls aside) and build the discussed method cleanly in a new page. Everything below is in `examples/14-curved-triangles.html` and nowhere else.
+
+**What it does**
+1. **Edge arc.** One arc per quad edge from its two end normals. It lies in the plane through the edge and the average of the two end normals; each end tangent is where that plane meets the end's tangent plane. Weight = cos(half the turn), so it is a circle arc whenever a circle fits.
+2. **Two arcs joined at the middle** when the tangent lines don't meet at least 2% of the edge length in front of both ends. Middle point = the middle of the cubic curve through the two ends with those tangents. Middle tangent = the direction lying in both halves' planes.
+3. **Sharp end** (the two faces on the edge have different normals there): the arc leaves along the cross product of the two normals, the only direction both faces allow. No rounding.
+4. **Inside a quad:** a centre point halfway between the middles of the two cross arcs (bottom-middle to top-middle, right-middle to left-middle), its normal at a right angle to both. One arc from every corner and every edge middle to the centre. That gives 4 to 8 curved triangles per quad.
+5. **Triangle surface, pixel corner, u, v:** exactly as step 18e / method guide parts 6, 8, 9. Every solved point is accepted only if it projects back onto its pixel corner within 0.001 px. No facing rule: the nearest point wins.
+
+**Decisions made by the assistant in this build, for the owner to confirm or change**
+- Rule 1 replaces the earlier "chord projected onto each tangent plane". It always gives a flat arc; the old rule did only when the normals happened to line up.
+- A centre point with a fan of triangles, instead of one diagonal. Reason: an edge made of two arcs adds a boundary point, so a quad can have 4 to 8 of them, and a fan handles every case with one rule. It also sits closer to a sphere (step 18e: about 1% low instead of 3.8%).
+- Handle length as bulge, and the blending distance for sharp edges, are left out.
+
+**Measured (one run, default camera, 240², JavaScript float64)**
+
+| Mesh | Triangles | Edges: one arc / two arcs | Arcs that could not be built | Gap, triangle surface vs its arcs | Largest distance of a solved point from its pixel corner |
+|---|---|---|---|---|---|
+| Smooth cube | 24 | 12 / 0 | 0 | 3.3e-16 | 1.0e-7 px |
+| Mixed cube | 32 | 8 / 4 | 0 | 4.6e-16 | 7.8e-7 px |
+| Wave | 48 | 10 / 12 | 16 centre arcs (drawn straight) | 4.6e-16 | 4.8e-12 px |
+| Hard cube | 24 | 12 / 0 | 0 | 0 | 5.9e-14 px |
+
+- The mixed cube, the mesh every earlier fill cracked on, draws closed in that view, with the checker continuous across quad edges (looked at once, one view).
+- Frame time 74–105 ms in the browser, solving every corner in each triangle's control-point box (116,537 corners solved for 46,461 on the surface on the mixed cube).
+
+**Not tested:** other camera angles, seam and outline pixels counted, float32, native cost, the angle between neighbouring triangles along edges, and why 16 centre arcs fail on the wave (they are S-shaped; an arc to the centre would need its own middle point, which is not built).
+
 ## Prior art
 
 Collected from memory at first. Step 7 checked the shared-edge part against abstracts and citing papers.
