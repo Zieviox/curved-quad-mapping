@@ -1,0 +1,201 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Edge Marks</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: phone-first. Steps, controls, one interactive view. Same tokens as the other examples. */
+:root{
+  --bg:#eef1f4;--surface:#ffffff;--fg:#151a21;--muted:#59626f;--line:#d6dce3;--accent:#2d56d2;--warn:#c8321f;--good:#1b7a52;
+  --pin:#b9c4d6;--pst:#9fcfc6;--pco:#d7b2d4;--border:#2d56d2;--fillet:#1f8a7a;--contact:#8a94a3;--cross:#d0721a;--corner:#a0459b;--handle:#151a21;--art:#c8321f;
+  --f-display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
+  --f-body:"IBM Plex Sans",ui-sans-serif,system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0e1115;--surface:#161a20;--fg:#e4e8ee;--muted:#98a1ae;--line:#2a313a;--accent:#7f9cff;--warn:#ff5f4a;--good:#5fd0a0;--pin:#4a5568;--pst:#2f6b62;--pco:#6b4569;--border:#7f9cff;--fillet:#4fd1bb;--contact:#7d8794;--cross:#f0a050;--corner:#d68ad0;--handle:#e4e8ee;--art:#ff5f4a;color-scheme:dark}}
+:root[data-theme="dark"]{--pin:#4a5568;--pst:#2f6b62;--pco:#6b4569;--bg:#0e1115;--surface:#161a20;--fg:#e4e8ee;--muted:#98a1ae;--line:#2a313a;--accent:#7f9cff;--warn:#ff5f4a;--good:#5fd0a0;--border:#7f9cff;--fillet:#4fd1bb;--contact:#7d8794;--cross:#f0a050;--corner:#d68ad0;--handle:#e4e8ee;--art:#ff5f4a;color-scheme:dark}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:15px;line-height:1.55}
+.wrap{max-width:1100px;margin:0 auto;padding-inline:16px;padding-block:22px 56px;display:flex;flex-direction:column;gap:22px}
+h1{font-family:var(--f-display);font-weight:700;font-size:clamp(26px,5vw,34px);line-height:1.1;margin:0;text-wrap:balance}
+h2{font-family:var(--f-display);font-weight:600;font-size:18px;margin:0}
+p{margin:0;max-width:68ch}
+.eyebrow{font-family:var(--f-mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+ol.steps{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:6px;max-width:72ch}
+.ctrls{display:flex;flex-direction:column;gap:10px}
+.crow{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center}
+.clab{font-family:var(--f-mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);width:84px;flex:none}
+.seg{display:inline-flex;flex-wrap:wrap;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surface)}
+.seg button{font:500 13px var(--f-body);color:var(--muted);background:transparent;border:0;padding:8px 12px;min-height:36px;cursor:pointer}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button.on{color:var(--fg);background:var(--bg);box-shadow:inset 0 -2px 0 var(--accent)}
+button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.slider{display:flex;align-items:center;gap:10px;flex:1;min-width:200px}
+.slider input{flex:1;min-width:0;accent-color:var(--accent);height:30px}
+.slider output{font:500 13px var(--f-mono);font-variant-numeric:tabular-nums;width:64px}
+.main{display:grid;grid-template-columns:1fr;gap:18px}
+@media (min-width:900px){.main{grid-template-columns:minmax(0,1.3fr) minmax(0,1fr)}}
+.view{display:flex;flex-direction:column;gap:8px;min-width:0}
+canvas.px{image-rendering:pixelated;cursor:crosshair}
+.stage{position:relative}
+.mark{position:absolute;outline:2px solid var(--fg);outline-offset:1px;pointer-events:none}
+canvas{width:100%;max-width:100%;aspect-ratio:1;display:block;border:1px solid var(--line);border-radius:10px;background:var(--surface);touch-action:none;cursor:grab}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12.5px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.ln{width:18px;height:3px;border-radius:2px;display:inline-block}
+.tw{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:13px;font-variant-numeric:tabular-nums}
+th,td{padding:7px 10px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-weight:500;color:var(--muted);font-size:12px}
+td.n{text-align:right;font-family:var(--f-mono);white-space:nowrap}
+td.ok{color:var(--good)}td.bad{color:var(--warn)}
+tr:last-child td{border-bottom:0}
+.note{font-size:13px;color:var(--muted)}
+.btn{font:500 13px var(--f-body);color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px 12px;min-height:36px;cursor:pointer}
+.log div{font:12px/1.5 var(--f-mono)}
+.stage{position:relative;max-width:640px}
+.fps{position:absolute;left:8px;top:8px;font:500 12px/1.4 var(--f-mono);color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:3px 7px;pointer-events:none;opacity:.92;white-space:pre}.log .e{color:var(--warn)}
+</style>
+
+
+<div class="wrap">
+<a id="back" href="../index.html" hidden style="font:500 13px var(--f-body);color:var(--accent);text-decoration:none">← All steps</a>
+<script>(()=>{const h=location.hostname;if(location.protocol==="file:"||h.endsWith("github.io")||h==="localhost")document.getElementById("back").hidden=false})()</script>
+<header><div class="eyebrow">Curved quads · step 20 · quick test</div><h1>Edge Marks</h1></header>
+<ol class="steps">
+  <li><b>Only the edges exist.</b> Each quad edge is one ellipse arc from its two handles (two arcs where the handles form an S). Nothing is built for the middle of a quad.</li>
+  <li><b>Knives mark the edges.</b> The horizontal knife through a pixel corner crosses the quad's edges at two points; so does the vertical knife. Each crossing is one quadratic, and each is exact.</li>
+  <li><b>The middle from the marks.</b> In the quad's u, v square, draw a straight line between the two row marks and another between the two column marks. Where the two lines cross is the corner's u, v.</li>
+  <li><b>The walk.</b> A corner belongs to the quad when it lies between its row's two marks and between its column's two marks. Nothing outside the quad's own rows and columns is tried.</li>
+</ol>
+<section class="ctrls" aria-label="Settings">
+  <div class="crow"><span class="clab">Mesh</span><div class="seg" id="g-mesh"><button data-v="0">Smooth cube</button><button data-v="1">Mixed cube</button><button data-v="2">Wave</button><button data-v="3">Hard cube</button></div></div>
+  <div class="crow"><span class="clab">Resolution</span><div class="seg" id="g-res"><button data-v="120">120²</button><button data-v="240">240²</button><button data-v="400">400²</button></div></div>
+  <div class="crow"><span class="clab">Arcs</span><div class="seg" id="g-arcs"><button data-v="0">Hidden</button><button data-v="1">Shown</button></div><button class="btn" id="spin">Auto orbit</button></div>
+</section>
+<div class="stage"><canvas id="cv" class="px" aria-label="The quads with their u, v checker from edge marks. Drag to orbit."></canvas></div>
+<div class="tw"><table><tbody id="stats"></tbody></table></div>
+<p class="note">Each quad has its own tint; the checker is 8 × 8 squares of the quad's u, v. Red: a corner between its marks where the two lines don't cross inside the u, v square. Watch the checker while you orbit: on a flat face it should stay put; on a curved face, see whether it swims.</p>
+<p class="note"><b>What this test leaves out:</b> there is no depth, so quads facing away from the camera are skipped and, where two quads overlap on screen, the first one drawn keeps the pixel. A quad that bulges past its own edges (the side of a ball) is cut off at its edges. The edge arcs are the ones from step 19.</p>
+</div>
+<script>
+// ================= arcs and meshes as in step 19; everything after them is new =================
+const add=(a,b)=>[a[0]+b[0],a[1]+b[1],a[2]+b[2]],sub=(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]],mul=(a,s)=>[a[0]*s,a[1]*s,a[2]*s],dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]],len=a=>Math.hypot(a[0],a[1],a[2]),norm=a=>{const l=len(a);return l>1e-300?mul(a,1/l):[0,0,0]};
+const $=id=>document.getElementById(id);
+
+// ---------------- 1. meshes: quads, with one normal per quad corner ----------------
+function cube(kind){const v=[[-1,-1,-1],[1,-1,-1],[1,1,-1],[-1,1,-1],[-1,-1,1],[1,-1,1],[1,1,1],[-1,1,1]],f=[[4,5,6,7],[0,3,2,1],[0,1,5,4],[1,2,6,5],[2,3,7,6],[3,0,4,7]];
+  const faceN=q=>norm(cross(sub(v[q[1]],v[q[0]]),sub(v[q[2]],v[q[1]])));
+  const n=f.map((q,fi)=>q.map(i=>{const p=v[i];
+    if(kind==='smooth')return norm(p);if(kind==='hard')return faceN(q);
+    if(fi===0)return[0,0,1];                              // mixed: the top face is sharp against the sides,
+    if(fi>=2&&p[2]>0)return norm([p[0],p[1],0]);          // the sides are smooth with each other,
+    return norm(p)}));                                    // and the bottom is smooth with everything
+  return{v,f,n}}
+function wave(){const v=[],f=[];for(let j=0;j<3;j++)for(let i=0;i<5;i++)v.push([(i-2)*0.9,(j-1)*0.9,i%2?-0.55:0.55]);
+  for(let j=0;j<2;j++)for(let i=0;i<4;i++){const a=j*5+i;f.push([a,a+1,a+6,a+5])}
+  const vn=v.map(()=>[0,0,0]);f.forEach(q=>{const fn=norm(cross(sub(v[q[2]],v[q[0]]),sub(v[q[3]],v[q[1]])));q.forEach(i=>vn[i]=add(vn[i],fn))});
+  return{v,f,n:f.map(q=>q.map(i=>norm(vn[i])))}}
+const MESHES=[()=>cube('smooth'),()=>cube('mixed'),wave,()=>cube('hard')];
+
+// ---------------- 2. one arc: end points P0, P2, apex A (where the two end tangents meet), weight w ----------------
+// point at t: ((1−t)²·P0 + 2w(1−t)t·A + t²·P2) / ((1−t)² + 2w(1−t)t + t²)
+function arcPoint(g,t){const r=1-t,b0=r*r,b1=2*g.w*r*t,b2=t*t,s=1/(b0+b1+b2);return[(g.P0[0]*b0+g.A[0]*b1+g.P2[0]*b2)*s,(g.P0[1]*b0+g.A[1]*b1+g.P2[1]*b2)*s,(g.P0[2]*b0+g.A[2]*b1+g.P2[2]*b2)*s]}
+const rev=g=>({...g,P0:g.P2,P2:g.P0});
+// One arc from P0 (leaving along T0) to P2 (arriving along T2). It exists when the two tangent lines meet in front of both ends
+// (at least 2% of the edge length away). Weight cos(turn/2): a circle arc whenever a circle fits. Otherwise null.
+function single(P0,T0,P2,T2){const d=sub(P2,P0),L=len(d),dir=mul(d,1/L);
+  if(len(cross(T0,dir))<1e-7&&len(cross(T2,dir))<1e-7)return{P0,A:mul(add(P0,P2),0.5),P2,w:1,straight:true};
+  const a=dot(T0,T0),b=dot(T0,T2),c=dot(T2,T2),det=a*c-b*b;if(det<1e-12)return null;
+  const p=dot(T0,d),q=dot(T2,d),s=(p*c-q*b)/det,r=(a*q-b*p)/det,A=add(P0,mul(T0,s));
+  if(len(sub(add(A,mul(T2,r)),P2))>1e-6*L||s<0.02*L||r<0.02*L)return null;
+  return{P0,A,P2,w:Math.sqrt((1+Math.max(-1,Math.min(1,dot(T0,T2))))/2)}}
+// One arc, or two joined at a middle point M: the middle of the cubic curve through the two ends with these tangents.
+// The middle tangent Tm lies in both halves' planes, so each half is a flat arc and the halves join smoothly.
+function arcOrSplit(P0,T0,P2,T2){const d=sub(P2,P0),L=len(d);if(len(T0)<0.5)T0=norm(d);if(len(T2)<0.5)T2=norm(d);
+  const one=single(P0,T0,P2,T2);if(one)return{parts:[one],fail:0};
+  const M=add(mul(add(P0,P2),0.5),mul(sub(T0,T2),L/8)),ct=norm(sub(d,mul(add(T0,T2),L/3)));
+  let Tm=cross(cross(T0,sub(M,P0)),cross(T2,sub(P2,M)));Tm=len(Tm)>1e-9*L*L?norm(Tm):ct;if(dot(Tm,ct)<0)Tm=mul(Tm,-1);
+  let fail=0;const half=(a,ta,b,tb)=>{const s=single(a,ta,b,tb);if(s)return s;fail++;return{P0:a,A:mul(add(a,b),0.5),P2:b,w:1,straight:true,failed:true}};
+  return{parts:[half(P0,T0,M,Tm),half(M,Tm,P2,T2)],M,Tm,fail}}
+// An arc between two points that each have one normal: it lies in the plane through the chord and the average normal,
+// and its end tangents are where that plane meets each end's tangent plane.
+function between(P0,n0,P2,n2){const d=sub(P2,P0),toward=t=>dot(t,d)<0?mul(t,-1):t;let pn=cross(d,add(n0,n2));if(len(pn)<1e-9*len(d))pn=cross(d,n0);
+  if(len(pn)<1e-9*len(d))return arcOrSplit(P0,norm(d),P2,norm(d));pn=norm(pn);return arcOrSplit(P0,toward(norm(cross(pn,n0))),P2,toward(norm(cross(pn,n2))))}
+// A quad edge. Each end has the normals of the (up to two) faces on this edge. Same normal: a smooth end. Different: a sharp end,
+// where the only direction lying in both faces' tangent planes is the cross product of the two normals.
+function endOf(ns){const a=norm(ns[0]);if(ns.length<2)return{n:a};const b=norm(ns[1]),t=cross(a,b);return len(sub(a,b))<1e-6||len(t)<1e-9?{n:a}:{n:norm(add(a,b)),t:norm(t)}}
+function edgeArc(P0,l0,P2,l2){const d=sub(P2,P0),e0=endOf(l0),e2=endOf(l2),toward=t=>dot(t,d)<0?mul(t,-1):t;
+  if(e0.t&&e2.t)return arcOrSplit(P0,toward(e0.t),P2,toward(e2.t));
+  if(!e0.t&&!e2.t)return between(P0,e0.n,P2,e2.n);
+  let pn=cross(d,e0.t||e2.t);if(len(pn)<1e-9*len(d))pn=cross(d,e0.t?e2.n:e0.n);if(len(pn)<1e-9*len(d))return arcOrSplit(P0,norm(d),P2,norm(d));pn=norm(pn);
+  return arcOrSplit(P0,toward(e0.t||norm(cross(pn,e0.n))),P2,toward(e2.t||norm(cross(pn,e2.n))))}
+
+// ---------------- 3. each quad: its border arcs, with the u, v at both ends of each arc ----------------
+function convert(mesh){const key=(a,b)=>a<b?a+'_'+b:b+'_'+a,E=new Map(),quads=[],lines=[],S={quads:mesh.f.length,one:0,two:0,failed:0};
+  mesh.f.forEach((q,fi)=>{for(let k=0;k<4;k++){const a=q[k],b=q[(k+1)&3],id=key(a,b);let e=E.get(id);if(!e)E.set(id,e={a:Math.min(a,b),b:Math.max(a,b),na:[],nb:[]});
+    const nA=mesh.n[fi][k],nB=mesh.n[fi][(k+1)&3];if(a===e.a){e.na.push(nA);e.nb.push(nB)}else{e.na.push(nB);e.nb.push(nA)}}});
+  for(const e of E.values()){e.arc=edgeArc(mesh.v[e.a],e.na,mesh.v[e.b],e.nb);if(e.arc.parts.length===1)S.one++;else S.two++;S.failed+=e.arc.fail;e.arc.parts.forEach(g=>lines.push(g))}
+  const UV=[[0,0],[1,0],[1,1],[0,1]];
+  mesh.f.forEach((q,fi)=>{const arcs=[],P=q.map(i=>mesh.v[i]);
+    for(let k=0;k<4;k++){const k1=(k+1)&3,e=E.get(key(q[k],q[k1])),parts=q[k]===e.a?e.arc.parts:e.arc.parts.slice().reverse().map(rev),m=[(UV[k][0]+UV[k1][0])/2,(UV[k][1]+UV[k1][1])/2];
+      if(parts.length===2){arcs.push({g:parts[0],uv0:UV[k],uv1:m});arcs.push({g:parts[1],uv0:m,uv1:UV[k1]})}else arcs.push({g:parts[0],uv0:UV[k],uv1:UV[k1]})}
+    const e1=sub(P[1],P[0]),e2=sub(P[3],P[0]),flat=arcs.every(a=>a.g.straight)&&len(sub(add(P[0],P[2]),add(P[1],P[3])))<1e-9;
+    quads.push({q:fi,arcs,c:mul(P.reduce(add),0.25),n:norm(mesh.n[fi].map(norm).reduce(add)),flat,P0:P[0],e1,e2,fn:norm(cross(e1,e2))})});
+  const c=mul(mesh.v.reduce(add),1/mesh.v.length);return{quads,lines,S,centre:c,radius:Math.max(...mesh.v.map(p=>len(sub(p,c))))}}
+
+// ---------------- 4. one frame ----------------
+let st={mesh:0,res:240,arcs:0,yaw:0.6,pitch:0.45},SC=null,spin=0;
+function camera(W){const c=SC.centre,d=3.6*SC.radius,cp=Math.cos(st.pitch),pos=add(c,mul([cp*Math.sin(st.yaw),-cp*Math.cos(st.yaw),Math.sin(st.pitch)],d)),fwd=norm(sub(c,pos)),right=norm(cross(fwd,[0,0,1]));
+  return{pos,fwd,right,down:cross(fwd,right),f:(W/2)/Math.tan(20*Math.PI/180),cx:W/2,cy:W/2}}
+function render(){const t0=performance.now(),W=st.res,cam=camera(W),{f,cx,cy}=cam,toCam=p=>{const q=sub(p,cam.pos);return[dot(q,cam.right),dot(q,cam.down),dot(q,cam.fwd)]};
+  const NC=(W+1)*(W+1),qb=new Int16Array(NC).fill(-1),ub=new Float32Array(NC),vb=new Float32Array(NC),bad=new Uint8Array(NC);
+  let inside=0,noCross=0,oddKnives=0,knives=0,away=0,behind=0,flatErr=-1;
+  for(const Q of SC.quads){if(dot(Q.n,sub(cam.pos,Q.c))<=0){away++;continue}
+    const A=Q.arcs.map(a=>({p0:toCam(a.g.P0),p1:toCam(a.g.A),p2:toCam(a.g.P2),w:a.g.w,uv0:a.uv0,uv1:a.uv1}));if(A.some(a=>a.p0[2]<0.05||a.p1[2]<0.05||a.p2[2]<0.05)){behind++;continue}
+    let x0=1e9,x1=-1e9,y0=1e9,y1=-1e9;for(const a of A)for(const p of[a.p0,a.p1,a.p2]){const sx=cx+f*p[0]/p[2],sy=cy+f*p[1]/p[2];x0=Math.min(x0,sx);x1=Math.max(x1,sx);y0=Math.min(y0,sy);y1=Math.max(y1,sy)}
+    const i0=Math.max(0,Math.ceil(x0)),i1=Math.min(W,Math.floor(x1)),j0=Math.max(0,Math.ceil(y0)),j1=Math.min(W,Math.floor(y1));
+    // a knife against every border arc: axis 1 = the row knife at screen y = k, axis 0 = the column knife at screen x = k. One quadratic per arc.
+    // Each crossing is a mark: its position along the knife on screen, and its u, v on the quad's border.
+    const marks=(axis,k)=>{const kc=k-(axis?cy:cx),o=axis?0:1,oc=o?cy:cx,out=[];knives++;
+      for(const a of A){const h0=f*a.p0[axis]-kc*a.p0[2],h1=a.w*(f*a.p1[axis]-kc*a.p1[2]),h2=f*a.p2[axis]-kc*a.p2[2],qa=h0-2*h1+h2,qq=2*(h1-h0),ts=[];
+        if(Math.abs(qa)<=1e-12*(Math.abs(qq)+Math.abs(h0))){if(qq!==0)ts.push(-h0/qq)}else{const D=qq*qq-4*qa*h0;if(D>=0){const s=Math.sqrt(D),q=-0.5*(qq+(qq<0?-s:s));ts.push(q/qa);if(q!==0)ts.push(h0/q)}}
+        for(const t of ts){if(!(t>=0&&t<1))continue;const r=1-t,b0=r*r,b1=2*a.w*r*t,b2=t*t,z=b0*a.p0[2]+b1*a.p1[2]+b2*a.p2[2];if(!(z>0))continue;
+          out.push({pos:oc+f*(b0*a.p0[o]+b1*a.p1[o]+b2*a.p2[o])/z,u:a.uv0[0]+(a.uv1[0]-a.uv0[0])*t,v:a.uv0[1]+(a.uv1[1]-a.uv0[1])*t})}}
+      out.sort((p,q)=>p.pos-q.pos);if(out.length&1){oddKnives++;return[]}return out};
+    const cols=[];for(let i=i0;i<=i1;i++)cols[i]=marks(0,i);
+    for(let j=j0;j<=j1;j++){const row=marks(1,j);
+      for(let i=i0;i<=i1;i++){const col=cols[i];let ra=null,rb=null,ca=null,cb=null;
+        for(let m=0;m+1<row.length;m+=2)if(row[m].pos<=i&&i<=row[m+1].pos){ra=row[m];rb=row[m+1];break}if(!ra)continue;
+        for(let m=0;m+1<col.length;m+=2)if(col[m].pos<=j&&j<=col[m+1].pos){ca=col[m];cb=col[m+1];break}if(!ca)continue;
+        inside++;const o=j*(W+1)+i;if(qb[o]>=0)continue;
+        // where the line between the row marks crosses the line between the column marks, in the u, v square
+        const rx=rb.u-ra.u,ry=rb.v-ra.v,qx=cb.u-ca.u,qy=cb.v-ca.v,wx=ca.u-ra.u,wy=ca.v-ra.v,den=rx*qy-ry*qx;let ok=Math.abs(den)>1e-12,s=0,t=0;
+        if(ok){s=(wx*qy-wy*qx)/den;t=(wx*ry-wy*rx)/den;ok=s>=-1e-9&&s<=1+1e-9&&t>=-1e-9&&t<=1+1e-9}
+        qb[o]=Q.q;if(!ok){noCross++;bad[o]=1;continue}ub[o]=ra.u+s*rx;vb[o]=ra.v+s*ry;
+        if(Q.flat){const dir=add(add(mul(cam.right,i-cx),mul(cam.down,j-cy)),mul(cam.fwd,f)),tt=dot(Q.fn,sub(Q.P0,cam.pos))/dot(Q.fn,dir),X=sub(add(cam.pos,mul(dir,tt)),Q.P0);
+          flatErr=Math.max(flatErr,Math.abs(dot(X,Q.e1)/dot(Q.e1,Q.e1)-ub[o]),Math.abs(dot(X,Q.e2)/dot(Q.e2,Q.e2)-vb[o]))}}}}
+  const cv=$('cv'),ctx=cv.getContext('2d');cv.width=W;cv.height=W;const im=ctx.createImageData(W,W),css=getComputedStyle(document.documentElement),col=k=>css.getPropertyValue(k).trim().slice(1).match(/../g).map(h=>parseInt(h,16));
+  const bg=col('--surface'),fg=col('--fg'),warn=col('--warn'),tint=[col('--pin'),col('--pst'),col('--pco')];let covered=0;
+  for(let y=0;y<W;y++)for(let x=0;x<W;x++){const cs=[y*(W+1)+x,y*(W+1)+x+1,(y+1)*(W+1)+x,(y+1)*(W+1)+x+1];let q=-1,n=0,nb=0,u=0,v=0;for(const o of cs)if(qb[o]>=0&&q<0)q=qb[o];
+    for(const o of cs)if(qb[o]===q&&q>=0){if(bad[o])nb++;else{n++;u+=ub[o];v+=vb[o]}}let c=bg;
+    if(n+nb){covered++;if(nb)c=warn;else{u/=n;v/=n;const base=tint[q%3],dark=(Math.floor(Math.min(0.9999,Math.max(0,u))*8)+Math.floor(Math.min(0.9999,Math.max(0,v))*8))&1,k=dark?base.map((b,i)=>b*0.58+fg[i]*0.42):base,al=n/4;c=k.map((b,i)=>b*al+bg[i]*(1-al))}}
+    const p=4*(y*W+x);im.data[p]=c[0];im.data[p+1]=c[1];im.data[p+2]=c[2];im.data[p+3]=255}
+  ctx.putImageData(im,0,0);
+  if(st.arcs){ctx.lineWidth=1;ctx.strokeStyle=css.getPropertyValue('--accent');ctx.beginPath();for(const g of SC.lines)for(let k=0;k<=12;k++){const p=toCam(arcPoint(g,k/12));if(p[2]<0.05)break;const X=cx+f*p[0]/p[2],Y=cy+f*p[1]/p[2];k?ctx.lineTo(X,Y):ctx.moveTo(X,Y)}ctx.stroke()}
+  const S=SC.S,ms=performance.now()-t0,row=(a,b,cls)=>'<tr><td>'+a+'</td><td class="n '+(cls||'')+'">'+b+'</td></tr>',n=x=>x.toLocaleString('en-US');
+  $('stats').innerHTML=row('Quads drawn / facing away',(S.quads-away-behind)+' / '+away)+row('Quad edges: one arc / two arcs joined',S.one+' / '+S.two)
+    +row('Pixel corners found inside a quad',n(inside))+row('…where the two lines don\'t cross inside the u, v square (red)',n(noCross),noCross?'bad':'ok')
+    +row('Knives with an odd number of marks (skipped)',n(oddKnives)+' of '+n(knives),oddKnives?'bad':'ok')
+    +row('Flat faces: largest difference from the exact u, v',flatErr<0?'no flat face in view':flatErr.toExponential(1),flatErr<0?'':flatErr<1e-9?'ok':'bad')
+    +row('Curved faces: difference from an exact u, v','not measurable: no surface is defined in the middle')+row('Pixels drawn',n(covered))+row('This frame, in this browser',ms.toFixed(0)+' ms')}
+function load(){SC=convert(MESHES[st.mesh]());render()}
+function seg(id,k,fn){const bs=[...$(id).querySelectorAll('button')],sync=()=>bs.forEach(b=>b.classList.toggle('on',String(st[k])===b.dataset.v));bs.forEach(b=>b.onclick=()=>{st[k]=+b.dataset.v;sync();fn()});sync()}
+seg('g-mesh','mesh',load);seg('g-res','res',render);seg('g-arcs','arcs',render);
+const cv=$('cv');let ptr=null,raf=0;cv.addEventListener('pointerdown',e=>{ptr={x:e.clientX,y:e.clientY};cv.setPointerCapture(e.pointerId)});
+cv.addEventListener('pointermove',e=>{if(!ptr)return;st.yaw-=(e.clientX-ptr.x)*0.01;st.pitch=Math.max(-1.5,Math.min(1.5,st.pitch+(e.clientY-ptr.y)*0.01));ptr={x:e.clientX,y:e.clientY};if(!raf)raf=requestAnimationFrame(()=>{raf=0;render()})});
+cv.addEventListener('pointerup',()=>ptr=null);cv.addEventListener('pointercancel',()=>ptr=null);
+$('spin').onclick=e=>{if(spin){cancelAnimationFrame(spin);spin=0;e.target.textContent='Auto orbit';return}e.target.textContent='Stop orbit';const step=()=>{st.yaw+=0.015;render();spin=requestAnimationFrame(step)};spin=requestAnimationFrame(step)};
+try{load()}catch(e){$('stats').innerHTML='<tr><td class="bad">Error: '+(e.stack||e)+'</td></tr>'}
+</script>

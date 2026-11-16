@@ -826,6 +826,31 @@ Asked for by the owner: forget the earlier code (page style and camera controls 
 
 **Not tested:** other camera angles, seam and outline pixels counted, float32, native cost, the angle between neighbouring triangles along edges, and why 16 centre arcs fail on the wave (they are S-shaped; an arc to the centre would need its own middle point, which is not built).
 
+## 20. Quick test: edge marks (example 15)
+
+Asked for by the owner after talking the method through. The owner's picture, confirmed in that talk:
+- Two handles (two points, each with its normal) give one ellipse along one edge; two where the handles form an S. A quad is its 4 edges, so 4 to 8 of these. They are thin: a line of sight into the middle of a quad lands on none of them.
+- The walk is on the screen: find the pixel the quad starts in, find where that pixel's corners land on the quad, step to the next pixel in the row (two new corners), next row when the pixel leaves the quad.
+- A normal belongs to its own face's corner. Two faces share a normal only where the surface is perfectly smooth.
+- The goal look is a subdivided model, not shrunk: through the mesh points, following the normals.
+
+**What the test does.** Nothing is built for the middle of a quad. The horizontal knife through a pixel corner crosses the quad's edge arcs at two points, the vertical knife at two more (one quadratic each, exact). In the quad's u, v square, a straight line joins the two row marks and another the two column marks; where they cross is the corner's u, v. A corner belongs to the quad when it lies between its row's marks and between its column's marks.
+
+**Choices made by the assistant for this test:** the straight lines in the u, v square (the owner said "maybe" to working the middle out from the marks; the straight-line rule is the assistant's); the edge arcs are step 19's, one per mesh edge; no depth, so quads facing away are skipped.
+
+**Measured (one run, default view, 240², JavaScript)**
+
+| Mesh | Corners inside a quad | Lines don't cross in the u, v square | Knives with an odd number of marks | Frame |
+|---|---|---|---|---|
+| Smooth cube | 24,986 | 1 | 0 of 800 | 73 ms |
+| Mixed cube | 23,042 | 0 | 0 of 776 | 24 ms |
+| Wave | 8,453 | 0 | 0 of 954 | 10 ms |
+| Hard cube | 19,097 | 0 | 0 of 653 | 15 ms |
+
+- **Flat faces are exact:** on the hard cube the u, v differs from the exact flat answer by at most 3.0e-8, the size of the rounding of the 32-bit numbers the page stores u, v in.
+- **Seen in that one view:** the hard cube and mixed cube look right. The smooth cube is not round: each face is cut off at its own edges, so the ball shows three lobes. A face on the side of a ball is bigger on screen than the outline of its edges, and edge marks alone cannot know that.
+- **Not measured:** whether the checker swims on curved faces when the camera moves. With no surface defined in the middle there is no exact answer to compare with; it has to be judged by orbiting.
+
 ## Prior art
 
 Collected from memory at first. Step 7 checked the shared-edge part against abstracts and citing papers.

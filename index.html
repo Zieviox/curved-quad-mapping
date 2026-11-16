@@ -159,6 +159,11 @@ code{font-family:var(--f-mono);font-size:.92em}
     <p class="q">Arcs from the normals, a centre point per quad, curved triangles defined by their three arcs, every pixel corner solved in closed form to the quad's own u, v.</p>
     <ul class="find"><li>Nothing is fitted: a triangle's surface matches its arcs to 5e-16.</li><li>The mixed cube draws closed. Solved points land within 1e-6 px of their pixel corners.</li><li>Open: more camera angles, 16 centre arcs that fail on the wave, exact spans, cost.</li></ul>
     <div class="links"><a class="btn" href="examples/14-curved-triangles.html">Open curved triangles</a></div></div></li>
+  <li><span class="num">20</span><div class="body">
+    <h2>Quick test: edge marks</h2>
+    <p class="q">Only the edge ellipses exist. Can a pixel corner's u, v in the middle of a quad be worked out from where its two knives cross the edges?</p>
+    <ul class="find"><li>Flat faces: exact. All quadratics, 10–73 ms per frame in the browser.</li><li>A ball is cut off at each face's edges: edge marks alone can't know how far a face bulges past them.</li></ul>
+    <div class="links"><a class="btn" href="examples/15-edge-marks.html">Open edge marks</a></div></div></li>
 </ol>
 
 <p class="note">The cost model throughout is Intel Skylake, float32 scalar: ADD, MUL and FMA have latency 4 and throughput 0.5 cycles; SQRT 12/3; DIV 11/3. Pages compute in JavaScript float64.</p>
