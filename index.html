@@ -149,6 +149,11 @@ code{font-family:var(--f-mono);font-size:.92em}
     <p class="q">The working pipeline, interactive: bulge box + outline margin, ray × quadric with per-pixel facing, side planes, packed, nearest depth at write.</p>
     <ul class="find"><li>0 wrong pixels on the smooth cube, rounded box and wave; 170 on the mixed cube (its cracks).</li><li>About 12 model cycles per pixel walked. Open items: <a href="docs/wrap-up.md">wrap-up</a>.</li></ul>
     <div class="links"><a class="btn" href="examples/12-coverage-check.html">Open the coverage check</a></div></div></li>
+  <li><span class="num">18</span><div class="body">
+    <h2>Review and memory fetches</h2>
+    <p class="q">What is the intent, where did the log drift from it, and what do memory fetches cost against a calc?</p>
+    <ul class="find"><li>Wanted: surface as the source, pixel corners, the quad's own u, v, edge-based u, v. Steps 13–17 drifted on all four.</li><li>Step 17 over 48 camera angles: smooth cube and rounded box clean; wave wrong in 10 views; mixed cube in all 48.</li><li>Arithmetic: 16.7–19.7 cycles per pixel measured against the model's 12. Memory adds 1–9 more; the simple calc is 5–9× too low on short rows.</li><li>Next surface to test: curved triangles spanned by the arcs (a quartic per pixel corner, no fitting, no cracks). Details in the <a href="docs/rnd-log.md">log, step 18</a>.</li></ul>
+    <div class="links"><a class="btn" href="examples/13-memory-fetches.html">Open memory fetches</a></div></div></li>
 </ol>
 
 <p class="note">The cost model throughout is Intel Skylake, float32 scalar: ADD, MUL and FMA have latency 4 and throughput 0.5 cycles; SQRT 12/3; DIV 11/3. Pages compute in JavaScript float64.</p>

@@ -1,5 +1,7 @@
 # Wrap-up: where the R&D stands (after step 17)
 
+**Read step 18 of the log first.** A later review confirmed the intent with the owner and found that this wrap-up's pipeline drifted from it: edge-based u, v, surface as the source, pixel corners and the quad's own u, v are all wanted, and the "0 wrong pixels" below holds at the default view only. The decisions and open items below are kept as written, for the record; [step 18](rnd-log.md#18-review-confirmed-intent-where-the-log-drifted-memory-fetches-and-the-next-surface-example-13) replaces them as the starting point.
+
 Saved so the work can resume in a new session. Details and numbers for every step are in [`rnd-log.md`](rnd-log.md).
 
 ## The pipeline that works now (example 12, Coverage Check)

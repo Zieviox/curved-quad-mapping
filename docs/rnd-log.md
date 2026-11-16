@@ -658,6 +658,144 @@ The cube fix (normal at the hit points the piece's way, one stepped multiply-add
 
 Open items for the next session: [`wrap-up.md`](wrap-up.md).
 
+## 18. Review: confirmed intent, where the log drifted, memory fetches, and the next surface (example 13)
+
+A review session, not a build step. Nothing in examples 00–12 was changed.
+
+### 18a. Intent, confirmed by the owner (read this first)
+
+- **Basic idea:** every edge is an ellipse arc, or two joined at the middle, driven by the vertex normals. The normals are handles that make a curved shape.
+- **The surface is the source, not the pixels.** Each quad finds its own pixels from its own edges and never tests pixels it doesn't touch.
+- **Pixel corners, not centres**, so coverage is exact (anti-aliasing and more).
+- **The quad's own u, v in 0…1**, for texture mapping later. Edge-based u, v is wanted, if it can be made cheap and correct.
+- **Never converted to flat polygons.** The curved surface is displayed directly.
+- **CPU only, on purpose.**
+- **Closed form is a means, not the goal.** The goal is high resolution within about 500 cycles per pixel, 1,000 at most, **memory fetches included**. A formula is preferred over iteration.
+- **Occlusion is a placeholder** for the engine's real system. It must stay simple and must not force a method the engine can't use.
+- Two curved triangles inside a quad are acceptable, but a whole quad is preferred.
+
+### 18b. Where steps 13–17 drifted from that
+
+| Wanted | What the wrap-up ended with |
+|---|---|
+| Edge-based u, v kept | dropped (step 16) |
+| Surface as the source | a ray through every pixel of a box (steps 16d, 17) |
+| Pixel corners | pixel centres (from step 14 on) |
+| The quad's own u, v | each piece has its own u, v, with no map back to the quad |
+| Occlusion as a placeholder | the occlusion map shaped the output format |
+
+Steps 8–9a (handles and arcs: shared edges match exactly, sphere and rounded-box edges exact) are the part that matches the intent and holds up.
+
+### 18c. Checks on the step 17 pipeline (example 12, run headless, 48 camera angles per mesh at 200²)
+
+| Mesh | Wrong pixels (the page's own check) | Holes inside the outline | float32 picks a different piece |
+|---|---|---|---|
+| Smooth cube | 0 | 0 | 0 |
+| Rounded box | 0 | 0 | 328,970 of 583,720 covered pixels |
+| Wave | 1,124, in 10 of 48 views | 214 | 42 |
+| Mixed cube | 21,168, in all 48 views | 39,184 of 771,336 (5.1%) | 27,500 |
+
+- **The "0 wrong" of step 17 holds at the default view only** for the wave.
+- **Mixed cube:** 4 of its 18 pieces have no surface at their centre and are dropped by the page, from the picture and from the answer key alike, so the check can't see them. From above at 400², 9,136 pixels are wrong.
+- **The answer key is not independent:** it samples the same fitted shape, scores interior pixels only (seams and outlines are left out), and step 17's table is one view per mesh.
+- **float32 breaks flat pieces.** A flat piece is stored as a doubled plane, so the discriminant is exactly 0 on paper; float64 passes only through the 1e-9 clamp.
+- **The cube fix does something** (wrap-up item 2 says it doesn't): on the wave it cuts wrong pixels from 3,490 to 1,124; on the mixed cube it adds holes.
+- **The bulge box is exact:** margins 0, 1 and 4 px give the same picture everywhere. The outline margin isn't needed.
+- **Pixels walked per pixel covered is 2.3–4.2**, not about 2.
+- **A piece with any control point behind the camera plane is dropped whole.** 0.22 units from a hard-cube face, nothing is drawn.
+- **Test set:** 3 of the 4 meshes (sphere, rounded box, extruded wave) are shapes where one quadric is the exact answer. The only general one, the mixed cube, fails. Expect general meshes to behave like it.
+
+### 18d. The wall, stated once
+
+A pixel corner on a surface is the same equation as the line of sight through that corner. Its degree decides everything:
+
+| Surface inside the edges | Degree | Formula? | Edges it can hold |
+|---|---|---|---|
+| One quadric per piece (steps 4–17) | 2 | quadratic | only edges that agree with one quadric (two-point rule, step 7) |
+| Straight lines between two opposite arcs ("same level", step 16) | 4 | quartic | 2 arcs; the other 2 edges are straight |
+| A curved triangle spanned by 3 arcs (Steiner patch) | 4 | quartic | any 3 arcs, exactly |
+| A whole quad curved both ways with 4 free arcs | 8 | none | — |
+
+So a whole quad with 4 free arc edges has no formula. The choices are: split the quad into curved triangles, accept constrained edges, or allow a fixed number of correction steps (not exact, fixed cost).
+
+**Why the edge-based u, v of step 13 slid:** it was computed from the edges as drawn on the screen. Which surface point a pixel sees depends on how deep the surface is along the line of sight, and the flat drawing doesn't know that. It is exact on flat quads only. Edge-based u, v can be correct only when the edges alone define the surface in 3D. The curved triangle below is exactly that case.
+
+### 18e. Lead, not yet tested: curved triangles spanned by the arcs
+
+Known as Steiner patches, or rational quadratic Bézier triangles. Sederberg and Anderson (1984, "Ray tracing of Steiner patches") show that a line of sight meets one in a degree-4 equation.
+
+**Definition.** A triangle has corners V0, V1, V2 and three arcs {apex A01, weight w01}, {A12, w12}, {A20, w20}: the same {P0, A, P2, w} data the arc cache already holds. With b = (b0, b1, b2), b0 + b1 + b2 = 1:
+
+- N(b) = b0²·V0 + b1²·V1 + b2²·V2 + 2·b0·b1·w01·A01 + 2·b1·b2·w12·A12 + 2·b2·b0·w20·A20
+- D(b) = b0² + b1² + b2² + 2·b0·b1·w01 + 2·b1·b2·w12 + 2·b2·b0·w20
+- point = N(b) / D(b)
+
+On b2 = 0 this is the arc V0 → V1 with t = b1, exactly as `arcAt` computes it. So the surface contains its three arcs by construction: no fit, no crack, no piece without a surface, for any arcs with positive weights.
+
+**Pixel corner → b, in closed form.** In camera coordinates (right, down, forward), write each coordinate of N as a symmetric 3 × 3 matrix: M_k[i][i] = V_i's coordinate k, M_k[i][j] = w_ij × A_ij's coordinate k. Then:
+
+1. Column knife at screen x: G = f·M_right − (x − cx)·M_forward. Row knife at y: H = f·M_down − (y − cy)·M_forward. The corner is where bᵀ·G·b = 0 and bᵀ·H·b = 0: two conics in the triangle's own (b) plane. D drops out.
+2. det(G + λ·H) = 0 is a cubic in λ (Cardano). For that λ, G + λ·H is a pair of straight lines.
+3. Split it into its two lines (one square root). Each line meets conic G in a quadratic. That gives up to 4 points.
+4. Keep the points inside the triangle (all three b the same sign), in front of the camera, facing it; take the nearest. Depth = bᵀ·M_forward·b / D(b).
+
+Along a pixel row H is fixed and G changes by −M_forward per pixel, so the cubic's coefficients are polynomials in x and can be stepped with additions. This is the "pixel grid as knives" picture of step 3: every grid line cuts the triangle's own parameter plane along a conic.
+
+**The quad's own u, v.** Split the quad along a diagonal arc (built from the two corner handles like any other arc). Lower triangle (corners at u, v = (0,0), (1,0), (1,1)): u = b1 + b2, v = b2. Upper triangle ((0,0), (1,1), (0,1)): u = b1, v = b1 + b2. Along every arc, b is the arc's own parameter, which both neighbours share, so u, v is continuous across the diagonal and across quad edges. It is attached to the surface, so it cannot slide.
+
+**Which pixels (surface as source).** With positive weights the triangle lies inside the hull of its 6 control points, so the projected control points bound it. The existing row crossings of the arcs (one quadratic each) give the spans.
+
+**Measured on paper so far (the only numbers for this lead):** against the smooth cube's sphere, with edges exactly on the sphere, the inside of a face sits low by at most 3.8% of the radius with 2 triangles per face, and 0.99% with 4 triangles around a centre point placed on the sphere. A sphere octant as one triangle sits 8.4% low.
+
+**Costs and risks.**
+- Per corner: one cubic, one square root, two quadratics. The log's only quartic method measured 146 model cycles against 23 for the quadratic; expect that order.
+- The surface follows the normals at the corners (both arcs leave a corner in the plane across its normal). Along an edge or the diagonal it is only guaranteed to meet, not to be smooth: a faint crease is possible. Not measured.
+- The inside is fully decided by the arcs. Where it sits too flat, use 4 triangles around a centre point, which gives one free point per quad.
+- Outline pixels: where a triangle turns edge-on, its outline is not a simple curve in b, so exact coverage there has no formula yet. Corners past the outline simply have no solution.
+- float32 behaviour of the cubic is unknown.
+
+**Hybrid.** Where a quad's four arcs do agree with one quadric (sphere, rounded box, wave), the single quadric stays exact and cheap. Where two opposite edges are straight, "same level" is exact. Both use the same arcs as their neighbours, so they can sit next to curved triangles without cracks.
+
+**First test to run:** the mixed cube. Measure the crack on every edge and the diagonal (expected 0), the reprojection error of every pixel corner, the slide of u, v under camera motion (expected 0), the normal jump across edges in degrees, float32 against float64, and native cycles per corner.
+
+**Fallback if it fails:** the whole quad with a formula for a first guess (the fitted quadric) plus a fixed 2–3 correction steps. Fixed cost, not exact, can fail at outlines. Not yet agreed with the owner.
+
+### 18f. Memory fetches: a calc against a measurement (example 13)
+
+The cycle model of steps 1–17 has no memory term. The step 17 pixel pass was compiled natively (float32, `tools/mem-test`) and timed with the processor's cycle counter on a cloud server (Xeon, L1 48 KB, L2 2 MB, L3 260 MB shared). Smooth cube; the screen (3840 × 2160, and 15360 × 8640 to force RAM) is filled with copies of the object, each with its own piece data.
+
+**Arithmetic** (writing into one row that never leaves the cache):
+
+| | Cycles per pixel walked |
+|---|---|
+| Calc: the log's operation model | 12.2–12.7 |
+| Measured | 16.7–19.7 |
+| Deviation | +37% to +60% |
+
+**Memory** (whole pass minus arithmetic). The simple calc replays the pass through a model of the caches, counts every 64-byte block that is not in L1, and prices it at the cost of fetches that overlap each other (measured here: 15–22 cycles from L3, 33 from RAM, 4–7 per new 4 KB page):
+
+| Pixels walked per piece | Calc | Measured | Deviation |
+|---|---|---|---|
+| about 1.2 million | 0.9 | 1–3 | about on target |
+| about 78,000 | 1.0 | 6–9 | 6–9× too low |
+| about 5,000 | 1.1–1.2 | 5–9 | 5–8× too low |
+
+- **Why it is too low:** on short rows the processor's read-ahead never gets ready, and fetches are 16–32 pixels apart, too far to overlap. A new block then costs on the order of 100 cycles, not 15–30.
+- **Better rule, fitted but not validated:** the first 8 blocks of every run of consecutive blocks are not ready and cost about 100–120 cycles each; the rest are free. It fits the three sizes above. It has not been checked on a second mesh. Example 13 uses this rule with prices measured on the device.
+- **Total:** 18–28 cycles per pixel walked against the model's 12: 1.5–2.3×. Memory is 5–35% of it.
+- **In the browser** (example 13 on the same server) the memory part is inside the timing noise, because JavaScript's arithmetic is about 19 ns per pixel and hides it.
+- Large pages made no clear difference. Random draw order cost up to a few cycles more than drawing across the screen.
+
+**Texture reads, a separate quick test** (one 4-byte read per pixel, cycles per read): in order along the texture's rows 3–9; across its rows 15–50; at scattered positions 115–545. Scattered reads alone would use up the 500-cycle budget, so the texture step needs reads that stay close together (the pixel-corner footprint in u, v is what tells how far apart they are).
+
+**Against the budget:** the screen buffers and piece data cost single-digit cycles per pixel walked. The ratio of pixels walked to pixels covered (2.3–4.2 in step 17) matters more, because every walked pixel pays the full arithmetic: a 150-cycle corner at 1.5× and 3 walked per covered is already over 500.
+
+### 18g. Open questions for the owner
+
+1. Is a faint crease along a quad edge or the diagonal acceptable for a first test, or is smoothness everywhere required?
+2. If curved triangles fail, is a fixed number of correction steps allowed?
+3. What does the engine's real occlusion system need from this (depth only, or also which quad and u, v)?
+
 ## Prior art
 
 Collected from memory at first. Step 7 checked the shared-edge part against abstracts and citing papers.
@@ -670,5 +808,8 @@ Collected from memory at first. Step 7 checked the shared-edge part against abst
 | Ray vs bilinear patch in closed form (quadratic) | Existing | Ramsey, Potter, Hansen 2004, "Ray Bilinear Patch Intersections"; Reshetov 2019, "Cool Patches" (Ray Tracing Gems) |
 | A scan line as a plane through the camera, cutting a parametric patch | Existing, 1978–1980 | Blinn, Whitted, Lane, Carpenter: "Scan line methods for displaying parametrically defined surfaces" (CACM 1980). They hit the same wall: on bicubic patches the cut has no closed form, so they track it with Newton's method. |
 | Pixel edges as planes (edge functions) | Standard | Every triangle rasterizer; homogeneous rasterization (Olano & Greer 1997) |
+| A tight screen box per quadric from its dual matrix, then a ray per pixel in the box | Existing | Sigg, Weyrich, Botsch, Gross 2006: the same construction as step 16d's bulge box |
+| Curved triangles with conic edges; a ray meets one in a quartic | Existing, 1984 | Sederberg & Anderson, "Ray tracing of Steiner patches" (SIGGRAPH 1984). A triangle lies on a quadric only when its boundary conics share a point (Albrecht et al., arXiv 1506.00967): the triangle version of the two-point rule |
+| Smooth piecewise quadrics on a triangle net, geometric construction | Existing | Bangert & Prautzsch 1999, "Quadric splines" (CAGD): three contact elements don't fit one quadric, so each triangle becomes a macro-patch of several quadric pieces |
 
 Not found yet: using quadric pieces per quad specifically so that pixel rows, columns and corners map to (u, v) in closed form on the CPU, with no frame buffer. This needs a real literature search before calling it new.

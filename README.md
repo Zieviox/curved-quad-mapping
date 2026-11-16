@@ -95,4 +95,8 @@ Every solving and detection method on real pieces: measured time, counted operat
 
 The working pipeline, interactive: bulge box + outline margin, ray × quadric with per-pixel facing, side planes, packed, nearest depth at write. 0 wrong pixels on the smooth cube, rounded box and wave. Open items: [`docs/wrap-up.md`](docs/wrap-up.md).
 
+### 18 · Review and memory fetches — [Preview](https://htmlpreview.github.io/?https://github.com/Zieviox/curved-quad-mapping/blob/main/examples/13-memory-fetches.html) · [Source](examples/13-memory-fetches.html)
+
+The intent confirmed with the owner, where steps 13–17 drifted from it, checks of step 17 over 48 camera angles, and the next surface to test (curved triangles spanned by the arcs). The page times the pixel pass on your device with and without real screen buffers and compares the memory cost with a calc. Natively: arithmetic 16.7–19.7 cycles per pixel against the model's 12; memory 1–9 more.
+
 Details and numbers are in the [R&D log](docs/rnd-log.md).
