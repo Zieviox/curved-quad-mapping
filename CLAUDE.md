@@ -39,16 +39,16 @@ The owner's method, agreed in talk (full detail: `docs/method-guide.md` Part A a
 - A normal belongs to one face's corner; faces share it only where the surface is perfectly smooth.
 - The look to reach: a subdivided or NURBS model, not shrunk, following the normals, in real time.
 
-Built: example 16 (one ellipse cut by a flat knife). Ball exact, flat exact, all quadratics. Not built: the corner where two ellipses meet, one u, v, handle length, the walk.
+Built as test pages: examples 16 and 17. Exact on a ball and on flat faces, all quadratics.
+Found: on general shapes (mixed cube, wave) the row ellipse and the column ellipse do not meet, and the picture wobbles when the camera turns, because the knives turn with the camera. The owner saw the wobble.
 Set aside, not the owner's method: fitted quadrics (steps 4–17) and curved triangles with a centre point (example 14).
 
 ## Next step
 
-Build the corner where the row ellipse and the column ellipse meet (method guide C6, C7), as a page the owner can orbit. Measure the gap between the two ellipses on the mixed cube and the wave. Do not add shapes, points or rules of your own to the middle of a quad; where a detail is missing, ask.
+The open problem (method guide C6): the middle of a quad must be one shape that does not move with the camera, made only of ellipses from handles, with a formula for a pixel corner. Talk it through with the owner before building anything. Do not add shapes, points or rules of your own to the middle of a quad; where a detail is missing, ask.
 
 ## Questions still open with the owner
 
-1. Handle length with two different lengths on one edge: average, or two ellipses?
-2. How should two faces with different normals share an edge?
-3. Where the two ellipses pass with a small gap, which point is the corner's?
-4. What does the engine's real occlusion system need from this?
+1. How the middle of a quad becomes one fixed shape (see Next step).
+2. Handle length when two lengths on one edge ask for different bulges (suggested: split in two like an S; not confirmed).
+3. How bevel strips meet at a corner where several sharp edges come together.

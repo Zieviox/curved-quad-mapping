@@ -148,7 +148,7 @@ quads + normals → C1 ends → C2 edge ellipses → C3 a knife marks two edges 
                → C7 u, v → C8 the walk → C9 the pixel
 ```
 
-Status in one line: C1 to C5 and cutting one ellipse with a flat knife are **built** (example 16). C6 as agreed (two ellipses meeting), C7's final rule and C8 are **not built**.
+Status in one line: C1 to C7 are **built** as test pages (examples 16 and 17). They are exact on a ball and on flat faces. On general shapes the row ellipse and the column ellipse do not meet and the result **wobbles** when the camera moves: that is the open problem (C6). C8 and C9 are **not built**.
 
 ## C1. The two ends of an edge
 
@@ -239,30 +239,38 @@ This ellipse bulges the way the handles say. It can reach past the quad's edges 
 
 **Measured (example 16, one view):** on the smooth cube every point lies on the exact ball to within 0.0005% of the radius. Flat faces match the exact flat answer to 3.0e-8. No ellipse failed to build on any of the four meshes.
 
-## C6. The pixel corner: where the row ellipse and the column ellipse meet — agreed with the owner, not built
+## C6. The pixel corner: where the row ellipse and the column ellipse meet — built (example 17); the two do not meet on general shapes
 
-A pixel corner has two knives through it, one row knife and one column knife. Each gives an ellipse across the quad (C3 to C5). **The corner is where those two ellipses meet.**
+A pixel corner has two knives through it, one row knife and one column knife. Each gives an ellipse across the quad (C3 to C5). **The corner is where those two ellipses meet** (owner), and it must **never come from only one of them** (owner).
 
-What is known:
-- Both ellipses pass through the corner's line of sight, because that line is where the two knives cross. Finding where an ellipse passes through it is one quadratic (the other knife against the ellipse, same equation as C3).
-- On the smooth cube both pass through it at the same point (measured: both on the exact ball).
-- On other shapes the two may pass each other with a small gap along the line of sight. How big is **not measured**.
+Both ellipses pass through the corner's line of sight, because that line is where the two knives cross. Where each passes it is one quadratic (the other knife against the ellipse, same equation as C3). Call the two points `Pr` (on the row ellipse) and `Pc` (on the column ellipse), and let `sr`, `sc` say how far along its ellipse each one is (0 and 1 at the marks).
 
-What example 16 does instead: it uses one ellipse cut by the other *flat knife*, runs rows and columns separately, and keeps the nearer point. Rows alone cannot bulge above or below the quad's edges; columns alone cannot bulge at the sides. Both together close the outline but bring two different `u, v` (speckle). C6 as agreed replaces that.
+**The blend tested (assistant's proposal, accepted by the owner for testing).** Each ellipse is exactly right at its own two marks, so it counts most near them:
 
-To settle when it is built:
-1. Where the two pass with a gap: which point is the corner's (one of them, or halfway)?
-2. At a bulge past the edges only one knife has marks, so only one ellipse exists there. The corner then comes from that one alone.
+```
+weight of the row ellipse     wr = sc·(1 − sc)
+weight of the column ellipse  wc = sr·(1 − sr)
+corner point = (wr·Pr + wc·Pc) / (wr + wc)          the same weights blend u, v
+```
 
-## C7. The quad's own u, v — final rule not built
+Near a row mark `sr` is near 0, so `wc` is near 0 and the row ellipse decides; in the middle both count equally. Where only one ellipse exists (a face bulging past its own edges, where the other knife has nothing to mark), that one is used. A point whose inherited normal faces away from the camera is dropped (the owner's "just cull back faces for now").
 
-Every mark has an exact `u, v` on the quad's border (C3). The agreed idea: **u is read from one ellipse and v from the other**, so there is one answer per corner.
+**What the test found (example 17, log step 23)**
+- **Ball and flat faces: the two ellipses meet exactly.** Smooth cube on the exact ball to 0.0005% of the radius, hard cube exact, no speckle.
+- **Mixed cube and wave: they do not meet.** On the mixed cube 9,130 of 21,468 blended corners have the two more than 2% of the mesh radius apart, and 1,317 more are over a quarter radius apart. The blend gives one answer there, but it is an average of two different shapes.
+- **It wobbles** (seen by the owner while orbiting the mixed cube). The knives turn with the camera, so the middle of a quad is rebuilt differently in every view.
 
-Two ways to read it, to be compared when built:
-- **From the marks:** in the quad's `u, v` square, join the row ellipse's two marks with a line and the column ellipse's two marks with another; the corner is where the lines cross. Example 15 did this: exact on flat faces (3.0e-8).
-- **Along the ellipses:** each ellipse blends its two marks' `u, v` by how far along it the corner is. Example 16 did this with one ellipse at a time.
+**Why.** An ellipse inside a knife knows how the surface faces at its two marks. It does not know how the surface bends between them. On a ball and on a flat face every flat cut really is the ellipse its two end normals give. On other shapes, cuts taken in different directions describe different surfaces.
 
-Whether the checker stays put on curved faces when the camera moves is **not measured** for either.
+**This is the open problem of the method:** the middle of a quad has to be one shape that does not depend on where the camera is, still made only of ellipses from handles, and still with a formula for a pixel corner.
+
+## C7. The quad's own u, v — built two ways, neither settled
+
+Every mark has an exact `u, v` on the quad's border (C3).
+- **From the marks** (example 15): in the quad's `u, v` square, join the row marks with a line and the column marks with another; the corner is where the lines cross. Exact on flat faces.
+- **Along the ellipses, blended** (example 17): each ellipse blends its two marks' `u, v` by how far along it the corner is, and the two are blended with the weights of C6. One answer per corner, no speckle.
+
+Both move with the camera on curved faces, because the knives do.
 
 ## C8. The walk — owner, not built
 
@@ -511,19 +519,19 @@ Verdict: the marks are **kept** (C3); going straight between them is **dropped**
 - **Row and column ellipses with a gap:** the corner never comes from only one of them. The combining rule is to be proposed.
 - **Occlusion:** the real system needs the XYZ of each pixel corner on the surface; not now. For now, cull back faces.
 
-## Open questions for the owner
+## Found by testing (log steps 21 and 23)
 
-1. An ellipse has one free number left after its two points and two directions. When the two handle lengths on an edge disagree, what sets it?
-2. How the row ellipse and the column ellipse are combined (proposal pending).
-3. How bevel strips meet at a corner where several sharp edges come together.
+- Ellipses built inside knives from inherited normals are exact on a ball and on flat faces.
+- On other shapes the row ellipse and the column ellipse do not meet (more than 2% of the radius apart over large areas of the mixed cube), and the picture wobbles when the camera turns (owner, orbiting example 17).
 
-## Not done yet, in order
+## Open, in order
 
-1. Build C6 and C7: the corner where the two ellipses meet, with one `u, v`. Measure the gap between the two ellipses on the mixed cube and the wave.
-2. Check over 12 or more camera angles, counting seam and outline pixels, and whether the checker stays put when the camera moves.
-3. Handle length.
-4. The walk exactly as in Part A (C8), then exact coverage of partly covered pixels (C9).
-5. float32, then native cost against the 500-cycle budget.
+1. **The middle of a quad as one shape that does not move with the camera**, made only of ellipses from handles, with a formula for a pixel corner. Everything else waits on this.
+2. Handle length. One ellipse has one free number after its two points and two directions; if two lengths ever ask for more, split in two like an S (assistant's suggestion, not confirmed).
+3. The bevel for sharp edges (owner: like a standard quad bevel, one value for how far it spreads inwards), and how bevel strips meet at a corner.
+4. The walk exactly as in Part A (C8), exact coverage of partly covered pixels (C9).
+5. More camera angles, float32, native cost against the 500-cycle budget.
+6. The hole in one wave quad in example 17 (cause not found).
 
 ## Glossary
 

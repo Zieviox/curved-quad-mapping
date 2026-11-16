@@ -914,7 +914,7 @@ Agreed with the owner: a pixel corner is where the row knife's ellipse and the c
 
 **What this says.** An ellipse built in a knife knows how the surface faces at its two marks, but not how the surface bends between them. On a ball and on a flat face every flat cut really is the ellipse its two end normals give, so rows and columns agree. On other shapes the row cuts and the column cuts describe different surfaces.
 
-**Not measured:** whether the blended shape and its `u, v` stay put when the camera moves (the knives turn with the camera).
+**Seen by the owner, orbiting the mixed cube: it wobbles.** The knives turn with the camera, so the middle of a quad is rebuilt differently in every view. This is now the open problem of the method: the middle has to be one shape that does not depend on the camera.
 
 ## Prior art
 
